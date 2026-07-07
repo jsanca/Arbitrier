@@ -131,3 +131,33 @@ Only three final states: `CONFIRMED`, `PARTIALLY_CONFIRMED`, `CANCELLED`. The wa
 - Every saga log line must carry `sagaId`, `orderId`, `traceId`.
 - Logs at: controller, application service, repository, Kafka adapter layers.
 - OpenTelemetry traces + metrics for important transitions.
+
+## Native Image Compatibility (cross-cutting constraint — ADR-0007)
+
+Arbitrier supports two runtime modes: **JVM** (development/CI) and **Native Image** (GraalVM, deployment). Native Image is a first-class variant — future implementation must not break it.
+
+**Do not introduce the following without a registered `RuntimeHintsRegistrar` or equivalent native hint:**
+
+- `Class.forName()`, `Method.invoke()`, or any unrestricted reflection
+- JDK dynamic proxies unless the interface list is registered via `RuntimeHints.proxies()`
+- CGLIB proxies in `domain/` or `application/` layers
+- Runtime classpath scanning beyond Spring AOT-processed component scan
+- `Class.forName()` in Kafka/Avro serializers
+
+**When adding a new `@Entity`, Avro-generated class, or Kafka message type:**
+
+- Register it for reflection in the relevant module's `RuntimeHintsRegistrar`.
+- Register associated resource files (Flyway scripts, `.avsc` schemas) as native resources.
+
+**Observability in native mode:**
+
+- Use OpenTelemetry SDK mode only — no Java agent.
+- Use OTLP HTTP exporter (not gRPC, which may not compile natively).
+
+**If a library is incompatible:**
+
+- Mark as `OPEN QUESTION` in the task's implementation note.
+- Exclude the module from native build targets via Maven profile.
+- Do not silently fall back to JVM mode.
+
+Reference: `docs/adr/ADR-0007-spring-aot-graalvm-native-image.md` · `docs/rnf/RNF-0002-native-image-runtime.md`

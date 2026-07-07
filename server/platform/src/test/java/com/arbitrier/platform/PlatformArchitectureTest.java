@@ -2,6 +2,7 @@ package com.arbitrier.platform;
 
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
+import com.tngtech.archunit.lang.syntax.ArchRuleDefinition;
 import org.junit.jupiter.api.Test;
 
 class PlatformArchitectureTest {
@@ -12,13 +13,12 @@ class PlatformArchitectureTest {
 
     @Test
     void platform_must_not_reference_business_domain_packages() {
-        // Activate once platform and service classes exist:
-        // noClasses().that().resideInAPackage("com.arbitrier.platform..")
-        //     .should().dependOnClassesThat().resideInAnyPackage(
-        //         "com.arbitrier.order..",
-        //         "com.arbitrier.inventory..",
-        //         "com.arbitrier.credit..",
-        //         "com.arbitrier.orchestrator..")
-        //     .check(classes);
+        ArchRuleDefinition.noClasses().that().resideInAPackage("com.arbitrier.platform..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "com.arbitrier.order..",
+                        "com.arbitrier.inventory..",
+                        "com.arbitrier.credit..",
+                        "com.arbitrier.orchestrator..")
+                .check(classes);
     }
 }

@@ -2,26 +2,61 @@
 
 Cross-cutting library jar shared by all server-side services.
 
-## Responsibility
-
-This module is **not a deployable service**. It is a dependency of every `*-service` module.
-
-Contents:
-
-| Package                               | Purpose                                                   |
-|---------------------------------------|-----------------------------------------------------------|
-| `com.arbitrier.platform.security`     | Keycloak JWT filter chain configuration                   |
-| `com.arbitrier.platform.observability`| OpenTelemetry setup, MDC helpers (sagaId, orderId, traceId injection) |
-| `com.arbitrier.platform.exception`    | Shared exception hierarchy (`ArbitrierException`, `DomainException`, etc.) |
-| `com.arbitrier.platform.validation`   | Common validation utilities                               |
-| `com.arbitrier.platform.web`          | Standard error response DTOs, pagination wrappers         |
-
 ## Rules
 
-- **No business logic.** Platform must not know about orders, credit, or inventory.
+- **No business domain knowledge.** Platform must not reference orders, credit, inventory, or sagas by name.
+- **No infrastructure implementations.** No JPA, Kafka, Spring Security, or database code yet.
 - **No circular dependencies.** Services depend on platform; platform depends on nothing within this repo.
-- **Backward compatibility.** Breaking changes to platform require bumping the minor version and announcing in the PR.
+- **Pure Java where possible.** Avoid Spring annotations unless the abstraction genuinely requires a Spring contract.
+
+## Packages (ARB-004)
+
+| Package | Contents |
+|---------|---------|
+| `correlation` | `CorrelationId`, `CausationId`, `MessageId`, `RequestId` — typed UUID wrappers for message lineage |
+| `time` | `TimeProvider` interface, `SystemClock` singleton, `FixedTimeProvider` for tests |
+| `result` | `Result<T>` sealed type — `Success` and `Failure` for expressing expected error paths |
+| `error` | `ProblemCode` interface, `PlatformProblemCode` enum, `ApplicationProblem` exception |
+| `idempotency` | `IdempotencyKey`, `IdempotencyStatus`, `IdempotencyRecord`, `IdempotencyStore` port interface |
+| `logging` | `SafeLoggable`, `SafeRenderable` interfaces; `StructuredLogFields` MDC key constants |
+| `observability` | `ObservationNames` and `AttributeNames` constants for spans and telemetry attributes |
+| `validation` | `Require` precondition helpers (null, blank, empty, boolean) |
+| `test` | `TestIds` factory, `FixedClock` wrapper, `PlatformAssertions` — in main sources for use by service tests |
+
+## Packages Reserved for Future Tasks
+
+| Package | When |
+|---------|------|
+| `security` | Keycloak JWT integration phase |
+| `kafka` | Avro contracts + Kafka wiring phase |
+| `exception` | If a shared exception hierarchy beyond `ApplicationProblem` is needed |
+
+## Internal Dependency Graph
+
+```
+error        ← (nothing)
+validation   ← (nothing)
+time         ← (nothing)
+logging      ← (nothing)
+observability← (nothing)
+correlation  ← validation
+idempotency  ← validation
+result       ← error
+test         ← correlation, idempotency, time, result, error
+```
+
+No cycles. The `test` package may depend on all others since it exists to support them.
+
+## Build
+
+```bash
+# From repo root — compile and run platform unit tests
+mvn -B test --no-transfer-progress -pl server/platform
+
+# Single test class
+mvn -B test --no-transfer-progress -pl server/platform -Dtest=ResultTest
+```
 
 ## Status
 
-`ARB-001` — Structure placeholder. No implementation yet.
+`ARB-004` — Platform foundation implemented. No infrastructure adapters. No business domain classes.

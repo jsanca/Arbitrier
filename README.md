@@ -64,6 +64,7 @@ arbitrier/
 |------------------|-------------------------------------|
 | Language         | Java 25                             |
 | Framework        | Spring Boot 4.1.0                   |
+| Runtime modes    | JVM (development) · Native Image (GraalVM, deployment) |
 | Database         | PostgreSQL                          |
 | Messaging        | Apache Kafka + Avro (Schema Registry) |
 | Identity         | Keycloak (OIDC / OAuth 2.0)         |
@@ -77,7 +78,8 @@ arbitrier/
 | IaC              | Terraform                           |
 | CI/CD            | GitHub Actions                      |
 
-See [`docs/rnf/RNF-0001-technical-baseline.md`](docs/rnf/RNF-0001-technical-baseline.md) for full non-functional requirements.
+See [`docs/rnf/RNF-0001-technical-baseline.md`](docs/rnf/RNF-0001-technical-baseline.md) for full non-functional requirements.  
+See [`docs/adr/ADR-0007-spring-aot-graalvm-native-image.md`](docs/adr/ADR-0007-spring-aot-graalvm-native-image.md) for the Native Image decision and constraints.
 
 ---
 
@@ -149,4 +151,4 @@ docker compose -f infra/docker/docker-compose.yml up -d
 
 ## Status
 
-`ARB-001` — Repository layout complete. Business logic not yet implemented.
+`ARB-004B` — Platform foundation complete. Native Image documented as a supported runtime variant (ADR-0007). Business logic not yet implemented.

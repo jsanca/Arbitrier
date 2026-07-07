@@ -44,6 +44,7 @@ Build a production-grade B2B saga orchestration platform that makes corporate bu
 | ADR-0004 | Avro Contracts and Schema Registry | Accepted |
 | ADR-0005 | Outbox, Inbox, and Idempotency | Accepted |
 | ADR-0006 | SSE vs WebSocket for Saga Dashboard | Proposed |
+| ADR-0007 | Spring AOT / GraalVM Native Image | Accepted |
 
 See [`docs/adr/`](../adr/) for the full list.
 
@@ -54,7 +55,8 @@ See [`docs/adr/`](../adr/) for the full list.
 | RNF    | Title                    | Status   |
 |--------|--------------------------|----------|
 | RNF-0001 | Technical Baseline     | Accepted |
-| RNF-UC-01 | Saga Runtime          | Draft |
+| RNF-0002 | Native Image Runtime   | Draft    |
+| RNF-UC-01 | Saga Runtime          | Draft    |
 
 See [`docs/rnf/`](../rnf/) for the full list.
 

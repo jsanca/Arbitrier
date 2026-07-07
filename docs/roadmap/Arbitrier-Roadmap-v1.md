@@ -15,6 +15,9 @@ Architecture Skeleton
 ARB-004  [DONE]
 Platform Foundation
 
+ARB-004B [DONE]
+Native Image / Spring AOT Technical Variant
+
 ARB-004 [PLANNED]
 Domain Model
 

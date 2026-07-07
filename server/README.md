@@ -68,6 +68,15 @@ mvn -B test -pl server/order-service -Dtest=ArchitectureTest
 | `credit-service` | `credit-service` | B2B credit limit validation |
 | `orchestrator-service` | `orchestrator-service` | Saga coordinator; UC-01 state machine |
 
+## Runtime Modes
+
+| Mode | Usage | Build |
+|------|-------|-------|
+| JVM | Local development, CI, integration tests | `mvn verify` |
+| Native Image (GraalVM) | Performance experiments, production deployment candidates | Deferred — native build activation task pending |
+
+Native Image is a supported variant. All new `@Entity`, Avro-generated class, and Kafka message type additions must register native hints. See `docs/adr/ADR-0007-spring-aot-graalvm-native-image.md`.
+
 ## Status
 
-`ARB-003` — Architecture skeleton complete. No business logic. No domain models. No JPA entities. No Kafka consumers/producers.
+`ARB-004B` — Platform foundation and Native Image variant documented. No business logic. No domain models. No JPA entities. No Kafka consumers/producers.

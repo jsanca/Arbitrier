@@ -212,3 +212,16 @@ ADR-0002 Orchestrated Saga with Kafka · ADR-0003 Schema per Service in PostgreS
 - No new final UC-01 states without updating the docs first.
 - No bypassing Kafka/Avro decisions without an ADR.
 - `platform` must have no business domain knowledge (no order/credit/inventory types).
+
+## Native Image Compatibility (cross-cutting constraint — ADR-0007)
+
+Native Image is a supported runtime variant. All future backend implementation must:
+
+- Avoid unrestricted `Class.forName()`, dynamic proxy creation, or runtime classpath scanning without registering a `RuntimeHintsRegistrar` or equivalent native hint.
+- Register all `@Entity` classes, Avro-generated classes, and Kafka message types for reflection at the time they are introduced.
+- Register all runtime-read resources (`application.yml`, Flyway scripts, `.avsc` files) as native resources.
+- Use OpenTelemetry SDK mode only (no Java agent) — the OTLP HTTP exporter must be used.
+- Not add `native-maven-plugin` or GraalVM build configuration without a dedicated task.
+- Document unresolved native incompatibilities as `OPEN QUESTION` in the implementation note.
+
+See `docs/adr/ADR-0007-spring-aot-graalvm-native-image.md` and `docs/rnf/RNF-0002-native-image-runtime.md`.
