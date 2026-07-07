@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.arbitrier</groupId>
+        <artifactId>arbitrier</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>arbitrier-server</artifactId>
+    <packaging>pom</packaging>
+    <name>Arbitrier :: Server</name>
+
+    <!-- Build order: platform and contracts have no internal deps, services depend on both -->
+    <modules>
+        <module>platform</module>
+        <module>contracts</module>
+        <module>order-service</module>
+        <module>inventory-service</module>
+        <module>credit-service</module>
+        <module>orchestrator-service</module>
+    </modules>
+</project>
