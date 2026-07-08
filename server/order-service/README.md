@@ -48,6 +48,23 @@ com.arbitrier.order/
 - PostgreSQL (schema: `order_service`)
 - Kafka topic: `order.placed.v1`
 
+## Domain Model (ARB-005)
+
+Pure-Java, zero-framework types in `com.arbitrier.order.domain.model`:
+
+| Type | Kind |
+|------|------|
+| `UserId` | record — authenticated user identifier |
+| `CustomerId` | record — corporate buyer identifier |
+| `OrderId` | record — unique order identifier |
+| `Sku` | record — stock-keeping unit code |
+| `Quantity` | record — positive integer line quantity |
+| `Money` | record — non-negative amount with ISO-4217 currency |
+| `OrderLine` | record — SKU + Quantity pair |
+| `OrderStatus` | enum — PENDING, AWAITING_CUSTOMER_DECISION, CONFIRMED, PARTIALLY_CONFIRMED, CANCELLED |
+| `CancellationReason` | enum — CUSTOMER_CANCELLED, CUSTOMER_DEFERRED, INSUFFICIENT_CREDIT, SYSTEM_TIMEOUT |
+| `Order` | final class — aggregate root with immutable lifecycle transitions |
+
 ## Status
 
-`ARB-001` — Structure placeholder. No business logic implemented.
+`ARB-005` — Domain model v1 implemented. No application or adapter layers yet.

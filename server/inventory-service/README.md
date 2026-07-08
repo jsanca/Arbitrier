@@ -50,6 +50,18 @@ com.arbitrier.inventory/
 - PostgreSQL (schema: `inventory_service`)
 - Kafka topics: `inventory.reservation.requested.v1`, `inventory.reserved.v1`, `inventory.reservation.failed.v1`
 
+## Domain Model (ARB-005)
+
+Pure-Java, zero-framework types in `com.arbitrier.inventory.domain.model`:
+
+| Type | Kind |
+|------|------|
+| `StockReservationId` | record — unique reservation identifier |
+| `WarehouseId` | record — warehouse identifier |
+| `StockReservationStatus` | enum — RESERVED, PARTIALLY_RESERVED, REJECTED, RELEASED |
+| `StockReservationLine` | record — per-SKU outcome (requested vs reserved quantity) |
+| `StockReservation` | final class — aggregate root; idempotent `release()` |
+
 ## Status
 
-`ARB-001` — Structure placeholder. No business logic implemented.
+`ARB-005` — Domain model v1 implemented. No application or adapter layers yet.

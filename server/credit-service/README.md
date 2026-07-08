@@ -50,6 +50,17 @@ com.arbitrier.credit/
 - PostgreSQL (schema: `credit_service`)
 - Kafka topics: `credit.reservation.requested.v1`, `credit.reserved.v1`, `credit.reservation.denied.v1`
 
+## Domain Model (ARB-005)
+
+Pure-Java, zero-framework types in `com.arbitrier.credit.domain.model`:
+
+| Type | Kind |
+|------|------|
+| `CreditReservationId` | record — unique reservation identifier |
+| `Money` | record — non-negative amount with ISO-4217 currency (bounded-context copy) |
+| `CreditReservationStatus` | enum — APPROVED, REJECTED, RELEASED |
+| `CreditReservation` | final class — aggregate root; `release()` idempotent; invalid on REJECTED |
+
 ## Status
 
-`ARB-001` — Structure placeholder. No business logic implemented.
+`ARB-005` — Domain model v1 implemented. No application or adapter layers yet.

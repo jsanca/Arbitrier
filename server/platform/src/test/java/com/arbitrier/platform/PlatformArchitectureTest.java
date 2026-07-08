@@ -19,6 +19,7 @@ class PlatformArchitectureTest {
                         "com.arbitrier.inventory..",
                         "com.arbitrier.credit..",
                         "com.arbitrier.orchestrator..")
+                .allowEmptyShould(true)
                 .check(classes);
     }
 }

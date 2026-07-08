@@ -11,7 +11,7 @@ import java.util.Objects;
  * <p>This is an unchecked exception — callers choose whether to catch it.
  * Use {@link com.arbitrier.platform.result.Result} for expected failure paths.
  */
-public final class ApplicationProblem extends RuntimeException {
+public final class ApplicationProblemException extends RuntimeException {
 
     private final ProblemCode code;
 
@@ -21,7 +21,7 @@ public final class ApplicationProblem extends RuntimeException {
      * @param code    the typed problem code; must not be null
      * @param message human-readable description; must not be null
      */
-    public ApplicationProblem(ProblemCode code, String message) {
+    public ApplicationProblemException(ProblemCode code, String message) {
         super(message);
         this.code = Objects.requireNonNull(code, "code must not be null");
     }
@@ -33,7 +33,7 @@ public final class ApplicationProblem extends RuntimeException {
      * @param message human-readable description; must not be null
      * @param cause   the upstream exception
      */
-    public ApplicationProblem(ProblemCode code, String message, Throwable cause) {
+    public ApplicationProblemException(ProblemCode code, String message, Throwable cause) {
         super(message, cause);
         this.code = Objects.requireNonNull(code, "code must not be null");
     }

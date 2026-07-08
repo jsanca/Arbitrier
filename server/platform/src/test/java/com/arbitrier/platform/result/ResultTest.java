@@ -1,6 +1,6 @@
 package com.arbitrier.platform.result;
 
-import com.arbitrier.platform.error.ApplicationProblem;
+import com.arbitrier.platform.error.ApplicationProblemException;
 import com.arbitrier.platform.error.PlatformProblemCode;
 import org.junit.jupiter.api.Test;
 
@@ -41,7 +41,7 @@ class ResultTest {
     void failure_value_or_throw_throws_application_problem() {
         Result<String> result = Result.failure(PlatformProblemCode.INVALID_STATE, "bad state");
 
-        assertThatExceptionOfType(ApplicationProblem.class)
+        assertThatExceptionOfType(ApplicationProblemException.class)
                 .isThrownBy(result::valueOrThrow)
                 .withMessage("bad state");
     }

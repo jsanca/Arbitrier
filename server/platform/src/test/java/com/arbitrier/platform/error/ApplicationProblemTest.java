@@ -9,8 +9,8 @@ class ApplicationProblemTest {
 
     @Test
     void carries_code_and_message() {
-        ApplicationProblem problem =
-                new ApplicationProblem(PlatformProblemCode.NULL_ARGUMENT, "field was null");
+        ApplicationProblemException problem =
+                new ApplicationProblemException(PlatformProblemCode.NULL_ARGUMENT, "field was null");
 
         assertThat(problem.code()).isEqualTo(PlatformProblemCode.NULL_ARGUMENT);
         assertThat(problem.getMessage()).isEqualTo("field was null");
@@ -19,8 +19,8 @@ class ApplicationProblemTest {
     @Test
     void carries_cause() {
         RuntimeException cause = new RuntimeException("original");
-        ApplicationProblem problem =
-                new ApplicationProblem(PlatformProblemCode.INVALID_STATE, "bad state", cause);
+        ApplicationProblemException problem =
+                new ApplicationProblemException(PlatformProblemCode.INVALID_STATE, "bad state", cause);
 
         assertThat(problem.getCause()).isSameAs(cause);
     }
@@ -28,7 +28,7 @@ class ApplicationProblemTest {
     @Test
     void rejects_null_code() {
         assertThatNullPointerException()
-                .isThrownBy(() -> new ApplicationProblem(null, "msg"));
+                .isThrownBy(() -> new ApplicationProblemException(null, "msg"));
     }
 
     @Test

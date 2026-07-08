@@ -1,6 +1,6 @@
 package com.arbitrier.platform.result;
 
-import com.arbitrier.platform.error.ApplicationProblem;
+import com.arbitrier.platform.error.ApplicationProblemException;
 import com.arbitrier.platform.error.ProblemCode;
 
 import java.util.Objects;
@@ -10,7 +10,7 @@ import java.util.function.Function;
  * Represents the outcome of an operation as either a {@link Success} or a {@link Failure}.
  *
  * <p>Use {@code Result} to express expected failure paths in application use cases without
- * throwing exceptions. Throw {@link ApplicationProblem} only for programming-contract
+ * throwing exceptions. Throw {@link ApplicationProblemException} only for programming-contract
  * violations or truly unexpected failures.
  *
  * <p>Example:
@@ -94,16 +94,16 @@ public sealed interface Result<T> permits Result.Success, Result.Failure {
     // ── Extraction ────────────────────────────────────────────────────────────
 
     /**
-     * Returns the success value or throws {@link ApplicationProblem} if this is a failure.
+     * Returns the success value or throws {@link ApplicationProblemException} if this is a failure.
      *
      * @return the success value
-     * @throws ApplicationProblem if this is a {@link Failure}
+     * @throws ApplicationProblemException if this is a {@link Failure}
      */
     @SuppressWarnings("unchecked")
     default T valueOrThrow() {
         return switch (this) {
             case Success<?> s -> (T) s.value();
-            case Failure<?> f -> throw new ApplicationProblem(f.code(), f.message());
+            case Failure<?> f -> throw new ApplicationProblemException(f.code(), f.message());
         };
     }
 

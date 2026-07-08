@@ -66,6 +66,19 @@ com.arbitrier.orchestrator/
 - PostgreSQL (schema: `orchestrator_service`)
 - Kafka: consumes from order, credit, inventory topics; produces command events
 
+## Domain Model (ARB-005)
+
+Pure-Java, zero-framework types in `com.arbitrier.orchestrator.domain.model`:
+
+| Type | Kind |
+|------|------|
+| `SagaId` | record — unique saga instance identifier |
+| `SagaStatus` | enum — STARTED, AWAITING_CUSTOMER_DECISION, COMPLETED, CANCELLED, FAILED_COMPENSATION |
+| `SagaStep` | enum — RESERVE_INVENTORY, VALIDATE_CREDIT, AWAIT_CUSTOMER_DECISION, COMPLETE_ORDER, COMPENSATE_INVENTORY, COMPENSATE_CREDIT |
+| `CustomerDecision` | enum — ACCEPT_PARTIAL, WAIT_BACKORDER, CANCEL_ORDER |
+| `CompensationAction` | enum — RELEASE_INVENTORY_RESERVATION, RELEASE_CREDIT_RESERVATION, NONE |
+| `Saga` | final class — aggregate root with immutable lifecycle transitions |
+
 ## Status
 
-`ARB-001` — Structure placeholder. No business logic implemented.
+`ARB-005` — Domain model v1 implemented. No application or adapter layers yet.

@@ -18,7 +18,7 @@ Platform Foundation
 ARB-004B [DONE]
 Native Image / Spring AOT Technical Variant
 
-ARB-004 [PLANNED]
+ARB-004 [DONE]
 Domain Model
 
 ARB-005 [PLANNED]
