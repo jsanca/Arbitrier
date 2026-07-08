@@ -184,7 +184,8 @@ ADR-0002 Orchestrated Saga with Kafka · ADR-0003 Schema per Service in PostgreS
 - `KafkaTemplate` for Kafka publishing when contracts exist.
 - Resilience4j for retries, timeouts, and circuit breakers.
 - SLF4J structured logs — every saga log line must include `sagaId`, `orderId`, `traceId`.
-- OpenTelemetry for distributed traces.
+- OpenTelemetry SDK (no Java agent) — W3C Trace Context (`traceparent`/`tracestate`) is the only propagation standard (ADR-0008). Never introduce B3 headers (`X-B3-TraceId` etc.) as a first-class platform convention.
+- `X-Correlation-Id` is a business-level identifier, distinct from `traceparent`. `CorrelationFilter` must not read or generate `traceparent`.
 - Every public API has Javadocs.
 
 ## Frontend Style

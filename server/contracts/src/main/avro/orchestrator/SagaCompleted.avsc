@@ -1,0 +1,11 @@
+{
+  "type": "record",
+  "name": "SagaCompleted",
+  "namespace": "com.arbitrier.contracts.orchestrator",
+  "doc": "Emitted when the UC-01 saga reaches the COMPLETED terminal state.",
+  "fields": [
+    {"name": "metadata", "type": "com.arbitrier.contracts.common.MessageMetadata"},
+    {"name": "orderId",  "type": "string"},
+    {"name": "sagaId",   "type": "string"}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "OrderConfirmed",
+  "namespace": "com.arbitrier.contracts.order",
+  "doc": "Emitted when all lines are fully reserved and credit is approved.",
+  "fields": [
+    {"name": "metadata",       "type": "com.arbitrier.contracts.common.MessageMetadata"},
+    {"name": "orderId",        "type": "string"},
+    {"name": "customerId",     "type": "string"},
+    {"name": "confirmedTotal", "type": "com.arbitrier.contracts.common.MoneyAmount"}
+  ]
+}

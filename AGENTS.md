@@ -2,162 +2,67 @@
 
 ## Project Status
 
-**ARB-003 — Architecture skeleton.** No business logic, no JPA entities, no Kafka consumers/producers. All service `pom.xml` files have JPA and Kafka starters **commented out** (activate when adding the first entity/`.avsc`). Avro codegen plugin is commented out in `contracts/pom.xml`.
-
-## First Reads
-
-- `docs/okf/index.md` — top-level navigation into all docs
-- `README.md` — repo layout, tech stack, hexagonal structure
-- `server/README.md` — module relationships, build order
+**ARB-004B** — Domain logic scaffolded, Avro contracts active, platform library complete. No JPA entities, no Kafka consumers/producers, no REST controllers, no client UI yet.
 
 ## Build & Test
 
 ```bash
-# All server modules (from repo root)
-mvn -B verify --no-transfer-progress
+mvn -B verify --no-transfer-progress                                        # all server modules
+mvn -B verify --no-transfer-progress -pl server/order-service               # single module
+mvn -B test -pl server/order-service -Dtest=DomainTest                      # single class
+mvn -B test -pl server/order-service -Dtest=DomainTest#testMethod           # single method
+mvn -B generate-sources --no-transfer-progress -pl server/contracts         # regenerate Avro types
 
-# Single module
-mvn -B verify --no-transfer-progress -pl server/order-service
-
-# Single test class or method
-mvn -B test -pl server/order-service -Dtest=ArchitectureTest
-mvn -B test -pl server/order-service -Dtest=ArchitectureTest#domain_must_not_depend_on_adapter
-
-# Client (once scaffolded — currently only README.md)
-cd client && npm ci && npm run build && npm test
-
-# Local infra (Kafka, PostgreSQL, Keycloak, Schema Registry)
-docker compose -f infra/docker/docker-compose.yml up -d
+docker compose -f infra/docker/docker-compose.yml up -d                     # Kafka, Postgres, Keycloak, Schema Registry
 docker compose -f infra/docker/docker-compose.yml down -v
-
-# E2E (Playwright, against running stack)
-cd client && npx playwright test
 ```
 
-## Module Build Order
+CI runs `mvn -B verify --no-transfer-progress` on push/PR to `main`.
+
+## Module Build Order (Maven, enforced by `server/pom.xml`)
 
 ```
-root pom → server (aggregator)
-  → platform (library jar, no Spring Boot plugin)
-  → contracts (library jar, Avro codegen commented out)
-  → order-service | inventory-service | credit-service | orchestrator-service
+platform (library) → contracts (library) → order-service | inventory-service | credit-service | orchestrator-service
 ```
 
-Each service depends on `platform` + `contracts`. Maven respects the declared module order.
+Each service depends on `platform` + `contracts`. `platform` must not import business-domain types (`com.arbitrier.order.*`, `.inventory.*`, `.credit.*`, `.orchestrator.*`).
 
-## Hexagonal Architecture — Every Server Service
+## Current State (what is real vs what is still scaffold)
 
-```
-com.arbitrier.<service>/
-  adapter/inbound/rest/       Spring MVC controllers
-  adapter/inbound/kafka/      Kafka consumers
-  adapter/outbound/persistence/  JPA repositories
-  adapter/outbound/kafka/     Kafka producers
-  application/port/inbound/   Use-case interfaces
-  application/port/outbound/  Repository/messaging interfaces
-  application/service/        Use-case implementations
-  domain/model/               Entities, VOs — zero Spring/JPA imports
-  domain/event/               Domain events
-  domain/command/             Commands
-  domain/exception/           Domain exceptions
-  config/                     Spring @Configuration
-  observability/              MDC helpers, OpenTelemetry spans
-```
+| Artifact | Status |
+|----------|--------|
+| Domain models (Order, StockReservation, CreditReservation) | **Active** — state machines with guards, factory methods |
+| Domain tests (OrderTest, StockReservationTest, CreditReservationTest, SagaTest) | **Active** — JUnit 5 + AssertJ |
+| ArchUnit tests per service | **Active** — domain→adapter, application→adapter, domain→Spring/JPA rules |
+| Platform library (Require, Result, Idempotency, Correlation, etc.) | **Active** — 50+ classes, fully tested |
+| Avro codegen in contracts/pom.xml | **Active** — 26 `.avsc` schemas, generates on `compile` |
+| ContractsSchemaTest | **Active** — 30+ test methods validating all 26 schemas |
+| `package-info.java` | **70 files** — every package has one |
+| Context-load integration tests (4 services) | **Active** — `@SpringBootTest`, no Testcontainers yet |
+| JPA + PostgreSQL dependencies (all service POMs) | **Commented out** — uncomment when adding first `@Entity` |
+| Kafka + `spring-kafka` dependencies (all service POMs) | **Commented out** — uncomment when adding first Avro producer/consumer |
+| REST controllers | **Not present** — adapter directories exist as package-info stubs |
+| Client (`client/`) | **README only** — no scaffold |
+| E2E tests | **Placeholder** — CI echoes a TODO |
 
-**Dependency rule:** `adapter → application → domain`. Domain must have zero Spring/JPA/Kafka imports. Verified by ArchUnit tests (currently commented no-ops in `unit/ArchitectureTest.java` per service).
+## Key Pitfalls
 
-## `package-info.java` — Required in Every Package
+- **Domain model discovery**: `Order.java` uses **immutable objects** (new instance per transition). Do not add setters or mutate state.
+- **Avro imports**: All `.avsc` schemas listed in `contracts/pom.xml` `<imports>` block must be registered when adding a new schema that references common types.
+- **No `@Entity` yet**: If you add one, also add JPA deps to `pom.xml` and register a `RuntimeHintsRegistrar` for GraalVM.
+- **Resilience4j** is the chosen resilience library — don't add Hystrix or Spring Retry.
+- **OpenCode config**: No repo-local `opencode.json`. Configure via env or `~/.config/opencode/`. 16 skill files live in `.opencode/skills/`.
+- **CLAUDE.md** exists at repo root and mirrors much of this info for Claude Code users. Keep both in sync.
 
-```java
-/**
- * <One-sentence purpose.>
- *
- * <p>Layer: domain/model | application/port/inbound | adapter/inbound/rest | ...
- * <p>Module: <service-name>
- */
-package com.arbitrier.<service>.<layer>;
-```
+## Observability conventions (ARB-009 / ADR-0008)
 
-56 exist today across all modules. The ArchUnit test `PlatformArchitectureTest` enforces that `platform` has zero business-domain references.
+- **W3C Trace Context only** — `traceparent` / `tracestate` are the distributed tracing headers. Never add `X-B3-TraceId`, `X-B3-SpanId`, or `X-B3-Sampled` as a default platform header.
+- **`CorrelationFilter` scope** — reads/writes `X-Correlation-Id` and `X-Request-Id` only. It must not touch `traceparent` or `tracestate`.
+- **Header taxonomy**: `traceparent`/`tracestate` = OTel technical tracing · `X-Correlation-Id` = business operation identity · `X-Request-Id` = single HTTP request.
+- **MDC keys** — `correlationId` and `requestId` are populated by `CorrelationFilter` now. `traceId` and `spanId` will be auto-injected by the OTel MDC bridge when added. Never manually populate `traceId` from request headers.
 
-## Testing Conventions
+## Native Image (cross-cutting — ADR-0007)
 
-- **Unit:** JUnit 5 + Mockito in `src/test/java/.../unit/`
-- **Integration:** `@SpringBootTest` in `src/test/java/.../integration/` (currently only context-load tests)
-- **Contract:** `ContractsSchemaTest` placeholder for Avro compatibility
-- **E2E:** Playwright in `client/e2e/` (once scaffolded)
-- **Test docs:** `docs/test-cases/TC-UC-01-001-*.md` through `-012` map to UC-01 flows
-- ArchUnit tests exist per service but rules are commented no-ops — activate when domain classes are added
+GraalVM Native Image is a supported runtime. Before adding reflection, proxies, classpath scanning, or resource loading, register hints in a `RuntimeHintsRegistrar`. Use OTel SDK mode (no agent), OTLP HTTP exporter (not gRPC). Document unresolvable incompatibilities as `OPEN QUESTION`.
 
-## Naming Conventions
-
-| Artifact | Pattern |
-|----------|---------|
-| Input port | `<Action><Subject>UseCase` (interface) |
-| Output port | `<Subject>Repository`, `<Subject>Gateway` |
-| Service impl | `<Action><Subject>Service` |
-| REST adapter | `<Subject>RestAdapter` |
-| JPA adapter | `<Subject>JpaAdapter` |
-| Kafka consumer | `<Subject>KafkaConsumerAdapter` |
-| Kafka producer | `<Subject>KafkaProducerAdapter` |
-| Domain event | `<Subject><PastTense>Event` |
-| Avro schema file | `<subject>-<past-tense>-event-v<N>.avsc` |
-| Kafka topic | `<domain>.<event>.v<N>` (e.g. `order.placed.v1`) |
-
-## UC-01 Saga States
-
-```
-STARTED → reservation requested → fully reserved → CONFIRMED
-                                → partially reserved → AWAITING_CUSTOMER_DECISION
-                                    → accept → PARTIALLY_CONFIRMED
-                                    → reject/wait/cancel → CANCELLED
-                                    → system failure → CANCELLED
-```
-
-Only three final states: `CONFIRMED`, `PARTIALLY_CONFIRMED`, `CANCELLED`. The waiting state is `AWAITING_CUSTOMER_DECISION`. Documented in `docs/okf/seeds/UC-01-corporate-bulk-order.md`.
-
-## Documentation-First Rules
-
-- Read OKF, RF, RNF, ADR, and test-case docs **before** writing code.
-- If a rule, transition, SLA, topic name, role, or schema detail is absent, write `OPEN QUESTION`.
-- Do not silently resolve open questions in code.
-- Do not bypass Kafka/Avro contract decisions without an ADR.
-- Do not introduce hidden business logic in adapters.
-- `platform` must have no business-domain types (no order/inventory/credit/credit imports).
-- Update `docs/okf/index.md` when adding a new major document.
-
-## Logging & Observability
-
-- Every saga log line must carry `sagaId`, `orderId`, `traceId`.
-- Logs at: controller, application service, repository, Kafka adapter layers.
-- OpenTelemetry traces + metrics for important transitions.
-
-## Native Image Compatibility (cross-cutting constraint — ADR-0007)
-
-Arbitrier supports two runtime modes: **JVM** (development/CI) and **Native Image** (GraalVM, deployment). Native Image is a first-class variant — future implementation must not break it.
-
-**Do not introduce the following without a registered `RuntimeHintsRegistrar` or equivalent native hint:**
-
-- `Class.forName()`, `Method.invoke()`, or any unrestricted reflection
-- JDK dynamic proxies unless the interface list is registered via `RuntimeHints.proxies()`
-- CGLIB proxies in `domain/` or `application/` layers
-- Runtime classpath scanning beyond Spring AOT-processed component scan
-- `Class.forName()` in Kafka/Avro serializers
-
-**When adding a new `@Entity`, Avro-generated class, or Kafka message type:**
-
-- Register it for reflection in the relevant module's `RuntimeHintsRegistrar`.
-- Register associated resource files (Flyway scripts, `.avsc` schemas) as native resources.
-
-**Observability in native mode:**
-
-- Use OpenTelemetry SDK mode only — no Java agent.
-- Use OTLP HTTP exporter (not gRPC, which may not compile natively).
-
-**If a library is incompatible:**
-
-- Mark as `OPEN QUESTION` in the task's implementation note.
-- Exclude the module from native build targets via Maven profile.
-- Do not silently fall back to JVM mode.
-
-Reference: `docs/adr/ADR-0007-spring-aot-graalvm-native-image.md` · `docs/rnf/RNF-0002-native-image-runtime.md`
+See `docs/adr/ADR-0007-spring-aot-graalvm-native-image.md` · `docs/rnf/RNF-0002-native-image-runtime.md`.

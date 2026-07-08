@@ -1,0 +1,11 @@
+{
+  "type": "record",
+  "name": "StockReleased",
+  "namespace": "com.arbitrier.contracts.inventory",
+  "doc": "Emitted when a stock reservation is successfully released.",
+  "fields": [
+    {"name": "metadata",      "type": "com.arbitrier.contracts.common.MessageMetadata"},
+    {"name": "orderId",       "type": "string"},
+    {"name": "reservationId", "type": "string"}
+  ]
+}

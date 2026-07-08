@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "ReserveStockRequested",
+  "namespace": "com.arbitrier.contracts.inventory",
+  "doc": "Command sent by the orchestrator to request inventory reservation.",
+  "fields": [
+    {"name": "metadata",      "type": "com.arbitrier.contracts.common.MessageMetadata"},
+    {"name": "orderId",       "type": "string"},
+    {"name": "reservationId", "type": "string"},
+    {"name": "lines",         "type": {"type": "array", "items": "com.arbitrier.contracts.common.OrderLineContract"}}
+  ]
+}

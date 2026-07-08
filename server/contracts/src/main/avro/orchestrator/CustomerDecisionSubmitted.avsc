@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "CustomerDecisionSubmitted",
+  "namespace": "com.arbitrier.contracts.orchestrator",
+  "doc": "Emitted when the buyer submits a decision for a partial backorder.",
+  "fields": [
+    {"name": "metadata", "type": "com.arbitrier.contracts.common.MessageMetadata"},
+    {"name": "orderId",  "type": "string"},
+    {"name": "sagaId",   "type": "string"},
+    {"name": "decision", "type": "com.arbitrier.contracts.orchestrator.CustomerDecision"}
+  ]
+}

@@ -23,6 +23,53 @@ Cross-cutting library jar shared by all server-side services.
 | `validation` | `Require` precondition helpers (null, blank, empty, boolean) |
 | `test` | `TestIds` factory, `FixedClock` wrapper, `PlatformAssertions` — in main sources for use by service tests |
 
+## Spring Integration (ARB-008)
+
+| Package | Contents |
+|---------|---------|
+| `web` | `CorrelationHeaders`, `TraceContextHeaders` — header name constants; `CorrelationFilter` (MDC population/cleanup); `ProblemResponse` record; `PlatformExceptionHandler` (`@RestControllerAdvice`) |
+| `spring` | `PlatformAutoConfiguration` — `@AutoConfiguration` activated in servlet web applications; registers the correlation filter, exception handler, and a default `TimeProvider` bean |
+
+The auto-configuration is registered via
+`src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
+and is picked up automatically by any service module that depends on `spring-boot-starter-web`.
+
+## Observability Conventions (ARB-009)
+
+### Header taxonomy
+
+| Header | Owner | Purpose |
+|--------|-------|---------|
+| `traceparent` | OpenTelemetry SDK | W3C Trace Context — technical distributed tracing (ADR-0008) |
+| `tracestate` | OpenTelemetry SDK | W3C vendor-specific trace state; forwarded unchanged |
+| `X-Correlation-Id` | `CorrelationFilter` | Business-level operation identifier; propagated or generated |
+| `X-Request-Id` | `CorrelationFilter` | Per-HTTP-request identifier; always generated fresh |
+
+**Rule**: `CorrelationFilter` must never read, generate, or echo `traceparent`/`tracestate`. B3 headers (`X-B3-TraceId` etc.) are not a platform convention (ADR-0008).
+
+### MDC key population
+
+| MDC key (from `StructuredLogFields`) | Populated by | Status |
+|--------------------------------------|-------------|--------|
+| `correlationId` | `CorrelationFilter` | Active |
+| `requestId` | `CorrelationFilter` | Active |
+| `traceId` | OpenTelemetry MDC bridge | Deferred — auto-injected when `micrometer-tracing-bridge-otel` is on classpath |
+| `spanId` | OpenTelemetry MDC bridge | Deferred |
+| `sagaId`, `orderId` | Application/adapter code per service | Added at saga-step boundaries |
+| `messageId`, `causationId` | Kafka inbound adapters | Deferred to Kafka phase |
+
+### Actuator endpoints
+
+Services that depend on `spring-boot-starter-actuator` expose:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `/actuator/health` | Kubernetes liveness / readiness |
+| `/actuator/info` | Service metadata |
+| `/actuator/metrics` | Micrometer metrics (Prometheus scrape via `management.metrics.export.prometheus`) |
+
+Full Prometheus export configuration is deferred to the infrastructure wiring phase.
+
 ## Packages Reserved for Future Tasks
 
 | Package | When |
@@ -59,4 +106,4 @@ mvn -B test --no-transfer-progress -pl server/platform -Dtest=ResultTest
 
 ## Status
 
-`ARB-004` — Platform foundation implemented. No infrastructure adapters. No business domain classes.
+`ARB-009` — Observability conventions documented; W3C Trace Context header constants added; actuator exposure stable. OTel exporter wiring deferred.

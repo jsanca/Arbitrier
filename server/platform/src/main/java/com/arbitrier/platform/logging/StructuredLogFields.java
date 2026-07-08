@@ -6,8 +6,30 @@ package com.arbitrier.platform.logging;
  * <p>Use these constants as keys when calling {@code MDC.put()} in adapters and services
  * so that all Arbitrier services share a consistent log schema.
  *
+ * <h2>Population sources</h2>
+ * <table border="1">
+ *   <caption>Who populates each MDC key</caption>
+ *   <tr><th>Key</th><th>Populated by</th><th>When</th></tr>
+ *   <tr><td>{@link #CORRELATION_ID}</td><td>{@code CorrelationFilter} (platform/web)</td>
+ *       <td>Every HTTP request</td></tr>
+ *   <tr><td>{@link #REQUEST_ID}</td><td>{@code CorrelationFilter} (platform/web)</td>
+ *       <td>Every HTTP request</td></tr>
+ *   <tr><td>{@link #TRACE_ID}</td><td>OpenTelemetry MDC bridge (deferred)</td>
+ *       <td>Automatically injected when {@code micrometer-tracing-bridge-otel} is on the classpath</td></tr>
+ *   <tr><td>{@link #SPAN_ID}</td><td>OpenTelemetry MDC bridge (deferred)</td>
+ *       <td>Automatically injected when {@code micrometer-tracing-bridge-otel} is on the classpath</td></tr>
+ *   <tr><td>{@link #SAGA_ID}, {@link #ORDER_ID}</td><td>Application/adapter code (per service)</td>
+ *       <td>At saga-step boundaries</td></tr>
+ *   <tr><td>{@link #MESSAGE_ID}, {@link #CAUSATION_ID}</td><td>Kafka inbound adapters (deferred)</td>
+ *       <td>When processing a Kafka message</td></tr>
+ * </table>
+ *
  * <p>Every log line produced inside a saga step must include
  * {@link #SAGA_ID}, {@link #ORDER_ID}, and {@link #TRACE_ID}.
+ *
+ * <p>{@link #TRACE_ID} and {@link #SPAN_ID} reflect W3C Trace Context — they correspond
+ * to the {@code traceparent} header's trace-id and parent-id fields (ADR-0008). They are
+ * never populated from B3 headers.
  */
 public final class StructuredLogFields {
 

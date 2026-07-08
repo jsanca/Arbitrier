@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "OrderCancelled",
+  "namespace": "com.arbitrier.contracts.order",
+  "doc": "Emitted when an order reaches the CANCELLED terminal state.",
+  "fields": [
+    {"name": "metadata",           "type": "com.arbitrier.contracts.common.MessageMetadata"},
+    {"name": "orderId",            "type": "string"},
+    {"name": "customerId",         "type": "string"},
+    {"name": "cancellationReason", "type": "com.arbitrier.contracts.common.CancellationReason"}
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "StockReserved",
+  "namespace": "com.arbitrier.contracts.inventory",
+  "doc": "Emitted when all requested stock lines are fully reserved.",
+  "fields": [
+    {"name": "metadata",      "type": "com.arbitrier.contracts.common.MessageMetadata"},
+    {"name": "orderId",       "type": "string"},
+    {"name": "reservationId", "type": "string"},
+    {"name": "warehouseId",   "type": "string"},
+    {"name": "reservedLines", "type": {"type": "array", "items": "com.arbitrier.contracts.common.OrderLineContract"}}
+  ]
+}

@@ -52,10 +52,14 @@ Given an authenticated corporate buyer with valid SKU lines, when the buyer subm
 
 ## Test Evidence Placeholder
 
-- Automated evidence pending implementation.
+Unit tests implemented in ARB-007:
+- `SubmitCorporateBulkOrderServiceTest` — 10 tests covering happy path, repository/publisher calls, and command validation.
+- Tests run without Docker, Kafka, Postgres, Keycloak, or Schema Registry.
+- Integration test (REST + Spring context) pending Keycloak integration.
 
 ## Open Questions
 
-- OPEN QUESTION: Exact order submission endpoint and payload.
-- OPEN QUESTION: Exact `OrderCreated` Avro schema.
-- OPEN QUESTION: Exact idempotency key source for order submission.
+- OPEN QUESTION: Exact request/response payload not yet stabilized (endpoint `POST /api/orders` is live but subject to API design review).
+- OPEN QUESTION: Exact `OrderCreated` Avro schema (contract exists in ARB-006 but Kafka adapter not yet wired).
+- OPEN QUESTION: Idempotency key source for order submission (see TC-UC-01-011).
+- OPEN QUESTION: correlationId propagation from HTTP header to command.

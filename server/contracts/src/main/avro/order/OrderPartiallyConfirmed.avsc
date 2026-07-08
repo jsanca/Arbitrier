@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "OrderPartiallyConfirmed",
+  "namespace": "com.arbitrier.contracts.order",
+  "doc": "Emitted when the buyer accepts partial inventory and the order is partially confirmed.",
+  "fields": [
+    {"name": "metadata",       "type": "com.arbitrier.contracts.common.MessageMetadata"},
+    {"name": "orderId",        "type": "string"},
+    {"name": "customerId",     "type": "string"},
+    {"name": "confirmedLines", "type": {"type": "array", "items": "com.arbitrier.contracts.common.OrderLineContract"}},
+    {"name": "backorderLines", "type": {"type": "array", "items": "com.arbitrier.contracts.common.OrderLineContract"}},
+    {"name": "confirmedTotal", "type": "com.arbitrier.contracts.common.MoneyAmount"}
+  ]
+}

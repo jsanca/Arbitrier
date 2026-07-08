@@ -1,0 +1,7 @@
+{
+  "type": "enum",
+  "name": "CustomerDecision",
+  "namespace": "com.arbitrier.contracts.orchestrator",
+  "doc": "Buyer decision when an order is in AWAITING_CUSTOMER_DECISION state.",
+  "symbols": ["ACCEPT_PARTIAL", "WAIT_BACKORDER", "CANCEL_ORDER"]
+}

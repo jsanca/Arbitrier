@@ -1,0 +1,7 @@
+{
+  "type": "enum",
+  "name": "CancellationReason",
+  "namespace": "com.arbitrier.contracts.common",
+  "doc": "Reason a corporate bulk order or saga was cancelled.",
+  "symbols": ["CUSTOMER_CANCELLED", "CUSTOMER_DEFERRED", "INSUFFICIENT_CREDIT", "SYSTEM_TIMEOUT"]
+}

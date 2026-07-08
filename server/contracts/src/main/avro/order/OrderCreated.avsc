@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "OrderCreated",
+  "namespace": "com.arbitrier.contracts.order",
+  "doc": "Emitted when a corporate buyer successfully submits a bulk order.",
+  "fields": [
+    {"name": "metadata",          "type": "com.arbitrier.contracts.common.MessageMetadata"},
+    {"name": "orderId",           "type": "string", "doc": "Unique order identifier."},
+    {"name": "customerId",        "type": "string", "doc": "B2B customer identifier."},
+    {"name": "submittedByUserId", "type": "string", "doc": "Authenticated user who submitted the order."},
+    {"name": "lines",             "type": {"type": "array", "items": "com.arbitrier.contracts.common.OrderLineContract"}, "doc": "Ordered lines."},
+    {"name": "requestedTotal",    "type": "com.arbitrier.contracts.common.MoneyAmount", "doc": "Total amount requested."}
+  ]
+}

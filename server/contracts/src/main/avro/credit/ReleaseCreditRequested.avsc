@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "ReleaseCreditRequested",
+  "namespace": "com.arbitrier.contracts.credit",
+  "doc": "Command sent by the orchestrator to release a credit reservation.",
+  "fields": [
+    {"name": "metadata",           "type": "com.arbitrier.contracts.common.MessageMetadata"},
+    {"name": "orderId",            "type": "string"},
+    {"name": "creditReservationId","type": "string"},
+    {"name": "reason",             "type": "string"}
+  ]
+}

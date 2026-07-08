@@ -65,6 +65,27 @@ Pure-Java, zero-framework types in `com.arbitrier.order.domain.model`:
 | `CancellationReason` | enum — CUSTOMER_CANCELLED, CUSTOMER_DEFERRED, INSUFFICIENT_CREDIT, SYSTEM_TIMEOUT |
 | `Order` | final class — aggregate root with immutable lifecycle transitions |
 
+## Application Slice (ARB-007)
+
+`POST /api/orders` is live as a REST endpoint (no auth yet — Keycloak integration is pending).
+
+### Inbound ports
+
+| Interface | Location |
+|-----------|----------|
+| `SubmitCorporateBulkOrderUseCase` | `application/port/inbound/` |
+
+### Outbound ports
+
+| Interface | Location | Status |
+|-----------|----------|--------|
+| `OrderRepository` | `application/port/outbound/` | In-memory only (no JPA yet) |
+| `OrderEventPublisher` | `application/port/outbound/` | No-op / recording only (no Kafka yet) |
+
+### In-memory adapters (test tree)
+
+`InMemoryOrderRepository` and `RecordingOrderEventPublisher` live in `src/test/` and are used by unit and integration tests. Neither Postgres nor Kafka are required to run the test suite.
+
 ## Status
 
-`ARB-005` — Domain model v1 implemented. No application or adapter layers yet.
+`ARB-007` — Application slice implemented. REST adapter active at `POST /api/orders`. Persistence (JPA) and event publishing (Kafka/Avro) are pending their own tasks.

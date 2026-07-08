@@ -16,14 +16,11 @@
     <!-- Shared Avro schemas and generated DTOs — NOT a deployable application -->
 
     <dependencies>
-        <!-- Avro runtime — activate when .avsc schemas are added (ARB-004+) -->
-        <!--
+        <!-- Avro runtime -->
         <dependency>
             <groupId>org.apache.avro</groupId>
             <artifactId>avro</artifactId>
-            <version>1.11.3</version>
         </dependency>
-        -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -33,12 +30,11 @@
 
     <build>
         <plugins>
-            <!-- Avro Maven plugin — activate when .avsc schemas are added -->
-            <!--
+            <!-- Avro Maven plugin -->
             <plugin>
                 <groupId>org.apache.avro</groupId>
                 <artifactId>avro-maven-plugin</artifactId>
-                <version>1.11.3</version>
+                <version>${avro.version}</version>
                 <executions>
                     <execution>
                         <phase>generate-sources</phase>
@@ -46,11 +42,36 @@
                         <configuration>
                             <sourceDirectory>${project.basedir}/src/main/avro</sourceDirectory>
                             <outputDirectory>${project.build.directory}/generated-sources/avro</outputDirectory>
+                            <stringType>String</stringType>
+                            <enableDecimalLogicalType>false</enableDecimalLogicalType>
+                            <imports>
+                                <import>${project.basedir}/src/main/avro/common/MessageMetadata.avsc</import>
+                                <import>${project.basedir}/src/main/avro/common/MoneyAmount.avsc</import>
+                                <import>${project.basedir}/src/main/avro/common/OrderLineContract.avsc</import>
+                                <import>${project.basedir}/src/main/avro/common/CancellationReason.avsc</import>
+                                <import>${project.basedir}/src/main/avro/orchestrator/CustomerDecision.avsc</import>
+                                <import>${project.basedir}/src/main/avro/orchestrator/CompensationAction.avsc</import>
+                            </imports>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
-            -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>add-avro-sources</id>
+                        <phase>generate-sources</phase>
+                        <goals><goal>add-source</goal></goals>
+                        <configuration>
+                            <sources>
+                                <source>${project.build.directory}/generated-sources/avro</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>

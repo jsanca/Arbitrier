@@ -1,0 +1,7 @@
+{
+  "type": "enum",
+  "name": "CompensationAction",
+  "namespace": "com.arbitrier.contracts.orchestrator",
+  "doc": "The compensation action that failed during saga rollback.",
+  "symbols": ["RELEASE_INVENTORY_RESERVATION", "RELEASE_CREDIT_RESERVATION", "NONE"]
+}

@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "ReleaseStockRequested",
+  "namespace": "com.arbitrier.contracts.inventory",
+  "doc": "Command sent by the orchestrator to release a previously reserved stock reservation.",
+  "fields": [
+    {"name": "metadata",      "type": "com.arbitrier.contracts.common.MessageMetadata"},
+    {"name": "orderId",       "type": "string"},
+    {"name": "reservationId", "type": "string"},
+    {"name": "reason",        "type": "string", "doc": "Reason for releasing the reservation."}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "StockRejected",
+  "namespace": "com.arbitrier.contracts.inventory",
+  "doc": "Emitted when no stock is available for any requested line.",
+  "fields": [
+    {"name": "metadata",        "type": "com.arbitrier.contracts.common.MessageMetadata"},
+    {"name": "orderId",         "type": "string"},
+    {"name": "reservationId",   "type": "string"},
+    {"name": "rejectionReason", "type": "string", "doc": "Human-readable rejection reason."}
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "ReserveCreditRequested",
+  "namespace": "com.arbitrier.contracts.credit",
+  "doc": "Command sent by the orchestrator to reserve credit for an order.",
+  "fields": [
+    {"name": "metadata",           "type": "com.arbitrier.contracts.common.MessageMetadata"},
+    {"name": "orderId",            "type": "string"},
+    {"name": "creditReservationId","type": "string"},
+    {"name": "customerId",         "type": "string"},
+    {"name": "amount",             "type": "com.arbitrier.contracts.common.MoneyAmount"}
+  ]
+}

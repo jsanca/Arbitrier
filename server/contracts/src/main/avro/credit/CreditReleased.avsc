@@ -1,0 +1,11 @@
+{
+  "type": "record",
+  "name": "CreditReleased",
+  "namespace": "com.arbitrier.contracts.credit",
+  "doc": "Emitted when a credit reservation is successfully released.",
+  "fields": [
+    {"name": "metadata",           "type": "com.arbitrier.contracts.common.MessageMetadata"},
+    {"name": "orderId",            "type": "string"},
+    {"name": "creditReservationId","type": "string"}
+  ]
+}

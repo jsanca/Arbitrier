@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "CreditApproved",
+  "namespace": "com.arbitrier.contracts.credit",
+  "doc": "Emitted when the credit-service approves the credit reservation.",
+  "fields": [
+    {"name": "metadata",           "type": "com.arbitrier.contracts.common.MessageMetadata"},
+    {"name": "orderId",            "type": "string"},
+    {"name": "creditReservationId","type": "string"},
+    {"name": "approvedAmount",     "type": "com.arbitrier.contracts.common.MoneyAmount"}
+  ]
+}

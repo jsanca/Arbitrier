@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "SagaCompensationFailed",
+  "namespace": "com.arbitrier.contracts.orchestrator",
+  "doc": "Emitted when a compensation action fails, leaving the saga in FAILED_COMPENSATION.",
+  "fields": [
+    {"name": "metadata",     "type": "com.arbitrier.contracts.common.MessageMetadata"},
+    {"name": "orderId",      "type": "string"},
+    {"name": "sagaId",       "type": "string"},
+    {"name": "failedAction", "type": "com.arbitrier.contracts.orchestrator.CompensationAction"},
+    {"name": "reason",       "type": "string"}
+  ]
+}

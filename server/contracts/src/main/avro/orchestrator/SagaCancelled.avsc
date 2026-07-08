@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "SagaCancelled",
+  "namespace": "com.arbitrier.contracts.orchestrator",
+  "doc": "Emitted when the UC-01 saga reaches the CANCELLED terminal state.",
+  "fields": [
+    {"name": "metadata",           "type": "com.arbitrier.contracts.common.MessageMetadata"},
+    {"name": "orderId",            "type": "string"},
+    {"name": "sagaId",             "type": "string"},
+    {"name": "cancellationReason", "type": "com.arbitrier.contracts.common.CancellationReason"}
+  ]
+}

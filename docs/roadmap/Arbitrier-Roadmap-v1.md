@@ -18,20 +18,24 @@ Platform Foundation
 ARB-004B [DONE]
 Native Image / Spring AOT Technical Variant
 
-ARB-004 [DONE]
+ARB-005 [DONE]
 Domain Model
 
-ARB-005 [PLANNED]
+ARB-006 [DONE]
 Contracts
 
-ARB-007  [PLANNED]
+ARB-007  [DONE]
 Order Service
 
-ARB-006 [PLANNED]
+ARB-008 [DONE]
 Shared Platform
 
-ARB-015 [PLANNED]
+ARB-009 [DONE]
 Observability
+
+ARB-010 [PLANNED]
+
+Security Integration
 
 ARB-007 [PLANNED]
 Contracts & Messaging Foundation

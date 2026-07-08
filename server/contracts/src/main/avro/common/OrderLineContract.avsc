@@ -1,0 +1,10 @@
+{
+  "type": "record",
+  "name": "OrderLineContract",
+  "namespace": "com.arbitrier.contracts.common",
+  "doc": "A single line in an order or reservation request, pairing a SKU with a quantity.",
+  "fields": [
+    {"name": "sku",      "type": "string", "doc": "Stock keeping unit identifier."},
+    {"name": "quantity", "type": "int",    "doc": "Quantity; must be positive."}
+  ]
+}

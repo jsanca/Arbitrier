@@ -124,7 +124,7 @@ All services must compile and pass tests on **Java 25** only. No multi-release j
 
 | Signal   | Technology                          | Notes                                            |
 |----------|-------------------------------------|--------------------------------------------------|
-| Traces   | OpenTelemetry SDK + OTLP exporter   | Distributed tracing across all saga steps        |
+| Traces   | OpenTelemetry SDK + OTLP exporter   | W3C Trace Context (`traceparent`/`tracestate`) propagation (ADR-0008); no B3 unless legacy interop required |
 | Metrics  | Micrometer → Prometheus             | Exposed on `/actuator/prometheus`                |
 | Logs     | SLF4J → Logback                     | Structured JSON in production; trace ID injected |
 | Health   | Spring Boot Actuator                | `/actuator/health` used by Kubernetes liveness   |

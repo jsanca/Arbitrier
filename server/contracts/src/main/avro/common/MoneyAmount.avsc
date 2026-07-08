@@ -1,0 +1,10 @@
+{
+  "type": "record",
+  "name": "MoneyAmount",
+  "namespace": "com.arbitrier.contracts.common",
+  "doc": "A non-negative monetary amount as a string decimal with ISO-4217 currency code.",
+  "fields": [
+    {"name": "amount",   "type": "string", "doc": "Decimal string, e.g. '1234.56'."},
+    {"name": "currency", "type": "string", "doc": "ISO-4217 currency code, e.g. 'USD'."}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "CreditRejected",
+  "namespace": "com.arbitrier.contracts.credit",
+  "doc": "Emitted when the credit-service rejects the credit reservation.",
+  "fields": [
+    {"name": "metadata",           "type": "com.arbitrier.contracts.common.MessageMetadata"},
+    {"name": "orderId",            "type": "string"},
+    {"name": "creditReservationId","type": "string"},
+    {"name": "rejectionReason",    "type": "string", "doc": "Rejection reason; exact credit limit details must not be exposed to buyers."}
+  ]
+}
