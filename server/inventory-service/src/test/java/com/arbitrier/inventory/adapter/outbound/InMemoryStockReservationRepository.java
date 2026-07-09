@@ -15,16 +15,16 @@ import java.util.Optional;
  */
 public class InMemoryStockReservationRepository implements StockReservationRepository {
 
-    private final Map<String, StockReservation> store = new HashMap<>();
+    private final Map<StockReservationId, StockReservation> store = new HashMap<>();
 
     @Override
     public void save(StockReservation reservation) {
-        store.put(reservation.id().value(), reservation);
+        store.put(reservation.id(), reservation);
     }
 
     @Override
     public Optional<StockReservation> findById(StockReservationId id) {
-        return Optional.ofNullable(store.get(id.value()));
+        return Optional.ofNullable(store.get(id));
     }
 
     /** Returns the number of reservations currently stored. */

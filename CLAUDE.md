@@ -14,14 +14,17 @@ Work documentation-first. Read the relevant OKF, RF, RNF, ADR, and test-case fil
 # Server — all modules
 mvn -B verify --no-transfer-progress
 
+# Server — modules with active implementation (fastest feedback loop)
+mvn -B test --no-transfer-progress -pl server/contracts,server/platform,server/order-service,server/inventory-service
+
 # Server — single module
-mvn -B verify --no-transfer-progress -pl server/order-service
+mvn -B test --no-transfer-progress -pl server/contracts,server/platform,server/order-service
 
 # Server — single test class
-mvn -B test -pl server/order-service -Dtest=PlaceBulkOrderServiceTest
+mvn -B test --no-transfer-progress -pl server/contracts,server/platform,server/order-service -Dtest=SubmitCorporateBulkOrderServiceTest
 
 # Server — single test method
-mvn -B test -pl server/order-service -Dtest=PlaceBulkOrderServiceTest#methodName
+mvn -B test --no-transfer-progress -pl server/contracts,server/platform,server/order-service -Dtest=SubmitCorporateBulkOrderServiceTest#missing_customer_id_throws
 
 # Client
 cd client && npm ci && npm run build && npm test
@@ -34,6 +37,8 @@ cd client && npx playwright test e2e/uc01-confirmed.spec.ts
 docker compose -f infra/docker/docker-compose.yml up -d
 docker compose -f infra/docker/docker-compose.yml down -v
 ```
+
+Dependent modules must always be included when running a service test. `server/contracts` and `server/platform` must appear before any service in the `-pl` list.
 
 ---
 
@@ -155,10 +160,6 @@ Use `OPEN QUESTION:` (all caps) for unresolved items. Never invent values for op
 
 `docs/rf/RF-0001-corporate-bulk-order.md` is a legacy redirect from ARB-001. The canonical UC-01 RF is `RF-UC-01-corporate-bulk-order.md`.
 
-### Planned ADRs (not yet written)
-
-ADR-0002 Orchestrated Saga with Kafka · ADR-0003 Schema per Service in PostgreSQL · ADR-0004 Avro Contracts and Schema Registry · ADR-0005 Outbox, Inbox, and Idempotency · ADR-0006 SSE vs WebSocket for Saga Dashboard
-
 ---
 
 ## Naming Conventions
@@ -172,9 +173,9 @@ ADR-0002 Orchestrated Saga with Kafka · ADR-0003 Schema per Service in PostgreS
 | JPA adapter | `<Subject>JpaAdapter` |
 | Kafka consumer adapter | `<Subject>KafkaConsumerAdapter` |
 | Kafka producer adapter | `<Subject>KafkaProducerAdapter` |
-| Domain event | `<Subject><PastTense>Event` |
+| Domain event | `<Subject><PastTense>DomainEvent` |
 | Avro schema file | `<subject>-<past-tense>-event-v<N>.avsc` |
-| Kafka topic | `<domain>.<event>.v<N>` (e.g. `order.placed.v1`) |
+| Kafka topic | `arbitrier.<domain>.<event>.v<N>` (e.g. `arbitrier.order.created.v1`) |
 
 ---
 
@@ -226,3 +227,69 @@ Native Image is a supported runtime variant. All future backend implementation m
 - Document unresolved native incompatibilities as `OPEN QUESTION` in the implementation note.
 
 See `docs/adr/ADR-0007-spring-aot-graalvm-native-image.md` and `docs/rnf/RNF-0002-native-image-runtime.md`.
+
+---
+
+## Spring Boot 4.x Patterns
+
+These are non-obvious behaviors specific to Spring Boot 4.1.0 discovered during implementation.
+
+### No `@WebMvcTest` — controller tests use `@SpringBootTest`
+
+`spring-boot-test-autoconfigure` no longer includes a web servlet test slice. Controller tests must use:
+
+```java
+@SpringBootTest(webEnvironment = WebEnvironment.MOCK)
+@Import(OrderServiceTestConfiguration.class)
+class MyControllerTest {
+    @Autowired WebApplicationContext webApplicationContext;
+    MockMvc mockMvc;
+
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders
+            .webAppContextSetup(webApplicationContext)
+            .apply(springSecurity())
+            .build();
+    }
+}
+```
+
+### Bean override is disabled by default
+
+Spring Boot 4.x rejects two bean definitions with the same name (`BeanDefinitionOverrideException`). Test configurations must not redefine beans already provided by main configuration. When a test context needs to substitute a bean that also exists in main config, mark the test bean `@Primary` — Spring picks the `@Primary` candidate for injection without triggering the override guard.
+
+### No Kafka auto-configuration
+
+Spring Boot 4.1.0 does not auto-configure `KafkaTemplate`. Services that publish to Kafka must define their own `ProducerFactory` and `KafkaTemplate` beans explicitly. Gate Kafka configuration with `@ConditionalOnProperty("spring.kafka.bootstrap-servers")` so the beans are absent in tests (where bootstrap-servers is not set) and test adapters fill the port instead.
+
+### Including `server/contracts` when compiling service tests
+
+`arbitrier-contracts` is a snapshot dependency. Always include `server/contracts` in the `-pl` list when building or testing a service module, otherwise Maven cannot resolve the artifact:
+
+```bash
+mvn -B test --no-transfer-progress -pl server/contracts,server/platform,server/order-service
+```
+
+---
+
+## Application Service Design
+
+Application services should read as business stories. The preferred step order:
+
+1. validate (handled in command constructors via `Require`)
+2. derive / allocate
+3. execute domain factory / aggregate method
+4. persist
+5. publish event
+6. return result
+
+Each step should be delegated to a well-named private method so the main use-case method fits on one screen. The outcome is always derived from the created/updated aggregate's `.status()` — never tracked in a parallel variable.
+
+**Avoid:**
+- Business algorithms inside the main method
+- Duplicated state (e.g., tracking both `StockReservation` and `StockReservationStatus` in the same scope when one derives from the other)
+- Long if/else trees in the main method body
+- Mixing persistence decisions with domain decisions
+
+**Transactionality note:** Application services will become `@Transactional` when JPA persistence is introduced. DB + Kafka consistency will be handled by the Outbox pattern (ADR-0005) — events are written to an outbox table inside the DB transaction rather than published directly in the service method.

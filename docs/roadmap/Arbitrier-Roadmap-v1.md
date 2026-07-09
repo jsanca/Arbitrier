@@ -55,10 +55,10 @@ Contracts & Messaging Foundation
 
 # BUSINESS SERVICES
 
-ARB-012 [DONA]
+ARB-012 [DONE]
 Inventory Service
 
-ARB-013 [PLANNED]
+ARB-013 [DONE]
 Credit Service
 
 ---

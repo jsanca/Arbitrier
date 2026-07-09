@@ -35,4 +35,20 @@ public record Money(BigDecimal amount, String currency) {
                 "Currency mismatch: " + currency + " vs " + other.currency);
         return new Money(amount.add(other.amount), currency);
     }
+
+    /**
+     * Returns {@code true} if this amount is sufficient to cover the {@code requested} amount.
+     *
+     * <p>Currencies must match; different currencies fail fast rather than performing FX conversion.
+     *
+     * @param requested the amount that needs to be covered
+     * @throws NullPointerException     if {@code requested} is null
+     * @throws IllegalArgumentException if the currencies differ
+     */
+    public boolean canCover(Money requested) {
+        Require.notNull(requested, "requested");
+        Require.isTrue(currency.equals(requested.currency),
+                "Currency mismatch: " + currency + " vs " + requested.currency);
+        return amount.compareTo(requested.amount) >= 0;
+    }
 }
