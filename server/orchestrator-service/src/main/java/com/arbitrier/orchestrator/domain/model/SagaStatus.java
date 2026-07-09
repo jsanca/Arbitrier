@@ -9,6 +9,7 @@ package com.arbitrier.orchestrator.domain.model;
 public enum SagaStatus {
     STARTED,
     AWAITING_CUSTOMER_DECISION,
+    COMPENSATING,
     COMPLETED,
     CANCELLED,
     FAILED_COMPENSATION;

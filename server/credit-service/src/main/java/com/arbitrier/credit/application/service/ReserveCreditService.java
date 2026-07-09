@@ -50,9 +50,9 @@ public class ReserveCreditService implements ReserveCreditUseCase {
     private final CreditReservationEventPublisher eventPublisher;
 
     public ReserveCreditService(
-            CreditLimitPort creditLimitPort,
-            CreditReservationRepository repository,
-            CreditReservationEventPublisher eventPublisher) {
+            final CreditLimitPort creditLimitPort,
+            final CreditReservationRepository repository,
+            final CreditReservationEventPublisher eventPublisher) {
         this.creditLimitPort = creditLimitPort;
         this.repository = repository;
         this.eventPublisher = eventPublisher;
@@ -60,6 +60,7 @@ public class ReserveCreditService implements ReserveCreditUseCase {
 
     @Override
     public ReserveCreditResult reserve(final ReserveCreditCommand command) {
+
         final CreditReservationId reservationId = CreditReservationId.of(command.creditReservationId());
 
         final Money available = creditLimitPort.availableCredit(command.customerId());
@@ -78,6 +79,7 @@ public class ReserveCreditService implements ReserveCreditUseCase {
     private CreditReservation createReservation(final CreditReservationId reservationId,
                                                  final ReserveCreditCommand command,
                                                  final Money available) {
+
         final boolean sufficient = available.canCover(command.amount());
 
         if (sufficient) {

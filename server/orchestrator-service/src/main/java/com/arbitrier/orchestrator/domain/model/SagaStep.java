@@ -9,6 +9,7 @@ package com.arbitrier.orchestrator.domain.model;
  * <p>Module: orchestrator-service
  */
 public enum SagaStep {
+    ORDER_CREATED,
     RESERVE_INVENTORY,
     VALIDATE_CREDIT,
     AWAIT_CUSTOMER_DECISION,

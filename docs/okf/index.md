@@ -15,9 +15,9 @@ Build a production-grade B2B saga orchestration platform that makes corporate bu
 
 | ID     | Feature                              | Status      | Reference                                          |
 |--------|--------------------------------------|-------------|----------------------------------------------------|
-| KF-001 | UC-01 Corporate Bulk Order saga      | Planned     | [UC-01](UC-01-corporate-bulk-order.md), [RF-UC-01](../rf/RF-UC-01-corporate-bulk-order.md) |
-| KF-002 | B2B credit limit validation          | Planned     | RF-0001 §3                                         |
-| KF-003 | Inventory reservation + compensation | Planned     | RF-0001 §4                                         |
+| KF-001 | UC-01 Corporate Bulk Order saga      | In Progress | [UC-01](UC-01-corporate-bulk-order.md), [RF-UC-01](../rf/RF-UC-01-corporate-bulk-order.md) |
+| KF-002 | B2B credit limit validation          | In Progress | RF-0001 §3                                         |
+| KF-003 | Inventory reservation + compensation | In Progress | RF-0001 §4                                         |
 | KF-004 | Human decision gate (partial backorder) | Planned  | RF-0001 §5                                         |
 | KF-005 | Saga state observability             | Planned     | [RNF-0001](../rnf/RNF-0001-technical-baseline.md)  |
 | KF-006 | Keycloak-based B2B identity          | Planned     | RNF-0001 §5                                        |
