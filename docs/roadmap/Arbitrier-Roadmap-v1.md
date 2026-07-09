@@ -1,3 +1,9 @@
+# Arbitrier Roadmap
+
+---
+
+# FOUNDATION
+
 ARB-000 [DONE]
 Project Definition & Vision
 
@@ -7,12 +13,14 @@ Repository Layout
 ARB-002 [DONE]
 Documentation Foundation
 
------------------------------------------
+---
+
+# CORE PLATFORM
 
 ARB-003 [DONE]
 Architecture Skeleton
 
-ARB-004  [DONE]
+ARB-004 [DONE]
 Platform Foundation
 
 ARB-004B [DONE]
@@ -24,7 +32,11 @@ Domain Model
 ARB-006 [DONE]
 Contracts
 
-ARB-007  [DONE]
+---
+
+# ORDER DOMAIN
+
+ARB-007 [DONE]
 Order Service
 
 ARB-008 [DONE]
@@ -33,56 +45,60 @@ Shared Platform
 ARB-009 [DONE]
 Observability
 
-ARB-010 [PLANNED]
-
+ARB-010 [DONE]
 Security Integration
 
-ARB-007 [PLANNED]
+ARB-011 [DONE]
 Contracts & Messaging Foundation
 
-ARB-005 [PLANNED]
-Shared Platform Module
+---
 
-ARB-006 [PLANNED]
-Order Service
+# BUSINESS SERVICES
 
-ARB-007 [PLANNED]
+ARB-012 [DONA]
 Inventory Service
 
-ARB-008 [PLANNED]
+ARB-013 [PLANNED]
 Credit Service
 
-ARB-009 [PLANNED]
-Saga Orchestrator
+---
 
-ARB-010 [PLANNED]
-Saga Happy Path
-
-ARB-011 [PLANNED]
-Saga Compensation
-
-ARB-012 [PLANNED]
-Backorder Human Workflow
-
-ARB-013 [PLANNED]
-Dashboard Backend API
+# SAGA ORCHESTRATION
 
 ARB-014 [PLANNED]
-React Dashboard
+Saga Orchestrator
 
-
+ARB-015 [PLANNED]
+Saga Happy Path
 
 ARB-016 [PLANNED]
-Security Integration
+Saga Compensation
 
 ARB-017 [PLANNED]
-Infrastructure
+Backorder Human Workflow
+
+---
+
+# USER INTERFACE
 
 ARB-018 [PLANNED]
-CI/CD
+Dashboard Backend API
 
 ARB-019 [PLANNED]
-Performance & Resilience
+React Dashboard
+
+---
+
+# OPERATIONS & DELIVERY
 
 ARB-020 [PLANNED]
+Infrastructure
+
+ARB-021 [PLANNED]
+CI/CD
+
+ARB-022 [PLANNED]
+Performance & Resilience
+
+ARB-023 [PLANNED]
 Production Readiness

@@ -4,6 +4,25 @@ spring:
   threads:
     virtual:
       enabled: true
+  # Security — JWT issuer is configured via environment variable in deployment.
+  # Set spring.security.oauth2.resourceserver.jwt.issuer-uri (e.g. Keycloak realm URL).
+  # In tests, a mock JwtDecoder bean is provided by OrderServiceTestConfiguration.
+
+  # Kafka — bootstrap servers must be set via environment variable in deployment.
+  # Set spring.kafka.bootstrap-servers (e.g. kafka:9092).
+  #
+  # Schema Registry (deferred — not wired in ARB-011):
+  #   spring.kafka.properties.schema.registry.url=http://schema-registry:8081
+  #   spring.kafka.producer.value-serializer=io.confluent.kafka.serializers.KafkaAvroSerializer
+  #
+  # Until Schema Registry is wired, Avro records must be serialized to bytes before publishing.
+  # See ARB-011 implementation doc for the open question on serializer choice.
+
+# Arbitrier topic configuration — override per environment if topic names differ.
+arbitrier:
+  kafka:
+    topics:
+      order-created: arbitrier.order.created.v1
 
 management:
   endpoints:

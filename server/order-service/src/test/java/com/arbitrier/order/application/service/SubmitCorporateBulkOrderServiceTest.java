@@ -2,10 +2,13 @@ package com.arbitrier.order.application.service;
 
 import com.arbitrier.order.adapter.outbound.InMemoryOrderRepository;
 import com.arbitrier.order.adapter.outbound.RecordingOrderEventPublisher;
+import com.arbitrier.order.application.OrderProblemCode;
 import com.arbitrier.order.application.port.inbound.SubmitCorporateBulkOrderCommand;
 import com.arbitrier.order.application.port.inbound.SubmitCorporateBulkOrderLineCommand;
 import com.arbitrier.order.application.port.inbound.SubmitCorporateBulkOrderResult;
+import com.arbitrier.order.application.port.outbound.CustomerAccessPort;
 import com.arbitrier.order.domain.model.OrderStatus;
+import com.arbitrier.platform.error.ApplicationProblemException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -19,11 +22,17 @@ class SubmitCorporateBulkOrderServiceTest {
     private RecordingOrderEventPublisher publisher;
     private SubmitCorporateBulkOrderService service;
 
+    /** Allow-all adapter: every user may submit for every customer. */
+    private static final CustomerAccessPort ALLOW_ALL = (userId, customerId) -> true;
+
+    /** Deny-all adapter: no user may submit for any customer. */
+    private static final CustomerAccessPort DENY_ALL = (userId, customerId) -> false;
+
     @BeforeEach
     void setUp() {
         repository = new InMemoryOrderRepository();
         publisher  = new RecordingOrderEventPublisher();
-        service    = new SubmitCorporateBulkOrderService(repository, publisher);
+        service    = new SubmitCorporateBulkOrderService(repository, publisher, ALLOW_ALL);
     }
 
     // ── happy path ─────────────────────────────────────────────────────────────
@@ -75,6 +84,42 @@ class SubmitCorporateBulkOrderServiceTest {
         var event = publisher.events().get(0);
         assertThat(event.customerId().value()).isEqualTo("CUST-001");
         assertThat(event.submittedBy().value()).isEqualTo("USER-001");
+    }
+
+    // ── customer access control ────────────────────────────────────────────────
+
+    @Test
+    void denied_customer_access_throws_application_problem() {
+        SubmitCorporateBulkOrderService deniedService =
+                new SubmitCorporateBulkOrderService(repository, publisher, DENY_ALL);
+
+        assertThatThrownBy(() -> deniedService.execute(validCommand()))
+                .isInstanceOf(ApplicationProblemException.class)
+                .extracting(ex -> ((ApplicationProblemException) ex).code())
+                .isEqualTo(OrderProblemCode.CUSTOMER_ACCESS_DENIED);
+    }
+
+    @Test
+    void denied_customer_access_maps_to_403() {
+        SubmitCorporateBulkOrderService deniedService =
+                new SubmitCorporateBulkOrderService(repository, publisher, DENY_ALL);
+
+        assertThatThrownBy(() -> deniedService.execute(validCommand()))
+                .isInstanceOf(ApplicationProblemException.class)
+                .extracting(ex -> ((ApplicationProblemException) ex).code().httpStatus())
+                .isEqualTo(403);
+    }
+
+    @Test
+    void denied_customer_access_does_not_save_order() {
+        SubmitCorporateBulkOrderService deniedService =
+                new SubmitCorporateBulkOrderService(repository, publisher, DENY_ALL);
+
+        assertThatThrownBy(() -> deniedService.execute(validCommand()))
+                .isInstanceOf(ApplicationProblemException.class);
+
+        assertThat(repository.size()).isZero();
+        assertThat(publisher.hasEvents()).isFalse();
     }
 
     // ── command validation ─────────────────────────────────────────────────────

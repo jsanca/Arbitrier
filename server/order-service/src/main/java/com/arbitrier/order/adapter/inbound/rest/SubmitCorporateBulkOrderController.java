@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,6 +20,10 @@ import java.util.List;
 /**
  * REST adapter that accepts order submission requests and delegates to
  * {@link SubmitCorporateBulkOrderUseCase}.
+ *
+ * <p>The authenticated user identity ({@code submittedByUserId}) is derived exclusively
+ * from the JWT subject claim. The request body does not accept a user identifier — this
+ * prevents identity spoofing (ARB-010).
  *
  * <p>Layer: adapter/inbound/rest
  * <p>Module: order-service
@@ -38,12 +43,20 @@ public class SubmitCorporateBulkOrderController {
     /**
      * Submits a new corporate bulk order.
      *
-     * @param request the order submission payload
+     * <p>The submitting user is taken from the JWT subject — {@code authentication.getName()}.
+     * The request body must not contain a {@code submittedByUserId} field.
+     *
+     * @param request        the order submission payload (customer + lines)
+     * @param authentication the verified JWT authentication; injected by Spring Security
      * @return {@code 201 Created} with the new order ID and status
      */
     @PostMapping
-    public ResponseEntity<CreateOrderResponse> submitOrder(@RequestBody @Valid CreateOrderRequest request) {
-        log.info("Received order submission: customerId={}, lines={}", request.customerId(), request.lines().size());
+    public ResponseEntity<CreateOrderResponse> submitOrder(
+            @RequestBody @Valid CreateOrderRequest request,
+            Authentication authentication) {
+
+        String userId = authentication.getName();
+        log.info("Order submission: customerId={}, lines={}", request.customerId(), request.lines().size());
 
         List<SubmitCorporateBulkOrderLineCommand> lineCommands = request.lines().stream()
                 .map(l -> new SubmitCorporateBulkOrderLineCommand(l.sku(), l.quantity()))
@@ -51,12 +64,12 @@ public class SubmitCorporateBulkOrderController {
 
         SubmitCorporateBulkOrderCommand command = new SubmitCorporateBulkOrderCommand(
                 request.customerId(),
-                request.submittedByUserId(),
+                userId,
                 lineCommands);
 
         SubmitCorporateBulkOrderResult result = useCase.execute(command);
 
-        log.info("Order submitted successfully: orderId={}", result.orderId());
+        log.info("Order submitted: orderId={}", result.orderId());
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)

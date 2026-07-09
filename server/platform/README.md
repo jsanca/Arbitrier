@@ -70,12 +70,30 @@ Services that depend on `spring-boot-starter-actuator` expose:
 
 Full Prometheus export configuration is deferred to the infrastructure wiring phase.
 
+## Security Primitives (ARB-010)
+
+| Class | Purpose |
+|-------|---------|
+| `security/AuthenticatedUser` | Immutable principal record: `userId` (JWT `sub`) + `authorities`. No Spring Security dependency. |
+| `security/AuthenticatedUserProvider` | Interface for resolving the current user from any security context. Implemented in adapter layer. |
+
+`ProblemCode.httpStatus()` (added in ARB-010) allows each problem code to declare its own HTTP status. `PlatformExceptionHandler` is now generic — it reads `ex.code().httpStatus()` rather than hard-coding 422. This lets order-service return 403 for `CUSTOMER_ACCESS_DENIED` without adding service-specific handler logic to the platform.
+
+## Kafka Header & Topic Conventions (ARB-011)
+
+| Class | Purpose |
+|-------|---------|
+| `kafka/KafkaHeaders` | Standard Kafka message header name constants: `messageId`, `correlationId`, `causationId`, `traceparent`, `tracestate`, `schemaVersion`. |
+| `kafka/TopicNames` | Canonical topic name constants. Active: `arbitrier.order.created.v1`. Placeholders for stock and credit topics. |
+
+**Rules**:
+- `traceparent`/`tracestate` are defined for reference only. Populate them via OTel Kafka instrumentation, not application code (ADR-0008).
+- B3 headers must not be added to Kafka messages.
+
 ## Packages Reserved for Future Tasks
 
 | Package | When |
 |---------|------|
-| `security` | Keycloak JWT integration phase |
-| `kafka` | Avro contracts + Kafka wiring phase |
 | `exception` | If a shared exception hierarchy beyond `ApplicationProblem` is needed |
 
 ## Internal Dependency Graph
@@ -86,6 +104,7 @@ validation   ← (nothing)
 time         ← (nothing)
 logging      ← (nothing)
 observability← (nothing)
+kafka        ← (nothing)
 correlation  ← validation
 idempotency  ← validation
 result       ← error
@@ -106,4 +125,5 @@ mvn -B test --no-transfer-progress -pl server/platform -Dtest=ResultTest
 
 ## Status
 
-`ARB-009` — Observability conventions documented; W3C Trace Context header constants added; actuator exposure stable. OTel exporter wiring deferred.
+`ARB-011` — Kafka header and topic name constants added (`KafkaHeaders`, `TopicNames`).
+`ARB-010` — Security primitives added (`AuthenticatedUser`, `AuthenticatedUserProvider`). `ProblemCode.httpStatus()` allows codes to self-declare HTTP status.

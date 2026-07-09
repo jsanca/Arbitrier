@@ -34,4 +34,22 @@ class ArchitectureTest {
                 .allowEmptyShould(true)
                 .check(classes);
     }
+
+    @Test
+    void domain_must_not_depend_on_avro_or_kafka() {
+        ArchRuleDefinition.noClasses().that().resideInAPackage("..domain..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "org.apache.avro..", "org.springframework.kafka..", "org.apache.kafka..")
+                .allowEmptyShould(true)
+                .check(classes);
+    }
+
+    @Test
+    void application_must_not_depend_on_avro_or_kafka() {
+        ArchRuleDefinition.noClasses().that().resideInAPackage("..application..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "org.apache.avro..", "org.springframework.kafka..", "org.apache.kafka..")
+                .allowEmptyShould(true)
+                .check(classes);
+    }
 }

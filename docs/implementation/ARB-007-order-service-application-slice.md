@@ -61,7 +61,7 @@ POST /api/orders
 | Avro mapper for OrderCreated | Deferred; `OrderEventPublisher` implementation will map domain event to Avro |
 | JPA entity and PostgreSQL repository | No persistence yet; in-memory adapter used for tests |
 | Flyway migration | No schema yet |
-| Keycloak authentication | No security integration yet |
+| Keycloak authentication | RESOLVED in ARB-010 — Spring Security Resource Server wired; `submittedByUserId` derived from JWT subject |
 | Pricing / requestedTotal | OPEN QUESTION — source of truth unresolved from ARB-006 |
 | RuntimeHints | No native-hostile patterns introduced; Spring AOT handles controller discovery |
 | Tenant model | Out of scope for v1 |
@@ -72,3 +72,4 @@ POST /api/orders
 - OPEN QUESTION: `correlationId` is not yet part of `SubmitCorporateBulkOrderCommand`. When platform correlation primitives are wired to the REST layer (e.g. via request headers or interceptors), `correlationId` should be propagated into the command and logged with every saga step.
 - OPEN QUESTION: Exact endpoint URL and HTTP response shape subject to API design task.
 - OPEN QUESTION: Idempotency key source for order submission (see TC-UC-01-011).
+- RESOLVED (ARB-010): `submittedByUserId` was previously accepted from the request body as a placeholder. It is now derived exclusively from the JWT subject claim — the request DTO no longer contains this field.

@@ -29,13 +29,20 @@ public class PlatformExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(PlatformExceptionHandler.class);
 
-    /** Maps {@link ApplicationProblemException} to 422 with the typed problem code. */
+    /**
+     * Maps {@link ApplicationProblemException} to an HTTP status derived from
+     * {@link com.arbitrier.platform.error.ProblemCode#httpStatus()}.
+     *
+     * <p>Defaults to 422 Unprocessable Entity for business-rule violations.
+     * Authorization failures (403), not-found (404), etc. use their own problem codes.
+     */
     @ExceptionHandler(ApplicationProblemException.class)
     public ResponseEntity<ProblemResponse> handleApplicationProblem(ApplicationProblemException ex) {
-        log.warn("Application problem: code={}, message={}", ex.code().code(), ex.getMessage());
+        int status = ex.code().httpStatus();
+        log.warn("Application problem: code={}, httpStatus={}, message={}", ex.code().code(), status, ex.getMessage());
         return ResponseEntity
-                .status(HttpStatus.UNPROCESSABLE_ENTITY)
-                .body(ProblemResponse.of(ex.code().code(), ex.getMessage(), HttpStatus.UNPROCESSABLE_ENTITY.value()));
+                .status(status)
+                .body(ProblemResponse.of(ex.code().code(), ex.getMessage(), status));
     }
 
     /** Maps {@link IllegalArgumentException} (e.g. from {@code Require}) to 400. */
