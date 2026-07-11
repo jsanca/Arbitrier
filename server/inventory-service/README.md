@@ -9,33 +9,35 @@ Manages stock levels and processes inventory reservation requests from the saga.
 - Publishes domain events: `StockReserved`, `StockPartiallyReserved`, `StockRejected`, `StockReleased`.
 - Executes compensation (stock release) idempotently when the saga is rolled back.
 
-## Domain Model (ARB-005)
+## Domain Model (ARB-005 / ARB-017B)
 
 Pure-Java, zero-framework types in `com.arbitrier.inventory.domain.model`:
 
 | Type | Kind |
 |------|------|
 | `StockReservationId` | record — unique reservation identifier |
-| `WarehouseId` | record — warehouse identifier |
+| `WarehouseId` | record — warehouse identifier (internal to Inventory — ADR-0009) |
 | `StockReservationStatus` | enum — RESERVED, PARTIALLY_RESERVED, REJECTED, RELEASED |
-| `StockReservationLine` | record — per-SKU outcome (requested vs reserved quantity) |
-| `StockReservation` | final class — aggregate root; idempotent `release()` |
+| `StockAllocation` | record — `(warehouseId, sku, quantity)` internal warehouse allocation |
+| `StockReservationLine` | record — per-SKU outcome; `reservedQuantity()` derived from allocations |
+| `StockReservation` | final class — aggregate root; factory methods no longer expose `WarehouseId`; idempotent `release()` |
 
-## Application Slice (ARB-012)
+## Application Slice (ARB-012 / ARB-017)
 
 ### Inbound ports
 
-| Interface | Location |
-|-----------|----------|
-| `ReserveStockUseCase` | `application/port/inbound/` |
-| `ReleaseStockUseCase` | `application/port/inbound/` |
+| Interface | Location | Notes |
+|-----------|----------|-------|
+| `ReserveStockUseCase` | `application/port/inbound/` | Mutating — reserves stock, publishes event |
+| `ReleaseStockUseCase` | `application/port/inbound/` | Mutating — releases stock, publishes event |
+| `CheckStockAvailabilityUseCase` | `application/port/inbound/` | Read-only — no reservation, no event |
 
 ### Outbound ports
 
 | Interface | Location | Status |
 |-----------|----------|--------|
 | `StockReservationRepository` | `application/port/outbound/` | In-memory only (no JPA yet) |
-| `StockAvailabilityPort` | `application/port/outbound/` | Configurable test adapter (no real store yet) |
+| `WarehouseAllocationPort` | `application/port/outbound/` | Configurable test adapter; replaces `StockAvailabilityPort` (ADR-0009) |
 | `StockReservationEventPublisher` | `application/port/outbound/` | Recording only (no Kafka yet) |
 
 ### Domain events
@@ -49,7 +51,8 @@ Pure-Java, zero-framework types in `com.arbitrier.inventory.domain.model`:
 
 ### Reservation outcomes
 
-For each line, `reservedQty = min(requestedQty, available)`:
+For each line, `WarehouseAllocationPort.allocate()` returns an `AllocationPlan`. The reserved
+quantity for a line is the sum of its `StockAllocation` quantities (may span multiple warehouses):
 
 | All lines full? | Any line > 0? | Outcome |
 |-----------------|---------------|---------|
@@ -70,7 +73,7 @@ See `ReleaseStockService` Javadoc for the documented decision.
 | Class | Purpose |
 |-------|---------|
 | `InMemoryStockReservationRepository` | HashMap-backed; no DB |
-| `ConfigurableStockAvailabilityPort` | Per-SKU configurable availability |
+| `ConfigurableWarehouseAllocationPort` | Per-warehouse per-SKU configurable; greedy first-fit allocation |
 | `RecordingStockReservationEventPublisher` | Captures events for assertion |
 
 ## Build & Test
@@ -83,5 +86,7 @@ Tests pass without Kafka, Postgres, Schema Registry, Keycloak, or Docker.
 
 ## Status
 
+`ARB-017B` — Global multi-warehouse allocation: `WarehouseAllocationPort` replaces `StockAvailabilityPort`; `StockAllocation` added; `warehouseId` removed from all public contracts (ADR-0009). 57 tests pass.
+`ARB-017` — `CheckStockAvailabilityUseCase` added: read-only pre-saga availability check. No persistence, no events.
 `ARB-012` — Application slice implemented: `ReserveStockUseCase`, `ReleaseStockUseCase`, domain events, test adapters. No JPA, Kafka, or REST yet.
 `ARB-005` — Domain model implemented.

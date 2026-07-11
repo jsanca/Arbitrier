@@ -1,0 +1,83 @@
+{
+  "realm": "arbitrier",
+  "enabled": true,
+  "displayName": "Arbitrier Local",
+  "registrationAllowed": false,
+  "roles": {
+    "realm": [
+      { "name": "CUSTOMER_USER" },
+      { "name": "CUSTOMER_ADMIN" },
+      { "name": "OPERATIONS_USER" },
+      { "name": "OPERATIONS_ADMIN" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "arbitrier-customer-portal",
+      "name": "Arbitrier Customer Portal",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://localhost:5173/*"],
+      "webOrigins": ["http://localhost:5173"]
+    },
+    {
+      "clientId": "arbitrier-admin-console",
+      "name": "Arbitrier Admin Console",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://localhost:5174/*"],
+      "webOrigins": ["http://localhost:5174"]
+    },
+    {
+      "clientId": "arbitrier-api",
+      "name": "Arbitrier API",
+      "enabled": true,
+      "bearerOnly": true,
+      "protocol": "openid-connect"
+    }
+  ],
+  "users": [
+    {
+      "username": "acme-buyer",
+      "enabled": true,
+      "email": "buyer@acme.local",
+      "firstName": "ACME",
+      "lastName": "Buyer",
+      "attributes": { "companyId": ["ACME"] },
+      "credentials": [{ "type": "password", "value": "buyer-local", "temporary": false }],
+      "realmRoles": ["CUSTOMER_USER"]
+    },
+    {
+      "username": "acme-admin",
+      "enabled": true,
+      "email": "admin@acme.local",
+      "firstName": "ACME",
+      "lastName": "Administrator",
+      "attributes": { "companyId": ["ACME"] },
+      "credentials": [{ "type": "password", "value": "customer-admin-local", "temporary": false }],
+      "realmRoles": ["CUSTOMER_USER", "CUSTOMER_ADMIN"]
+    },
+    {
+      "username": "operations-user",
+      "enabled": true,
+      "email": "operations@arbitrier.local",
+      "firstName": "Operations",
+      "lastName": "User",
+      "credentials": [{ "type": "password", "value": "operations-local", "temporary": false }],
+      "realmRoles": ["OPERATIONS_USER"]
+    },
+    {
+      "username": "operations-admin",
+      "enabled": true,
+      "email": "operations-admin@arbitrier.local",
+      "firstName": "Operations",
+      "lastName": "Administrator",
+      "credentials": [{ "type": "password", "value": "operations-admin-local", "temporary": false }],
+      "realmRoles": ["OPERATIONS_USER", "OPERATIONS_ADMIN"]
+    }
+  ]
+}

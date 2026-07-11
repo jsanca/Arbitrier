@@ -1,5 +1,9 @@
 package com.arbitrier.orchestrator.application.port.outbound;
 
+import com.arbitrier.orchestrator.domain.command.SagaOrderLine;
+
+import java.util.List;
+
 /**
  * Command issued to the inventory-service to reserve stock for an order.
  *
@@ -9,5 +13,6 @@ package com.arbitrier.orchestrator.application.port.outbound;
 public record ReserveStockSagaCommand(
         String sagaId,
         String stockReservationId,
-        String orderId) {
+        String orderId,
+        List<SagaOrderLine> lines) {
 }

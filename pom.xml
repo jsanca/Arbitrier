@@ -51,6 +51,13 @@
                 <scope>test</scope>
             </dependency>
 
+            <!-- Testcontainers 2.x undeclared transitive deps -->
+            <dependency>
+                <groupId>commons-io</groupId>
+                <artifactId>commons-io</artifactId>
+                <version>2.15.0</version>
+            </dependency>
+
             <!-- Avro runtime -->
             <dependency>
                 <groupId>org.apache.avro</groupId>

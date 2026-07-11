@@ -13,13 +13,11 @@ import java.util.List;
 public record ReserveStockCommand(
         String orderId,
         String reservationId,
-        String warehouseId,
         List<ReserveStockLineCommand> lines) {
 
     public ReserveStockCommand {
         Require.notBlank(orderId, "ReserveStockCommand.orderId");
         Require.notBlank(reservationId, "ReserveStockCommand.reservationId");
-        Require.notBlank(warehouseId, "ReserveStockCommand.warehouseId");
         Require.notEmpty(lines, "ReserveStockCommand.lines");
         lines = List.copyOf(lines);
     }

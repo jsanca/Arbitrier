@@ -141,14 +141,19 @@ Start at [`docs/okf/index.md`](docs/okf/index.md).
 > **Prerequisites:** Docker Desktop, Java 25 SDK, Node 20+
 
 ```bash
-# Start infrastructure (Kafka, PostgreSQL, Keycloak, Schema Registry)
-docker compose -f infra/docker/docker-compose.yml up -d
+# Start and verify PostgreSQL, Kafka, Schema Registry, Keycloak, and Kafka UI
+infra/docker/start.sh
+infra/docker/health.sh
 
 # (services and client build instructions will be added per module)
 ```
+
+Local URLs, development-only credentials, environment variables, reset instructions,
+and troubleshooting are documented in [`infra/docker/README.md`](infra/docker/README.md).
 
 ---
 
 ## Status
 
-`ARB-004B` — Platform foundation complete. Native Image documented as a supported runtime variant (ADR-0007). Business logic not yet implemented.
+`ARB-027` — Reproducible local infrastructure stack available. Application adapters and
+business migrations remain separately owned roadmap work.

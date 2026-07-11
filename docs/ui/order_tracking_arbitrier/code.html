@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Arbitrier Portal - Order Detail #ARB-10293</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .timeline-line {
+            width: 2px;
+            background: repeating-linear-gradient(to bottom, #737780 0, #737780 4px, transparent 4px, transparent 8px);
+        }
+        .timeline-line-active {
+            background: #001e40;
+        }
+    </style>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary-fixed": "#e0e3e5",
+                    "secondary": "#505f76",
+                    "tertiary": "#1b1f20",
+                    "on-surface": "#111c2d",
+                    "outline": "#737780",
+                    "error-container": "#ffdad6",
+                    "on-primary-fixed": "#001b3c",
+                    "on-primary-container": "#799dd6",
+                    "secondary-fixed": "#d3e4fe",
+                    "surface-container-highest": "#d8e3fb",
+                    "tertiary-container": "#303436",
+                    "secondary-fixed-dim": "#b7c8e1",
+                    "on-background": "#111c2d",
+                    "on-tertiary-container": "#999c9e",
+                    "on-secondary-fixed-variant": "#38485d",
+                    "on-primary-fixed-variant": "#1f477b",
+                    "secondary-container": "#d0e1fb",
+                    "background": "#f9f9ff",
+                    "primary-container": "#003366",
+                    "surface-container": "#e7eeff",
+                    "on-tertiary-fixed-variant": "#444749",
+                    "inverse-on-surface": "#ecf1ff",
+                    "on-surface-variant": "#43474f",
+                    "inverse-primary": "#a7c8ff",
+                    "inverse-surface": "#263143",
+                    "on-tertiary": "#ffffff",
+                    "on-secondary-container": "#54647a",
+                    "surface-bright": "#f9f9ff",
+                    "surface-variant": "#d8e3fb",
+                    "on-secondary-fixed": "#0b1c30",
+                    "surface-dim": "#cfdaf2",
+                    "surface": "#f9f9ff",
+                    "surface-container-low": "#f0f3ff",
+                    "on-secondary": "#ffffff",
+                    "surface-container-high": "#dee8ff",
+                    "error": "#ba1a1a",
+                    "on-tertiary-fixed": "#191c1e",
+                    "surface-container-lowest": "#ffffff",
+                    "outline-variant": "#c3c6d1",
+                    "primary": "#001e40",
+                    "tertiary-fixed-dim": "#c4c7c9",
+                    "primary-fixed": "#d5e3ff",
+                    "on-primary": "#ffffff",
+                    "on-error-container": "#93000a",
+                    "surface-tint": "#3a5f94",
+                    "on-error": "#ffffff",
+                    "primary-fixed-dim": "#a7c8ff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "stack-md": "16px",
+                    "stack-lg": "24px",
+                    "margin-desktop": "40px",
+                    "stack-xl": "48px",
+                    "stack-xs": "4px",
+                    "margin-mobile": "16px",
+                    "stack-sm": "8px",
+                    "container-max": "1440px",
+                    "gutter": "24px"
+            },
+            "fontFamily": {
+                    "headline-md": ["Inter"],
+                    "body-md": ["Inter"],
+                    "data-table": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "headline-xl": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "headline-lg-mobile": ["Inter"],
+                    "label-md": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "data-table": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                    "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "headline-xl": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md overflow-x-hidden">
+<!-- SideNavBar Anchor -->
+<aside class="fixed left-0 top-0 h-full flex flex-col py-stack-lg bg-surface dark:bg-inverse-surface docked left-0 h-full w-64 z-50 transition-all duration-200 ease-in-out">
+<div class="px-stack-lg mb-stack-xl flex items-center gap-stack-sm">
+<span class="material-symbols-outlined text-primary dark:text-inverse-primary" style="font-size: 32px;">domain</span>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-inverse-primary leading-none">Arbitrier</h1>
+<p class="text-[10px] text-on-surface-variant font-bold tracking-widest">CUSTOMER PORTAL</p>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-stack-md px-stack-lg py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-variant dark:hover:bg-on-surface-variant transition-all" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-body-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-stack-md px-stack-lg py-3 text-primary dark:text-inverse-primary font-bold border-r-4 border-primary dark:border-inverse-primary hover:bg-surface-variant transition-all" href="#">
+<span class="material-symbols-outlined">shopping_cart</span>
+<span class="font-body-md">Orders</span>
+</a>
+<a class="flex items-center gap-stack-md px-stack-lg py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-variant transition-all" href="#">
+<span class="material-symbols-outlined">add_circle</span>
+<span class="font-body-md">New Order</span>
+</a>
+<a class="flex items-center gap-stack-md px-stack-lg py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-variant transition-all" href="#">
+<span class="material-symbols-outlined">domain</span>
+<span class="font-body-md">Company</span>
+</a>
+<a class="flex items-center gap-stack-md px-stack-lg py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-variant transition-all" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-body-md">Profile</span>
+</a>
+</nav>
+<div class="px-stack-lg pt-stack-lg border-t border-outline-variant">
+<button class="w-full bg-primary text-on-primary py-3 px-stack-md rounded-lg font-bold transition-transform active:scale-95 shadow-sm">
+                New Order
+            </button>
+</div>
+</aside>
+<!-- TopNavBar Anchor -->
+<header class="flex justify-between items-center w-full px-margin-desktop h-16 ml-64 bg-surface dark:bg-inverse-surface border-b border-outline-variant dark:border-outline fixed top-0 right-0 z-40 transition-colors duration-150">
+<div class="flex items-center flex-1 max-w-xl">
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-full pl-10 pr-4 py-2 text-body-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" placeholder="Search orders, invoices..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-stack-lg">
+<div class="flex gap-stack-md">
+<button class="p-2 hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-full transition-colors text-on-surface-variant">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 hover:bg-surface-container dark:hover:bg-surface-container-highest rounded-full transition-colors text-on-surface-variant">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+</div>
+<div class="flex items-center gap-stack-sm border-l border-outline-variant pl-stack-lg">
+<img class="w-8 h-8 rounded-full border border-outline-variant object-cover" data-alt="A professional corporate headshot of a mid-40s business executive with a friendly yet authoritative expression. He is wearing a charcoal suit against a clean, out-of-focus modern office background. The lighting is soft and professional, emphasizing trust and institutional stability in a high-end corporate setting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDwO1BDjVsJQEB_qfTsPBKhAM_agqiePhmunLT06NFQgtjD9suVjFNRO_RgJye09BMQCgz2y9edqbGtiz7x7D-EzrtLgHeKgBULA4RuNvnfJHrcYEq_Vu89dIExzlt44m1ZhpjE8PvHfKc3fZT_1QNp_hw56tvh0lrIRhtm7l19cnuf61ut0NcrUMhW59IXatZn8MQVv6MzpoDKi2NwX5Qdh-3YsZJXHt5teq62o7qEvDjDqDz4prurdaEbRFutTFsZ0QWedMFL43LI"/>
+<div class="hidden xl:block text-left">
+<p class="font-bold text-sm leading-none">Jameson Chen</p>
+<p class="text-[10px] text-on-surface-variant">Global Procurement</p>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-64 mt-16 p-margin-desktop min-h-screen">
+<div class="max-w-container-max mx-auto space-y-stack-lg">
+<!-- Page Header -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-stack-md">
+<div class="space-y-1">
+<div class="flex items-center gap-2 text-on-surface-variant mb-1">
+<a class="hover:text-primary transition-colors" href="#">Orders</a>
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+<span class="text-on-surface font-semibold">ARB-10293</span>
+</div>
+<h2 class="font-headline-lg text-headline-lg">Order #ARB-10293</h2>
+<div class="flex items-center gap-stack-md">
+<span class="inline-flex items-center px-3 py-1 rounded-full text-label-md font-bold bg-[#d3e4fe] text-[#3a5f94]">
+<span class="w-2 h-2 rounded-full bg-primary mr-2"></span>
+                            Confirmed
+                        </span>
+<span class="text-on-surface-variant text-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">calendar_month</span>
+                            Placed on Oct 24, 2023
+                        </span>
+</div>
+</div>
+<div class="flex gap-stack-sm">
+<button class="flex items-center gap-stack-sm border border-outline-variant px-stack-lg py-2 rounded-lg font-bold hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined">support_agent</span>
+                        Contact Support
+                    </button>
+<button class="flex items-center gap-stack-sm bg-primary text-on-primary px-stack-lg py-2 rounded-lg font-bold hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined">download</span>
+                        Download Invoice
+                    </button>
+</div>
+</div>
+<!-- Bento Grid Layout for Order Info -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-stack-lg">
+<!-- Timeline Section (Center/Left) -->
+<div class="lg:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-xl p-stack-lg shadow-sm">
+<h3 class="font-headline-md text-headline-md mb-stack-xl">Tracking Status</h3>
+<div class="relative space-y-stack-xl pl-stack-md">
+<!-- Connecting Line -->
+<div class="absolute left-[31px] top-4 bottom-4 w-[2px] timeline-line"></div>
+<div class="absolute left-[31px] top-4 h-1/3 w-[2px] bg-primary"></div>
+<!-- Step 1 -->
+<div class="relative flex items-start gap-stack-lg">
+<div class="z-10 bg-primary text-on-primary w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<div class="pt-1">
+<p class="font-bold text-on-surface">Order Received</p>
+<p class="text-xs text-on-surface-variant">Oct 24, 2023 • 09:12 AM</p>
+<p class="mt-2 text-sm text-on-surface-variant leading-relaxed">System validated order details and assigned processing ID.</p>
+</div>
+</div>
+<!-- Step 2 -->
+<div class="relative flex items-start gap-stack-lg">
+<div class="z-10 bg-primary text-on-primary w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<div class="pt-1">
+<p class="font-bold text-on-surface">Inventory Secured</p>
+<p class="text-xs text-on-surface-variant">Oct 24, 2023 • 02:45 PM</p>
+<p class="mt-2 text-sm text-on-surface-variant leading-relaxed">All items verified in Regional Warehouse Alpha.</p>
+</div>
+</div>
+<!-- Step 3 -->
+<div class="relative flex items-start gap-stack-lg">
+<div class="z-10 bg-surface-container-high border-2 border-primary text-primary w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-sm">credit_card</span>
+</div>
+<div class="pt-1">
+<p class="font-bold text-primary">Credit Approved</p>
+<p class="text-xs text-on-surface-variant">Pending Processing</p>
+<p class="mt-2 text-sm text-on-surface-variant leading-relaxed">Awaiting final authorization from financial department.</p>
+</div>
+</div>
+<!-- Step 4 -->
+<div class="relative flex items-start gap-stack-lg">
+<div class="z-10 bg-surface-container-low border border-outline-variant text-on-surface-variant w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-sm">local_shipping</span>
+</div>
+<div class="pt-1 opacity-50">
+<p class="font-bold">Ready for Shipping</p>
+<p class="text-xs">Scheduled for Q4 Logistics</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Main Content (Center/Right) -->
+<div class="lg:col-span-8 space-y-stack-lg">
+<!-- Item List -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+<div class="px-stack-lg py-stack-md bg-surface-container-low border-b border-outline-variant flex justify-between items-center">
+<h3 class="font-headline-md text-headline-md">Order Summary</h3>
+<span class="text-on-surface-variant text-xs font-bold uppercase tracking-widest">4 Items Total</span>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left font-data-table text-data-table">
+<thead>
+<tr class="bg-surface-container-lowest text-on-surface-variant border-b border-outline-variant">
+<th class="px-stack-lg py-stack-md font-semibold">Item Details</th>
+<th class="px-stack-lg py-stack-md font-semibold">SKU</th>
+<th class="px-stack-lg py-stack-md font-semibold text-center">Quantity</th>
+<th class="px-stack-lg py-stack-md font-semibold text-right">Unit Price</th>
+<th class="px-stack-lg py-stack-md font-semibold text-right">Total</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<tr class="hover:bg-surface-variant/20 transition-colors">
+<td class="px-stack-lg py-4">
+<div class="flex items-center gap-stack-md">
+<div class="w-12 h-12 bg-surface-container rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">precision_manufacturing</span>
+</div>
+<div>
+<p class="font-bold text-on-surface">Industrial Flux Capacitors</p>
+<p class="text-xs text-on-surface-variant">Grade-A Precision Component</p>
+</div>
+</div>
+</td>
+<td class="px-stack-lg py-4 font-mono text-xs">IFC-8820-XL</td>
+<td class="px-stack-lg py-4 text-center">150</td>
+<td class="px-stack-lg py-4 text-right">$120.00</td>
+<td class="px-stack-lg py-4 text-right font-bold">$18,000.00</td>
+</tr>
+<tr class="hover:bg-surface-variant/20 transition-colors">
+<td class="px-stack-lg py-4">
+<div class="flex items-center gap-stack-md">
+<div class="w-12 h-12 bg-surface-container rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">memory</span>
+</div>
+<div>
+<p class="font-bold text-on-surface">Arbitrier Logic Controllers</p>
+<p class="text-xs text-on-surface-variant">Series 7 Microarchitecture</p>
+</div>
+</div>
+</td>
+<td class="px-stack-lg py-4 font-mono text-xs">ALC-7700-MOD</td>
+<td class="px-stack-lg py-4 text-center">45</td>
+<td class="px-stack-lg py-4 text-right">$450.00</td>
+<td class="px-stack-lg py-4 text-right font-bold">$20,250.00</td>
+</tr>
+<tr class="hover:bg-surface-variant/20 transition-colors">
+<td class="px-stack-lg py-4">
+<div class="flex items-center gap-stack-md">
+<div class="w-12 h-12 bg-surface-container rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">electrical_services</span>
+</div>
+<div>
+<p class="font-bold text-on-surface">Shielded Relay Housing</p>
+<p class="text-xs text-on-surface-variant">Weather-resistant titanium</p>
+</div>
+</div>
+</td>
+<td class="px-stack-lg py-4 font-mono text-xs">SRH-991</td>
+<td class="px-stack-lg py-4 text-center">12</td>
+<td class="px-stack-lg py-4 text-right">$85.00</td>
+<td class="px-stack-lg py-4 text-right font-bold">$1,020.00</td>
+</tr>
+</tbody>
+<tfoot>
+<tr class="bg-surface-container-low font-bold">
+<td class="px-stack-lg py-stack-md text-right" colspan="4">Subtotal</td>
+<td class="px-stack-lg py-stack-md text-right">$39,270.00</td>
+</tr>
+<tr class="bg-surface-container-low font-bold">
+<td class="px-stack-lg py-2 text-right" colspan="4">Corporate Discount (Tier 3)</td>
+<td class="px-stack-lg py-2 text-right text-error">-$1,963.50</td>
+</tr>
+<tr class="bg-surface-container-highest font-bold text-primary">
+<td class="px-stack-lg py-stack-md text-right text-headline-md" colspan="4">Total Amount Due</td>
+<td class="px-stack-lg py-stack-md text-right text-headline-md">$37,306.50</td>
+</tr>
+</tfoot>
+</table>
+</div>
+</div>
+<!-- Billing and Shipping -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-stack-lg">
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-stack-lg shadow-sm">
+<div class="flex items-center gap-stack-sm mb-stack-md text-primary">
+<span class="material-symbols-outlined">local_shipping</span>
+<h3 class="font-bold uppercase tracking-widest text-xs">Shipping Details</h3>
+</div>
+<address class="not-italic text-on-surface space-y-1">
+<p class="font-bold">Global Dynamics Logistics Center</p>
+<p>Building 4, Dock 12-B</p>
+<p>1900 Innovation Way</p>
+<p>Palo Alto, CA 94303</p>
+<p class="mt-stack-md text-on-surface-variant">Method: Priority Freight (3-5 Days)</p>
+</address>
+</div>
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-stack-lg shadow-sm">
+<div class="flex items-center gap-stack-sm mb-stack-md text-primary">
+<span class="material-symbols-outlined">receipt_long</span>
+<h3 class="font-bold uppercase tracking-widest text-xs">Billing Details</h3>
+</div>
+<address class="not-italic text-on-surface space-y-1">
+<p class="font-bold">Global Dynamics Corp (HQ)</p>
+<p>Finance Department</p>
+<p>One Market Street</p>
+<p>San Francisco, CA 94105</p>
+<p class="mt-stack-md text-on-surface-variant">Payment: Corporate Net 30</p>
+</address>
+</div>
+</div>
+</div>
+</div>
+<!-- Additional Context Section (Bottom) -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-stack-lg">
+<div class="md:col-span-2 relative overflow-hidden bg-primary-container text-on-primary rounded-xl p-stack-lg min-h-[200px] flex flex-col justify-end">
+
+<div class="relative z-10">
+<h4 class="font-headline-md text-headline-md mb-2 text-on-primary-container">Global Logistics Network</h4>
+<p class="text-sm opacity-80 max-w-md">Your order is currently being routed through our West Coast Hub. Monitor real-time transit telemetry once shipping is initiated.</p>
+</div>
+</div>
+<div class="bg-surface-container-high rounded-xl p-stack-lg flex flex-col items-center justify-center text-center space-y-stack-md">
+<div class="w-16 h-16 rounded-full bg-surface-container-lowest flex items-center justify-center shadow-inner">
+<span class="material-symbols-outlined text-primary text-3xl">qr_code_2</span>
+</div>
+<div>
+<p class="font-bold">Manifest Authentication</p>
+<p class="text-xs text-on-surface-variant">Scan to verify cryptographic order chain-of-custody.</p>
+</div>
+<button class="text-primary font-bold text-sm underline hover:text-on-primary-container transition-colors">View Digital Cert</button>
+</div>
+</div>
+</div>
+</main>
+<!-- Micro-interaction Scripts -->
+<script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Simple hover effect for table rows
+            const rows = document.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                row.addEventListener('mouseenter', () => {
+                    row.style.transform = 'translateX(4px)';
+                });
+                row.addEventListener('mouseleave', () => {
+                    row.style.transform = 'translateX(0)';
+                });
+            });
+
+            // Interactive Navigation Feedback
+            const navItems = document.querySelectorAll('aside nav a');
+            navItems.forEach(item => {
+                item.addEventListener('click', (e) => {
+                    navItems.forEach(i => i.classList.remove('font-bold', 'border-r-4', 'border-primary', 'text-primary'));
+                    item.classList.add('font-bold', 'border-r-4', 'border-primary', 'text-primary');
+                });
+            });
+        });
+    </script>
+</body></html>

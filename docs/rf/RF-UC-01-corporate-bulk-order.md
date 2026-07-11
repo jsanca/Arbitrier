@@ -16,6 +16,19 @@ UC-01 is the first documented business flow for Arbitrier. The use case starts w
 
 ## Decision or Requirement
 
+### RF-UC-01-000 Pre-Saga Availability Negotiation (ARB-017)
+
+Before an order is submitted and a saga is started, the system must allow a buyer to check
+stock availability for intended order lines. The check must:
+- Return per-line available and backorder quantities.
+- Return a recommended action: `PROCEED_FULL`, `ASK_CUSTOMER_ACCEPT_PARTIAL`, or `REJECT_NO_STOCK`.
+- Not reserve stock, not create an Order, and not start a saga.
+- Be advisory and non-binding — stock levels may change before the actual reservation.
+
+The buyer must make an explicit pre-saga decision (`ACCEPT_FULL`, `ACCEPT_PARTIAL`, or `CANCEL`)
+before the order is submitted. If `ACCEPT_PARTIAL`, only available quantities are submitted.
+The saga reservation outcome remains authoritative regardless of the pre-check result.
+
 ### RF-UC-01-001 Create Pending Order
 
 The system must create a new order in `PENDING` status and emit `OrderCreated` when an authenticated corporate buyer submits valid SKU lines.

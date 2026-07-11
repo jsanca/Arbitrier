@@ -11,6 +11,7 @@ import com.arbitrier.inventory.domain.model.StockReservationId;
 import com.arbitrier.inventory.domain.model.StockReservationStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Use-case implementation: release a stock reservation.
@@ -50,6 +51,7 @@ public class ReleaseStockService implements ReleaseStockUseCase {
     }
 
     @Override
+    @Transactional
     public ReleaseStockResult release(ReleaseStockCommand command) {
         StockReservationId reservationId = StockReservationId.of(command.reservationId());
 

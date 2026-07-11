@@ -1,44 +1,78 @@
-# client
+# Arbitrier Customer Portal
 
-React 19 / TypeScript corporate portal for the Arbitrier platform.
+React 19 + TypeScript + Vite prototype for the Arbitrier B2B customer portal.
 
-## Responsibility
+No backend required — all data is served from local mock services backed by browser localStorage.
 
-- Corporate buyer UI: submit bulk orders, track order status.
-- Human approver UI: review and accept/reject partial backorder proposals.
-- Admin UI: manage organizations, credit limits, inventory visibility.
+---
 
-## Planned Stack
+## Run
 
-| Tool          | Purpose                                    |
-|---------------|--------------------------------------------|
-| React 19      | UI framework (TypeScript strict mode)      |
-| Vite          | Build tool and dev server                  |
-| Keycloak JS   | OIDC authentication (auth code + PKCE)     |
-| Playwright    | E2E test suite                             |
-
-## Planned Structure
-
-```
-client/
-├── src/
-│   ├── pages/          # Route-level components
-│   ├── features/       # Feature slices (orders, approvals, admin)
-│   ├── components/     # Shared UI components
-│   ├── api/            # REST client (generated from OpenAPI specs)
-│   ├── auth/           # Keycloak adapter setup
-│   └── main.tsx        # App entry point
-├── e2e/                # Playwright test specs
-│   ├── uc01-confirmed.spec.ts        # TC-UC01-E01
-│   ├── uc01-partial-accepted.spec.ts # TC-UC01-E02
-│   └── uc01-partial-rejected.spec.ts # TC-UC01-E03
-├── public/
-├── index.html
-├── vite.config.ts
-├── tsconfig.json
-└── playwright.config.ts
+```bash
+npm ci
+npm run dev
 ```
 
-## Status
+Open http://localhost:5173
 
-`ARB-001` — Structure placeholder. No implementation yet.
+**Default login**: `brio@arbitrier.com` (any password)
+
+---
+
+## Build
+
+```bash
+npm run build   # production build → dist/
+```
+
+Requires no external services.
+
+---
+
+## Test
+
+```bash
+npm test        # run once
+npm test -- --watch  # watch mode
+```
+
+Tests use Vitest + jsdom. No backend, Docker, or external services needed.
+
+---
+
+## Stack
+
+| Concern | Technology |
+|---------|------------|
+| Framework | React 19 + TypeScript (strict) |
+| Bundler | Vite 8 |
+| Styling | Tailwind CSS 4 + Material Symbols |
+| Routing | React Router v7 |
+| Testing | Vitest + Testing Library |
+| Linting | Oxlint |
+| State | localStorage (mock services) |
+
+---
+
+## Architecture
+
+All data access goes through typed service interfaces in `src/services/`. Mock implementations (`mockServices.ts`) are swappable with real REST adapters — components never call `fetch()` directly.
+
+See [`docs/implementation/ARB-UI-001-customer-portal-react-prototype.md`](docs/implementation/ARB-UI-001-customer-portal-react-prototype.md) for full implementation details.
+
+---
+
+## Routes
+
+| Path | Screen |
+|------|--------|
+| `/login` | Login |
+| `/dashboard` | Dashboard |
+| `/orders` | Orders list |
+| `/orders/new` | Create new order |
+| `/orders/review` | Availability review (ARB-017) |
+| `/orders/submitting` | Submission progress |
+| `/orders/outcome` | Submission acknowledgement + final result |
+| `/orders/:orderId` | Order detail |
+| `/company` | Company profile |
+| `/profile` | User settings |

@@ -1,0 +1,162 @@
+[
+  {
+    "id": "ord-001",
+    "referenceId": "ARB-REF-8902",
+    "customerId": "usr-9182",
+    "companyId": "co-1029",
+    "status": "CONFIRMED",
+    "items": [
+      {
+        "productId": "prod-1",
+        "productName": "Industrial Hydraulic Hose",
+        "sku": "SKU-HSE-901",
+        "price": 120.00,
+        "requestedQuantity": 10,
+        "availableQuantity": 10,
+        "acceptedQuantity": 10
+      },
+      {
+        "productId": "prod-2",
+        "productName": "High-Pressure Control Valve",
+        "sku": "SKU-VLV-302",
+        "price": 450.00,
+        "requestedQuantity": 2,
+        "availableQuantity": 2,
+        "acceptedQuantity": 2
+      }
+    ],
+    "totalAmount": 2100.00,
+    "shippingAddress": {
+      "id": "addr-1",
+      "name": "Primary Warehouse",
+      "street": "100 Industrial Parkway",
+      "city": "Detroit",
+      "state": "MI",
+      "zip": "48201",
+      "country": "USA"
+    },
+    "createdAt": "2026-07-08T10:00:00Z",
+    "updatedAt": "2026-07-08T10:05:00Z",
+    "timeline": [
+      { "status": "Order received", "timestamp": "2026-07-08T10:00:00Z", "completed": true },
+      { "status": "Availability confirmed", "timestamp": "2026-07-08T10:01:00Z", "completed": true },
+      { "status": "Company credit approved", "timestamp": "2026-07-08T10:02:00Z", "completed": true },
+      { "status": "Order confirmed", "timestamp": "2026-07-08T10:03:00Z", "completed": true },
+      { "status": "Preparing delivery", "timestamp": "2026-07-08T10:05:00Z", "completed": true }
+    ]
+  },
+  {
+    "id": "ord-002",
+    "referenceId": "ARB-REF-9104",
+    "customerId": "usr-9182",
+    "companyId": "co-1029",
+    "status": "AWAITING_CUSTOMER_DECISION",
+    "items": [
+      {
+        "productId": "prod-3",
+        "productName": "Heavy-Duty Rotary Pump",
+        "sku": "SKU-PMP-772",
+        "price": 1250.00,
+        "requestedQuantity": 5,
+        "availableQuantity": 2,
+        "acceptedQuantity": 2
+      },
+      {
+        "productId": "prod-4",
+        "productName": "Stainless Steel Pipe Fitting",
+        "sku": "SKU-FIT-104",
+        "price": 15.50,
+        "requestedQuantity": 20,
+        "availableQuantity": 20,
+        "acceptedQuantity": 20
+      }
+    ],
+    "totalAmount": 6560.00,
+    "shippingAddress": {
+      "id": "addr-1",
+      "name": "Primary Warehouse",
+      "street": "100 Industrial Parkway",
+      "city": "Detroit",
+      "state": "MI",
+      "zip": "48201",
+      "country": "USA"
+    },
+    "createdAt": "2026-07-10T14:30:00Z",
+    "updatedAt": "2026-07-10T14:31:00Z",
+    "timeline": [
+      { "status": "Order received", "timestamp": "2026-07-10T14:30:00Z", "completed": true },
+      { "status": "Availability confirmed", "timestamp": "2026-07-10T14:31:00Z", "completed": true, "note": "Partial inventory available. Awaiting customer confirmation." },
+      { "status": "Company credit approved", "timestamp": null, "completed": false },
+      { "status": "Order confirmed", "timestamp": null, "completed": false },
+      { "status": "Preparing delivery", "timestamp": null, "completed": false }
+    ]
+  },
+  {
+    "id": "ord-003",
+    "referenceId": "ARB-REF-7102",
+    "customerId": "usr-9182",
+    "companyId": "co-1029",
+    "status": "REJECTED",
+    "items": [
+      {
+        "productId": "prod-3",
+        "productName": "Heavy-Duty Rotary Pump",
+        "sku": "SKU-PMP-772",
+        "price": 1250.00,
+        "requestedQuantity": 100,
+        "availableQuantity": 100,
+        "acceptedQuantity": 100
+      }
+    ],
+    "totalAmount": 125000.00,
+    "shippingAddress": {
+      "id": "addr-2",
+      "name": "Secondary Logistics Hub",
+      "street": "450 Supply Chain Way",
+      "city": "Dallas",
+      "state": "TX",
+      "zip": "75201",
+      "country": "USA"
+    },
+    "createdAt": "2026-07-09T09:00:00Z",
+    "updatedAt": "2026-07-09T09:02:00Z",
+    "timeline": [
+      { "status": "Order received", "timestamp": "2026-07-09T09:00:00Z", "completed": true },
+      { "status": "Availability confirmed", "timestamp": "2026-07-09T09:01:00Z", "completed": true },
+      { "status": "Company credit approved", "timestamp": "2026-07-09T09:02:00Z", "completed": false, "failed": true, "note": "Credit check failed: Order exceeds available company credit limit." },
+      { "status": "Order confirmed", "timestamp": null, "completed": false },
+      { "status": "Preparing delivery", "timestamp": null, "completed": false }
+    ]
+  },
+  {
+    "id": "draft-001",
+    "referenceId": null,
+    "customerId": "usr-9182",
+    "companyId": "co-1029",
+    "status": "DRAFT",
+    "items": [
+      {
+        "productId": "prod-1",
+        "productName": "Industrial Hydraulic Hose",
+        "sku": "SKU-HSE-901",
+        "price": 120.00,
+        "requestedQuantity": 3,
+        "availableQuantity": 3,
+        "acceptedQuantity": 3
+      }
+    ],
+    "totalAmount": 360.00,
+    "shippingAddress": {
+      "id": "addr-1",
+      "name": "Primary Warehouse",
+      "street": "100 Industrial Parkway",
+      "city": "Detroit",
+      "state": "MI",
+      "zip": "48201",
+      "country": "USA"
+    },
+    "createdAt": "2026-07-10T16:00:00Z",
+    "updatedAt": "2026-07-10T16:00:00Z",
+    "timeline": []
+  }
+]

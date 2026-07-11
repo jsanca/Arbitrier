@@ -2,62 +2,110 @@
 
 ## Build & Test
 
+**Java 25** required. No lint/typecheck/formatter for server — `mvn -B verify` is the only quality gate.
+
 ```bash
-mvn -B verify --no-transfer-progress                                        # all server modules
-mvn -B verify --no-transfer-progress -pl server/order-service               # single module
-mvn -B test -pl server/order-service -Dtest=ArchitectureTest                # single class
-mvn -B test -pl server/order-service -Dtest=ArchitectureTest#domain*        # single method
-mvn -B generate-sources --no-transfer-progress -pl server/contracts         # regenerate Avro types
+# All server modules
+mvn -B verify --no-transfer-progress
 
-docker compose -f infra/docker/docker-compose.yml up -d                     # Kafka, Postgres, Keycloak, Schema Registry
-docker compose -f infra/docker/docker-compose.yml down -v
+# Fast feedback — all active modules
+mvn -B test --no-transfer-progress -pl server/contracts,server/platform,server/order-service,server/inventory-service,server/credit-service,server/orchestrator-service
+
+# Single module — always include server/contracts,server/platform before any service
+mvn -B test --no-transfer-progress -pl server/contracts,server/platform,server/order-service -Dtest=ArchitectureTest
+mvn -B test --no-transfer-progress -pl server/contracts,server/platform,server/order-service -Dtest=SubmitCorporateBulkOrderServiceTest#missing_customer_id_throws
+
+# Client (React 19 + TypeScript mock-based prototype — no backend required)
+cd client && npm ci && npm run build && npm run lint && npm test
+
+# Regenerate Avro types after schema changes (never commit generated sources)
+mvn -B generate-sources --no-transfer-progress -pl server/contracts
+
+# Infrastructure (Kafka, Postgres, Keycloak, Schema Registry)
+infra/docker/start.sh             # preferred — auto-loads .env or .env.example
+infra/docker/health.sh
+infra/docker/down -v              # wipe volumes
 ```
 
-Include `server/platform` and `server/contracts` in `-pl` when testing any service — they are snapshot dependencies that Maven needs at the same time. See CLAUDE.md for the correct `-pl` patterns.
+**`-pl` requirement**: `server/contracts` and `server/platform` are SNAPSHOT dependencies — they **must** appear before any service in `-pl`. Without them, Maven fails to resolve the artifact.
 
-## Module Build Order (enforced by `server/pom.xml`)
+## Module Build Order
 
 ```
-platform (library) → contracts (library) → [order-service | inventory-service | credit-service | orchestrator-service]
+platform (library) → contracts (Avro codegen) → [order-service | inventory-service | credit-service | orchestrator-service]
 ```
 
 `platform` must never import business-domain types (`com.arbitrier.order.*`, `.inventory.*`, `.credit.*`, `.orchestrator.*`).
 
-## Critical Constraints (Agents Miss These)
+## Module Maturity (at a glance)
 
-- **Domain is pure Java** — zero Spring/JPA/Kafka imports. Domain models are immutable (new instance per transition, no setters).
-- **Application services follow a fixed pipeline**: validate → derive → execute domain → persist → publish → return. Outcome always comes from the aggregate's `.status()`, never a parallel variable.
-- **Kafka activation**: `KafkaPublisherConfiguration` is gated by `@ConditionalOnProperty("spring.kafka.bootstrap-servers")`. Tests (no bootstrap-servers set) skip Kafka beans and use test adapters instead — this is silent.
-- **Avro serializer is not wired** — `ByteArraySerializer` is configured. Choose Confluent `KafkaAvroSerializer` before real Kafka deployment.
-- **No JPA yet** — when adding the first `@Entity`, uncomment JPA deps in the service POM and register a `RuntimeHintsRegistrar` for GraalVM.
-- **Resilience4j** is chosen — do not add Hystrix or Spring Retry.
-- **JWT auth only in order-service** — other services lack `spring-boot-starter-oauth2-resource-server`.
-- **`submittedByUserId` must NOT be in request body** — derived from JWT subject (`authentication.getName()`).
-- **Spring Boot 4.1 quirks**: no `@WebMvcTest` (use `@SpringBootTest` + `MockMvc`), no bean override (use `@Primary`), no auto-configured `KafkaTemplate`. See CLAUDE.md for patterns.
-- **Domain events are pure Java records** — no Avro/Kafka in domain event classes. Avro schemas live in `contracts/` and are generated at compile time.
-- **Configuration bean binding**: prefer interface return types on `@Bean` methods (`ReserveCreditUseCase` not `ReserveCreditService`) — hexagonal convention.
-- **REJECTED release is a no-op**: re leasing a REJECTED credit reservation does nothing (no event, no state change). This is by design — the reservation never held credit. Domain model would throw; the application service guards against it.
-- **Currency mismatch is undocumented behavior**: `Money` comparison in `ReserveCreditService` compares `BigDecimal` amounts only, without checking currency. Marked as OPEN QUESTION in docs.
+| Module | Domain | App Services | Adapters | Tests |
+|--------|--------|-------------|----------|-------|
+| order-service | Full | Full | REST + Kafka outbound + JPA | Full |
+| inventory-service | Full | Full | JPA persistence | Domain + app |
+| credit-service | Full | Full | JPA persistence | Domain + app |
+| orchestrator-service | Full | Full | JPA persistence | Domain + app |
+| platform | N/A (library) | N/A | Full web infra | Full |
+| contracts | 27 Avro schemas | N/A | N/A | Schema load |
+| client | React 19 prototype (mock-based, no backend) | - | - | Vitest + jsdom |
 
-## Layer Enforcement
+## Test Patterns
 
-Every service follows hexagonal architecture. ArchitectureTest enforces 5 rules per service:
-1. domain → adapter (no dependency)
-2. application → adapter (no dependency)
-3. domain → Spring/JPA (no dependency)
-4. domain → Avro/Kafka (no dependency)
-5. application → Avro/Kafka (no dependency)
+- **Domain tests**: pure JUnit 5 + AssertJ, no Spring context.
+- **Application service tests**: hand-wired (no Spring), using `InMemory*Repository`, `Recording*EventPublisher`, `Configurable*Port` test adapters.
+- **Controller tests**: `@SpringBootTest(webEnvironment = MOCK)` + `@Import(*ServiceTestConfiguration.class)` + `@MockitoBean` + manually built `MockMvc`.
+- **`@MockitoBean`** import: `org.springframework.test.context.bean.override.mockito.MockitoBean` (Spring Boot 4.1 API, replaces `@MockBean`).
+- **No bean override** in Boot 4.x — mark test beans `@Primary` instead.
+- **ArchitectureTest** (ArchUnit 1.3.0) enforces hexagonal layering + package-info.java in every service.
 
-## Documentation Workflow
+## Critical Constraints
 
-- Read OKF → RF → RNF → ADR → test-case docs before coding.
-- Do not invent business behavior. Mark missing details as `OPEN QUESTION` (all caps).
-- Implementation notes go in `docs/implementation/ARB-NNN-task-name.md`.
-- Review reports go in `docs/implementation/ARB-NNN-task-name-REVIEW.md`.
+- **Domain is pure Java** — zero Spring/JPA/Kafka imports. Models are immutable (new instance per transition, no setters).
+- **Application services** follow: validate (in command constructors via `Require`) → derive → execute domain → persist → publish → return. Outcome always from aggregate `.status()`.
+- **Kafka activation** gated by `@ConditionalOnProperty("spring.kafka.bootstrap-servers")`. Tests skip Kafka silently via test adapters.
+- **Avro serializer** is `ByteArraySerializer` (placeholder). Choose Confluent `KafkaAvroSerializer` before production.
+- **JPA is active** in all four services — `@Entity` classes exist with PostgreSQL schemas. When adding entities, register `RuntimeHintsRegistrar` for GraalVM native image.
+- **JWT auth only in order-service**. `submittedByUserId` derived from JWT `authentication.getName()`, never from request body.
+- **Spring Boot 4.1**: no `@WebMvcTest`, no bean override, no auto-configured `KafkaTemplate`.
+- **REJECTED release is a no-op** — releasing a rejected credit/stock reservation does nothing.
+- **Virtual threads** enabled in all services (`spring.threads.virtual.enabled: true`).
+- **W3C Trace Context** only — never B3 headers (`X-B3-TraceId`). `X-Correlation-Id` is business-level.
+- **Native Image** (ADR-0007): avoid `Class.forName`, dynamic proxies, runtime classpath scanning. Register `RuntimeHintsRegistrar` for `@Entity` or Avro types.
+- **Resilience4j** — no Hystrix or Spring Retry.
+- **IdempotencyStore** is port-only (interface in platform, no adapter yet).
+
+## Naming Conventions
+
+| Artifact | Pattern |
+|----------|---------|
+| Input port | `<Action><Subject>UseCase` (interface) |
+| Output port | `<Subject>Repository` / `<Subject>Gateway` |
+| Application service | `<Action><Subject>Service` |
+| REST adapter | `<Subject>RestAdapter` |
+| JPA adapter | `<Subject>JpaAdapter` |
+| Kafka producer adapter | `<Subject>KafkaProducerAdapter` |
+| Domain event | `<Subject><PastTense>DomainEvent` |
+| Avro schema file | `<subject>-<past-tense>-event-v<N>.avsc` |
+| Kafka topic | `arbitrier.<domain>.<event>.v<N>` |
+
+## UC-01 Saga States (for context)
+
+```
+STARTED → CREDIT_RESERVATION_REQUESTED
+  → CREDIT_RESERVED → INVENTORY_RESERVATION_REQUESTED
+      → INVENTORY_FULLY_RESERVED                      → CONFIRMED
+      → INVENTORY_PARTIALLY_RESERVED → AWAITING_CUSTOMER_DECISION
+          → (accept) → PARTIALLY_CONFIRMED
+          → (reject) → CANCELLED [compensations]
+      → INVENTORY_RESERVATION_FAILED → CANCELLED
+  → CREDIT_RESERVATION_DENIED → CANCELLED
+```
 
 ## References
 
-- **CLAUDE.md** — detailed style guide, naming conventions, Spring Boot 4.1 patterns, application service design, saga states, testing expectations.
+- **CLAUDE.md** — detailed style guide, Spring Boot 4.1 patterns, application service design, testing expectations.
 - **docs/adr/** — Architecture Decision Records (trace context, outbox, Avro, schema-per-service, GraalVM).
 - **docs/rnf/** — Non-functional requirements (technical baseline, native image runtime).
-- **docs/test-cases/** — Test case specs for UC-01 (12 test cases, TC-UC-01-001 through TC-UC-01-012).
+- **docs/test-cases/** — Test case specs for UC-01 (TC-UC-01-001 through TC-UC-01-012).
+- **docs/okf/**, **docs/rf/** — Use-case narratives and functional requirements.
+- **`~/.claude/skills/`** — OpenCode skill files for Java, Spring Boot, testing, and platform patterns.

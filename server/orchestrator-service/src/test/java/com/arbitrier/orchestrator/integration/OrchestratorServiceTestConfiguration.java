@@ -2,10 +2,14 @@ package com.arbitrier.orchestrator.integration;
 
 import com.arbitrier.orchestrator.adapter.outbound.InMemorySagaRepository;
 import com.arbitrier.orchestrator.adapter.outbound.RecordingConfirmOrderCommandPublisher;
+import com.arbitrier.orchestrator.adapter.outbound.RecordingReleaseCreditCommandPublisher;
+import com.arbitrier.orchestrator.adapter.outbound.RecordingReleaseStockCommandPublisher;
 import com.arbitrier.orchestrator.adapter.outbound.RecordingReserveCreditCommandPublisher;
 import com.arbitrier.orchestrator.adapter.outbound.RecordingReserveStockCommandPublisher;
 import com.arbitrier.orchestrator.adapter.outbound.RecordingSagaEventPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.ConfirmOrderCommandPublisher;
+import com.arbitrier.orchestrator.application.port.outbound.ReleaseCreditCommandPublisher;
+import com.arbitrier.orchestrator.application.port.outbound.ReleaseStockCommandPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.ReserveCreditCommandPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.ReserveStockCommandPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.SagaEventPublisher;
@@ -51,5 +55,17 @@ public class OrchestratorServiceTestConfiguration {
     @Primary
     public ConfirmOrderCommandPublisher confirmOrderCommandPublisher() {
         return new RecordingConfirmOrderCommandPublisher();
+    }
+
+    @Bean
+    @Primary
+    public ReleaseStockCommandPublisher releaseStockCommandPublisher() {
+        return new RecordingReleaseStockCommandPublisher();
+    }
+
+    @Bean
+    @Primary
+    public ReleaseCreditCommandPublisher releaseCreditCommandPublisher() {
+        return new RecordingReleaseCreditCommandPublisher();
     }
 }

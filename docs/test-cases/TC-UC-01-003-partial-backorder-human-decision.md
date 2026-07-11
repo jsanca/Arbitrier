@@ -1,61 +1,81 @@
-# TC-UC-01-003 — Partial Backorder Moves to Human Decision
+# TC-UC-01-003 — Pre-Saga Partial Availability and Buyer Decision
 
 | Field | Value |
 |-------|-------|
-| Status | Draft |
-| Type | Integration / E2E |
-| Requirement | [RF-UC-01](../rf/RF-UC-01-corporate-bulk-order.md) |
+| Status | Updated (ARB-017) |
+| Type | Unit / Integration |
+| Requirement | [RF-UC-01](../rf/RF-UC-01-corporate-bulk-order.md) §RF-UC-01-000 |
 
 ## Intention
 
-Verify that partial stock reservation pauses the saga for a buyer decision.
+Verify that when inventory is partially available, the system correctly identifies available
+and backorder quantities, recommends `ASK_CUSTOMER_ACCEPT_PARTIAL`, and that accepted partial
+quantities are the only quantities submitted to the saga.
 
 ## Context
 
-This test covers UC-01.03 before the buyer chooses how to proceed.
+This test case was originally titled "Partial Backorder Moves to Human Decision" and described
+a saga pausing at `AWAITING_CUSTOMER_DECISION`. The design changed in ARB-017: the saga does
+not wait for a human decision. The buyer decides before the saga starts.
 
 ## Decision or Requirement
 
-Given an order with at least one line lacking sufficient stock, when inventory reservation is attempted, then `StockPartiallyReserved` is emitted, the order becomes `AWAITING_CUSTOMER_DECISION`, and the buyer sees available and backorder lines.
+Given an intended order with at least one line lacking sufficient stock:
+1. `PrepareCorporateBulkOrderUseCase` must return `recommendedAction = ASK_CUSTOMER_ACCEPT_PARTIAL`.
+2. `availableLines` must contain only lines with `availableQuantity > 0`, at available quantities.
+3. `backorderLines` must contain only lines with `backorderQuantity > 0`.
+4. If the buyer chooses `ACCEPT_PARTIAL`, the caller must submit with `availableLines` quantities
+   — not the originally requested quantities.
+5. The saga starts only after the buyer decision; no saga is created during the pre-check.
 
 ## Inputs
 
-- `OrderCreated`.
-- Multiple order lines.
-- Inventory availability that satisfies only some lines.
+- Intended order lines with multiple SKUs.
+- Inventory availability that satisfies only some lines (partial or zero availability on at least one).
 
 ## Outputs
 
-- `StockPartiallyReserved`.
-- Order status `AWAITING_CUSTOMER_DECISION`.
-- Buyer-visible available and backorder line groups.
+- `PrepareCorporateBulkOrderResult` with `recommendedAction = ASK_CUSTOMER_ACCEPT_PARTIAL`.
+- `availableLines` containing per-SKU available quantities.
+- `backorderLines` containing lines where stock is insufficient.
+- No `Order` aggregate created.
+- No saga started.
 
 ## Preconditions
 
-- Order is `PENDING`.
-- Inventory service can identify available and unavailable lines.
+- `InventoryAvailabilityPort` is configured to return partial availability for at least one SKU.
+- No `OrderRepository` or saga infrastructure is required.
 
 ## Postconditions
 
-- Saga is waiting for `ACCEPT_PARTIAL`, `WAIT_BACKORDER`, or `CANCEL_ORDER`.
-- No credit is consumed before the buyer decision.
+- `PrepareCorporateBulkOrderResult.allAvailable()` is `false`.
+- `recommendedAction` is `ASK_CUSTOMER_ACCEPT_PARTIAL`.
+- A line with `requestedQuantity=5, available=3` appears in `availableLines` with `availableQuantity=3`
+  and in `backorderLines` with `backorderQuantity=2`.
+- No Order aggregate is created during the pre-check.
 
 ## Failure Behavior
 
-- If the buyer decision submission fails, retry behavior is OPEN QUESTION.
-- If the waiting state expires, timeout policy is OPEN QUESTION.
+- If all lines have zero stock, `recommendedAction = REJECT_NO_STOCK` and `availableLines` is empty.
+- Stock levels observed during the pre-check are advisory. If actual reservation later fails,
+  existing saga compensation paths handle the rollback (ARB-016).
 
 ## Observability Expectations
 
-- Timeline marks entry into `AWAITING_CUSTOMER_DECISION`.
-- Logs include available and backorder line identifiers without inventing hidden business rules.
+- Application log includes `customerId`, `warehouseId`, `lines`, and `action=ASK_CUSTOMER_ACCEPT_PARTIAL`.
 
-## Test Evidence Placeholder
+## Test Evidence
 
-- Automated evidence pending implementation.
+| Test class | Method | Status |
+|-----------|--------|--------|
+| `PrepareCorporateBulkOrderServiceTest` | `prepare_returns_ask_customer_when_partial_availability` | Pass |
+| `PrepareCorporateBulkOrderServiceTest` | `partial_result_available_lines_contain_available_quantities_only` | Pass |
+| `PrepareCorporateBulkOrderServiceTest` | `partial_result_backorder_lines_show_unfulfilled_quantities` | Pass |
+| `PrepareCorporateBulkOrderServiceTest` | `accepted_partial_decision_available_lines_give_quantities_for_submission` | Pass |
+| `PrepareCorporateBulkOrderServiceTest` | `prepare_returns_reject_when_no_stock_for_any_line` | Pass |
 
 ## Open Questions
 
-- OPEN QUESTION: Does `AWAITING_CUSTOMER_DECISION` have a business expiration?
-- OPEN QUESTION: Exact UI route and API for buyer decision.
-- OPEN QUESTION: Exact line-level payload for partial reservation.
+- OPEN QUESTION: UI route and API for submitting the pre-saga decision.
+- OPEN QUESTION: Source of `warehouseId` — catalog, customer default, or buyer selection.
+- OPEN QUESTION: Decision persistence if the buyer's session expires between pre-check and submit.

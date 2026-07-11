@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Order Confirmed | Arbitrier Portal</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary-fixed": "#e0e3e5",
+                    "secondary": "#505f76",
+                    "tertiary": "#1b1f20",
+                    "on-surface": "#111c2d",
+                    "outline": "#737780",
+                    "error-container": "#ffdad6",
+                    "on-primary-fixed": "#001b3c",
+                    "on-primary-container": "#799dd6",
+                    "secondary-fixed": "#d3e4fe",
+                    "surface-container-highest": "#d8e3fb",
+                    "tertiary-container": "#303436",
+                    "secondary-fixed-dim": "#b7c8e1",
+                    "on-background": "#111c2d",
+                    "on-tertiary-container": "#999c9e",
+                    "on-secondary-fixed-variant": "#38485d",
+                    "on-primary-fixed-variant": "#1f477b",
+                    "secondary-container": "#d0e1fb",
+                    "background": "#f9f9ff",
+                    "primary-container": "#003366",
+                    "surface-container": "#e7eeff",
+                    "on-tertiary-fixed-variant": "#444749",
+                    "inverse-on-surface": "#ecf1ff",
+                    "on-surface-variant": "#43474f",
+                    "inverse-primary": "#a7c8ff",
+                    "inverse-surface": "#263143",
+                    "on-tertiary": "#ffffff",
+                    "on-secondary-container": "#54647a",
+                    "surface-bright": "#f9f9ff",
+                    "surface-variant": "#d8e3fb",
+                    "on-secondary-fixed": "#0b1c30",
+                    "surface-dim": "#cfdaf2",
+                    "surface": "#f9f9ff",
+                    "surface-container-low": "#f0f3ff",
+                    "on-secondary": "#ffffff",
+                    "surface-container-high": "#dee8ff",
+                    "error": "#ba1a1a",
+                    "on-tertiary-fixed": "#191c1e",
+                    "surface-container-lowest": "#ffffff",
+                    "outline-variant": "#c3c6d1",
+                    "primary": "#001e40",
+                    "tertiary-fixed-dim": "#c4c7c9",
+                    "primary-fixed": "#d5e3ff",
+                    "on-primary": "#ffffff",
+                    "on-error-container": "#93000a",
+                    "surface-tint": "#3a5f94",
+                    "on-error": "#ffffff",
+                    "primary-fixed-dim": "#a7c8ff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "stack-md": "16px",
+                    "stack-lg": "24px",
+                    "margin-desktop": "40px",
+                    "stack-xl": "48px",
+                    "stack-xs": "4px",
+                    "margin-mobile": "16px",
+                    "stack-sm": "8px",
+                    "container-max": "1440px",
+                    "gutter": "24px"
+            },
+            "fontFamily": {
+                    "headline-md": ["Inter"],
+                    "body-md": ["Inter"],
+                    "data-table": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "headline-xl": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "headline-lg-mobile": ["Inter"],
+                    "label-md": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "data-table": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                    "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "headline-xl": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .confetti-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface min-h-screen flex flex-col items-center justify-center relative overflow-hidden">
+<canvas class="confetti-canvas" id="confetti"></canvas>
+<main class="relative z-10 w-full max-w-[800px] px-margin-mobile md:px-margin-desktop py-stack-xl flex flex-col items-center">
+<div class="mb-stack-lg flex flex-col items-center text-center">
+<div class="w-20 h-20 bg-surface-container-highest rounded-full flex items-center justify-center mb-stack-md animate-bounce">
+<span class="material-symbols-outlined text-primary text-[48px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+<h1 class="font-headline-xl text-headline-xl text-primary mb-stack-xs">Order Received</h1>
+<p class="font-body-lg text-body-lg text-secondary mb-stack-lg">Your transaction has been securely processed and is now being queued.</p>
+<div class="inline-flex items-center gap-stack-sm bg-surface-container-low px-stack-md py-stack-sm rounded-lg border border-outline-variant">
+<span class="font-label-md text-label-md text-secondary uppercase tracking-widest">Order Reference ID:</span>
+<span class="font-headline-md text-headline-md text-primary tracking-tight">ARB-2023-9941X</span>
+</div>
+</div>
+<div class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm mb-stack-xl">
+<div class="px-stack-lg py-stack-md border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
+<h2 class="font-headline-md text-headline-md text-on-surface">Order Summary</h2>
+<span class="font-label-md text-label-md bg-secondary-container text-on-secondary-container px-stack-sm py-stack-xs rounded">PROCESSED</span>
+</div>
+<div class="p-stack-lg">
+<div class="space-y-stack-md">
+<div class="flex justify-between items-center pb-stack-sm border-b border-outline-variant border-dashed">
+<div class="flex items-center gap-stack-md">
+<div class="w-12 h-12 bg-surface-container flex items-center justify-center rounded">
+<span class="material-symbols-outlined text-secondary">inventory_2</span>
+</div>
+<div>
+<p class="font-body-md text-body-md font-semibold text-on-surface">Global Logistics Premium Suite</p>
+<p class="font-label-md text-label-md text-secondary">Annual Subscription • 50 Seats</p>
+</div>
+</div>
+<p class="font-body-md text-body-md font-bold text-primary">$12,450.00</p>
+</div>
+<div class="flex justify-between items-center pb-stack-sm border-b border-outline-variant border-dashed">
+<div class="flex items-center gap-stack-md">
+<div class="w-12 h-12 bg-surface-container flex items-center justify-center rounded">
+<span class="material-symbols-outlined text-secondary">database</span>
+</div>
+<div>
+<p class="font-body-md text-body-md font-semibold text-on-surface">Compliance Data API Tier II</p>
+<p class="font-label-md text-label-md text-secondary">Quarterly Billing</p>
+</div>
+</div>
+<p class="font-body-md text-body-md font-bold text-primary">$2,100.00</p>
+</div>
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-stack-md">
+<div class="w-12 h-12 bg-surface-container flex items-center justify-center rounded">
+<span class="material-symbols-outlined text-secondary">support_agent</span>
+</div>
+<div>
+<p class="font-body-md text-body-md font-semibold text-on-surface">Dedicated Support Package</p>
+<p class="font-label-md text-label-md text-secondary">24/7 Priority Access</p>
+</div>
+</div>
+<p class="font-body-md text-body-md font-bold text-primary">$450.00</p>
+</div>
+</div>
+<div class="mt-stack-lg pt-stack-lg border-t border-outline border-opacity-20 flex flex-col gap-stack-sm">
+<div class="flex justify-between items-center">
+<span class="font-body-md text-body-md text-secondary">Subtotal</span>
+<span class="font-body-md text-body-md text-on-surface">$15,000.00</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="font-body-md text-body-md text-secondary">Tax (Standard Corporate Rate)</span>
+<span class="font-body-md text-body-md text-on-surface">$1,200.00</span>
+</div>
+<div class="flex justify-between items-center mt-stack-sm">
+<span class="font-headline-md text-headline-md text-primary">Total Amount</span>
+<span class="font-headline-md text-headline-md text-primary font-extrabold">$16,200.00</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex flex-col md:flex-row gap-stack-md w-full">
+<a class="flex-1 bg-primary text-on-primary font-headline-md text-headline-md py-stack-md rounded-lg text-center transition-all hover:bg-primary-container hover:shadow-lg flex items-center justify-center gap-stack-sm" href="#">
+                View Order Status
+                <span class="material-symbols-outlined">trending_flat</span>
+</a>
+<a class="flex-1 bg-surface-container-highest text-primary border border-outline-variant font-headline-md text-headline-md py-stack-md rounded-lg text-center transition-all hover:bg-surface-variant flex items-center justify-center gap-stack-sm" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                Back to Dashboard
+            </a>
+</div>
+<div class="mt-stack-xl flex items-center gap-stack-md text-secondary opacity-60">
+<div class="flex items-center gap-stack-xs">
+<span class="material-symbols-outlined text-[18px]">verified_user</span>
+<span class="font-label-md text-label-md">Secure Encryption</span>
+</div>
+<div class="w-1 h-1 bg-outline-variant rounded-full"></div>
+<div class="flex items-center gap-stack-xs">
+<span class="material-symbols-outlined text-[18px]">print</span>
+<span class="font-label-md text-label-md">Download Receipt</span>
+</div>
+<div class="w-1 h-1 bg-outline-variant rounded-full"></div>
+<div class="flex items-center gap-stack-xs">
+<span class="material-symbols-outlined text-[18px]">mail</span>
+<span class="font-label-md text-label-md">Email Support</span>
+</div>
+</div>
+</main>
+<footer class="mt-auto py-stack-md w-full text-center">
+<p class="font-label-md text-label-md text-secondary opacity-40">Arbitrier Portal © 2024 Institutional Fulfillment Systems</p>
+</footer>
+<script>
+        // Simple confetti effect for success feedback
+        const canvas = document.getElementById('confetti');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = -10;
+                this.size = Math.random() * 8 + 4;
+                this.speedY = Math.random() * 3 + 2;
+                this.speedX = Math.random() * 2 - 1;
+                this.color = ['#001e40', '#3a5f94', '#a7c8ff', '#d5e3ff'][Math.floor(Math.random() * 4)];
+                this.rotation = Math.random() * 360;
+                this.rotationSpeed = Math.random() * 10 - 5;
+            }
+
+            update() {
+                this.y += this.speedY;
+                this.x += this.speedX;
+                this.rotation += this.rotationSpeed;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation * Math.PI / 180);
+                ctx.fillStyle = this.color;
+                ctx.fillRect(-this.size / 2, -this.size / 2, this.size, this.size);
+                ctx.restore();
+            }
+        }
+
+        function init() {
+            for (let i = 0; i < 50; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach((p, i) => {
+                p.update();
+                p.draw();
+                if (p.y > canvas.height) particles.splice(i, 1);
+            });
+            if (particles.length > 0) requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+        
+        // Trigger after a short delay for dramatic effect
+        setTimeout(() => {
+            init();
+            animate();
+        }, 300);
+    </script>
+</body></html>

@@ -45,8 +45,9 @@ public class KafkaPublisherConfiguration {
 
     @Bean
     ProducerFactory<String, Object> orderProducerFactory(
-            @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers) {
-        Map<String, Object> props = new HashMap<>();
+            @Value("${spring.kafka.bootstrap-servers}") final String bootstrapServers) {
+
+        final Map<String, Object> props = new HashMap<>();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class);
@@ -54,16 +55,18 @@ public class KafkaPublisherConfiguration {
     }
 
     @Bean
-    KafkaTemplate<String, Object> orderKafkaTemplate(ProducerFactory<String, Object> orderProducerFactory) {
+    KafkaTemplate<String, Object> orderKafkaTemplate(final ProducerFactory<String, Object> orderProducerFactory) {
+
         return new KafkaTemplate<>(orderProducerFactory);
     }
 
     @Bean
     OrderEventPublisher kafkaOrderEventPublisher(
-            KafkaTemplate<String, Object> orderKafkaTemplate,
-            OrderCreatedAvroMapper mapper,
+            final KafkaTemplate<String, Object> orderKafkaTemplate,
+            final OrderCreatedAvroMapper mapper,
             @Value("${arbitrier.kafka.topics.order-created:" +
-                    com.arbitrier.platform.kafka.TopicNames.ORDER_CREATED_V1 + "}") String topic) {
+                    com.arbitrier.platform.kafka.TopicNames.ORDER_CREATED_V1 + "}") final String topic) {
+
         return new KafkaOrderEventPublisher(orderKafkaTemplate, mapper, topic);
     }
 }

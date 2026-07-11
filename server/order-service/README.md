@@ -45,9 +45,10 @@ Pure-Java types in `com.arbitrier.order.domain.model`:
 
 ### Inbound ports
 
-| Interface | Location |
-|-----------|----------|
-| `SubmitCorporateBulkOrderUseCase` | `application/port/inbound/` |
+| Interface | Location | Notes |
+|-----------|----------|-------|
+| `SubmitCorporateBulkOrderUseCase` | `application/port/inbound/` | Creates Order, publishes `OrderCreatedDomainEvent` |
+| `PrepareCorporateBulkOrderUseCase` | `application/port/inbound/` | Pre-saga availability check — read-only, no Order created |
 
 ### Outbound ports
 
@@ -56,6 +57,7 @@ Pure-Java types in `com.arbitrier.order.domain.model`:
 | `OrderRepository` | `application/port/outbound/` | In-memory only (no JPA yet) |
 | `OrderEventPublisher` | `application/port/outbound/` | `KafkaOrderEventPublisher` when `spring.kafka.bootstrap-servers` is set; `RecordingOrderEventPublisher` in tests |
 | `CustomerAccessPort` | `application/port/outbound/` | `AllowAllCustomerAccessAdapter` placeholder |
+| `InventoryAvailabilityPort` | `application/port/outbound/` | Synchronous global availability query; no `warehouseId` (ADR-0009); `StubInventoryAvailabilityPort` in tests; no production adapter yet |
 
 ### Problem codes
 
@@ -88,7 +90,28 @@ The Avro value serializer must be configured for production (see `docs/implement
 mvn -B test --no-transfer-progress -pl server/contracts,server/platform,server/order-service
 ```
 
+## Pre-Saga Negotiation (ARB-017)
+
+`PrepareCorporateBulkOrderUseCase` implements a read-only availability check before the
+saga is started. The buyer sees per-line available vs backorder quantities and a recommended
+action:
+
+| `recommendedAction` | Meaning |
+|--------------------|---------|
+| `PROCEED_FULL` | All lines fully available — submit immediately |
+| `ASK_CUSTOMER_ACCEPT_PARTIAL` | Some lines have less stock — ask buyer |
+| `REJECT_NO_STOCK` | No stock for any line — order cannot proceed |
+
+The buyer makes an explicit `CustomerPreSagaDecision` (`ACCEPT_FULL`, `ACCEPT_PARTIAL`,
+`CANCEL`) before calling `SubmitCorporateBulkOrderUseCase`. If `ACCEPT_PARTIAL`, only
+the `availableLines` quantities are submitted.
+
+The pre-check is advisory. Stock can change between check and reservation. The saga
+reservation is authoritative; existing compensation paths handle reservation failures.
+
 ## Status
 
+`ARB-017B` — `warehouseId` removed from `PrepareCorporateBulkOrderCommand` and `InventoryAvailabilityPort` (ADR-0009). 71 tests pass.
+`ARB-017` — `PrepareCorporateBulkOrderUseCase` implemented. `InventoryAvailabilityPort` defined; no production adapter yet.
 `ARB-011` — Kafka + Avro publishing foundation added. `KafkaOrderEventPublisher` maps `OrderCreatedDomainEvent` to `OrderCreated` Avro and publishes to `arbitrier.order.created.v1`. Avro serializer and Schema Registry deferred.
 `ARB-010` — JWT security wired. `submittedByUserId` removed from request body. `CustomerAccessPort` enforced. Persistence (JPA) pending.

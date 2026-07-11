@@ -1,12 +1,10 @@
 package com.arbitrier.inventory.application.service;
 
-import com.arbitrier.inventory.adapter.outbound.ConfigurableStockAvailabilityPort;
 import com.arbitrier.inventory.adapter.outbound.InMemoryStockReservationRepository;
 import com.arbitrier.inventory.adapter.outbound.RecordingStockReservationEventPublisher;
 import com.arbitrier.inventory.application.port.inbound.ReleaseStockCommand;
 import com.arbitrier.inventory.application.port.inbound.ReleaseStockResult;
-import com.arbitrier.inventory.application.port.inbound.ReserveStockCommand;
-import com.arbitrier.inventory.application.port.inbound.ReserveStockLineCommand;
+import com.arbitrier.inventory.domain.model.StockAllocation;
 import com.arbitrier.inventory.domain.model.StockReservation;
 import com.arbitrier.inventory.domain.model.StockReservationId;
 import com.arbitrier.inventory.domain.model.StockReservationLine;
@@ -29,10 +27,9 @@ class ReleaseStockServiceTest {
 
     private static final String ORDER_ID = "order-release-001";
     private static final String RESERVATION_ID = "res-release-001";
-    private static final String WAREHOUSE_ID = "wh-001";
+    private static final WarehouseId WH1 = WarehouseId.of("wh-001");
 
     private static final StockReservationId RES_ID = StockReservationId.of(RESERVATION_ID);
-    private static final WarehouseId WH_ID = WarehouseId.of(WAREHOUSE_ID);
 
     private InMemoryStockReservationRepository repository;
     private RecordingStockReservationEventPublisher publisher;
@@ -185,24 +182,26 @@ class ReleaseStockServiceTest {
 
     private void saveReserved() {
         StockReservation r = StockReservation.fullyReserved(
-                RES_ID, ORDER_ID, WH_ID,
-                List.of(new StockReservationLine("SKU-A", 10, 10)));
+                RES_ID, ORDER_ID,
+                List.of(new StockReservationLine("SKU-A", 10,
+                        List.of(new StockAllocation(WH1, "SKU-A", 10)))));
         repository.save(r);
     }
 
     private void savePartiallyReserved() {
         StockReservation r = StockReservation.partiallyReserved(
-                RES_ID, ORDER_ID, WH_ID,
+                RES_ID, ORDER_ID,
                 List.of(
-                        new StockReservationLine("SKU-A", 10, 10),
-                        new StockReservationLine("SKU-B", 5, 0)));
+                        new StockReservationLine("SKU-A", 10,
+                                List.of(new StockAllocation(WH1, "SKU-A", 10))),
+                        StockReservationLine.unallocated("SKU-B", 5)));
         repository.save(r);
     }
 
     private void saveRejected() {
         StockReservation r = StockReservation.rejected(
-                RES_ID, ORDER_ID, WH_ID,
-                List.of(new StockReservationLine("SKU-A", 10, 0)));
+                RES_ID, ORDER_ID,
+                List.of(StockReservationLine.unallocated("SKU-A", 10)));
         repository.save(r);
     }
 }

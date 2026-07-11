@@ -1,0 +1,37 @@
+[
+  {
+    "id": "prod-1",
+    "sku": "SKU-HSE-901",
+    "name": "Industrial Hydraulic Hose",
+    "price": 120.00,
+    "category": "Hydraulics"
+  },
+  {
+    "id": "prod-2",
+    "sku": "SKU-VLV-302",
+    "name": "High-Pressure Control Valve",
+    "price": 450.00,
+    "category": "Valves"
+  },
+  {
+    "id": "prod-3",
+    "sku": "SKU-PMP-772",
+    "name": "Heavy-Duty Rotary Pump",
+    "price": 1250.00,
+    "category": "Pumps"
+  },
+  {
+    "id": "prod-4",
+    "sku": "SKU-FIT-104",
+    "name": "Stainless Steel Pipe Fitting",
+    "price": 15.50,
+    "category": "Fittings"
+  },
+  {
+    "id": "prod-5",
+    "sku": "SKU-GKT-508",
+    "name": "Reinforced Rubber Gasket",
+    "price": 8.75,
+    "category": "Gaskets"
+  }
+]

@@ -19,6 +19,7 @@ import com.arbitrier.platform.error.ApplicationProblemException;
 import com.arbitrier.platform.validation.Require;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -51,6 +52,7 @@ public class SubmitCorporateBulkOrderService implements SubmitCorporateBulkOrder
     }
 
     @Override
+    @Transactional
     public SubmitCorporateBulkOrderResult execute(SubmitCorporateBulkOrderCommand command) {
         Require.notNull(command, "command");
 

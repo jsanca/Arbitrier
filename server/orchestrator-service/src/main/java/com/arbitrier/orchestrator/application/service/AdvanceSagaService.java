@@ -10,6 +10,7 @@ import com.arbitrier.orchestrator.domain.model.Saga;
 import com.arbitrier.orchestrator.domain.model.SagaId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Use-case implementation: advance a saga to a new processing step.
@@ -19,10 +20,6 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Business step-sequencing logic (which step follows which) belongs to ARB-015.
  * This service is a general-purpose step-transition mechanism.
- *
- * <h2>Transactionality (deferred)</h2>
- * <p>This service will become {@code @Transactional} when JPA persistence is introduced.
- * DB + Kafka consistency will be handled by the Outbox pattern.
  *
  * <p>Layer: application/service
  * <p>Module: orchestrator-service
@@ -40,6 +37,7 @@ public class AdvanceSagaService implements AdvanceSagaUseCase {
     }
 
     @Override
+    @Transactional
     public AdvanceSagaResult advance(final AdvanceSagaCommand command) {
         final SagaId sagaId = SagaId.of(command.sagaId());
 

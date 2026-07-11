@@ -10,6 +10,7 @@ import com.arbitrier.orchestrator.domain.model.Saga;
 import com.arbitrier.orchestrator.domain.model.SagaId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Use-case implementation: start a new saga instance for a placed order.
@@ -20,10 +21,6 @@ import org.slf4j.LoggerFactory;
  * <p>OPEN QUESTION: Duplicate saga detection — if a saga with the same {@code sagaId}
  * already exists, this service will overwrite it. An idempotency check should be
  * added at the Kafka consumer layer when ARB-015 wires the consumer.
- *
- * <h2>Transactionality (deferred)</h2>
- * <p>This service will become {@code @Transactional} when JPA persistence is introduced.
- * DB + Kafka consistency will be handled by the Outbox pattern.
  *
  * <p>Layer: application/service
  * <p>Module: orchestrator-service
@@ -41,6 +38,7 @@ public class StartSagaService implements StartSagaUseCase {
     }
 
     @Override
+    @Transactional
     public StartSagaResult start(final StartSagaCommand command) {
         final SagaId sagaId = SagaId.of(command.sagaId());
 

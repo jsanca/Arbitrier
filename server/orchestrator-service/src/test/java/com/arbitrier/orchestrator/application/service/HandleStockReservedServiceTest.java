@@ -39,7 +39,7 @@ class HandleStockReservedServiceTest {
         creditCommandPublisher = new RecordingReserveCreditCommandPublisher();
         service = new HandleStockReservedService(repository, eventPublisher, creditCommandPublisher);
 
-        repository.save(Saga.start(SAGA_ID_VO, ORDER_ID, CUSTOMER_ID));
+        repository.save(Saga.start(SAGA_ID_VO, ORDER_ID, CUSTOMER_ID).awaitInventoryResponse());
     }
 
     // ── Happy path ────────────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ class HandleStockReservedServiceTest {
     void handle_generates_unique_credit_reservation_ids_for_each_call() {
         var result1 = service.handle(command());
 
-        repository.save(Saga.start(SagaId.of("saga-002"), ORDER_ID, CUSTOMER_ID));
+        repository.save(Saga.start(SagaId.of("saga-002"), ORDER_ID, CUSTOMER_ID).awaitInventoryResponse());
         var result2 = service.handle(new HandleStockReservedCommand("saga-002", STOCK_RESERVATION_ID));
 
         assertThat(result1.creditReservationId()).isNotEqualTo(result2.creditReservationId());

@@ -12,6 +12,7 @@ import com.arbitrier.orchestrator.domain.model.Saga;
 import com.arbitrier.orchestrator.domain.model.SagaId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -27,10 +28,6 @@ import java.util.UUID;
  *   <li>Publish {@link SagaAdvancedDomainEvent}.</li>
  *   <li>Issue a {@link ReserveCreditSagaCommand} to the credit-service.</li>
  * </ol>
- *
- * <h2>Transactionality (deferred)</h2>
- * <p>This service will become {@code @Transactional} when JPA persistence is introduced.
- * DB + Kafka consistency will be handled by the Outbox pattern (ADR-0005).
  *
  * <p>Layer: application/service
  * <p>Module: orchestrator-service
@@ -53,12 +50,17 @@ public class HandleStockReservedService implements HandleStockReservedUseCase {
     }
 
     @Override
+    @Transactional
     public HandleStockReservedResult handle(final HandleStockReservedCommand command) {
         final SagaId sagaId = SagaId.of(command.sagaId());
         final String creditReservationId = UUID.randomUUID().toString();
 
         final Saga saga = loadSaga(sagaId);
-        final Saga advanced = saga.inventoryReserved(command.stockReservationId());
+        // TODO: When Kafka wiring is introduced, validate that command.stockReservationId()
+        // matches the reservation ID originally issued in ReserveStockSagaCommand. This guards
+        // against message-ordering issues where a reply from a stale or different reservation arrives.
+        final Saga advanced = saga.inventoryReserved(command.stockReservationId())
+                .awaitCreditResponse();
 
         repository.save(advanced);
         publishSagaAdvanced(advanced);

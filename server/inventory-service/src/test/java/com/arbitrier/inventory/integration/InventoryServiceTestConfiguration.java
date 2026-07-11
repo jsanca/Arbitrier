@@ -1,11 +1,11 @@
 package com.arbitrier.inventory.integration;
 
-import com.arbitrier.inventory.adapter.outbound.ConfigurableStockAvailabilityPort;
+import com.arbitrier.inventory.adapter.outbound.ConfigurableWarehouseAllocationPort;
 import com.arbitrier.inventory.adapter.outbound.InMemoryStockReservationRepository;
 import com.arbitrier.inventory.adapter.outbound.RecordingStockReservationEventPublisher;
-import com.arbitrier.inventory.application.port.outbound.StockAvailabilityPort;
 import com.arbitrier.inventory.application.port.outbound.StockReservationEventPublisher;
 import com.arbitrier.inventory.application.port.outbound.StockReservationRepository;
+import com.arbitrier.inventory.application.port.outbound.WarehouseAllocationPort;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 
@@ -24,8 +24,8 @@ public class InventoryServiceTestConfiguration {
     }
 
     @Bean
-    StockAvailabilityPort stockAvailabilityPort() {
-        return new ConfigurableStockAvailabilityPort();
+    WarehouseAllocationPort warehouseAllocationPort() {
+        return new ConfigurableWarehouseAllocationPort();
     }
 
     @Bean

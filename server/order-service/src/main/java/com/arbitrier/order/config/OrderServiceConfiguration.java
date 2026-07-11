@@ -1,10 +1,13 @@
 package com.arbitrier.order.config;
 
 import com.arbitrier.order.adapter.outbound.customer.AllowAllCustomerAccessAdapter;
+import com.arbitrier.order.application.port.inbound.PrepareCorporateBulkOrderUseCase;
 import com.arbitrier.order.application.port.inbound.SubmitCorporateBulkOrderUseCase;
 import com.arbitrier.order.application.port.outbound.CustomerAccessPort;
+import com.arbitrier.order.application.port.outbound.InventoryAvailabilityPort;
 import com.arbitrier.order.application.port.outbound.OrderEventPublisher;
 import com.arbitrier.order.application.port.outbound.OrderRepository;
+import com.arbitrier.order.application.service.PrepareCorporateBulkOrderService;
 import com.arbitrier.order.application.service.SubmitCorporateBulkOrderService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,5 +38,13 @@ public class OrderServiceConfiguration {
     @Bean
     CustomerAccessPort customerAccessPort() {
         return new AllowAllCustomerAccessAdapter();
+    }
+
+    // ── ARB-017 pre-saga availability negotiation ────────────────────────────
+
+    @Bean
+    PrepareCorporateBulkOrderUseCase prepareCorporateBulkOrderUseCase(
+            InventoryAvailabilityPort inventoryAvailabilityPort) {
+        return new PrepareCorporateBulkOrderService(inventoryAvailabilityPort);
     }
 }

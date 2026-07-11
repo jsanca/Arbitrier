@@ -34,7 +34,7 @@ Contracts
 
 ---
 
-# ORDER DOMAIN
+# ORDER DOMAIN & PLATFORM CAPABILITIES
 
 ARB-007 [DONE]
 Order Service
@@ -68,37 +68,68 @@ Credit Service
 ARB-014 [DONE]
 Saga Orchestrator
 
-ARB-015 [PLANNED/MISSING REVIEW]
+ARB-015 [DONE]
 Saga Happy Path
 
-ARB-016 [PLANNED]
+ARB-016 [DONE]
 Saga Compensation
 
-ARB-017 [PLANNED]
-Backorder Human Workflow
+ARB-017 [DONE]
+Pre-Saga Availability Negotiation
+
+ARB-018 [DONE]
+Saga Timeout & Retry Policy
+
+---
+
+# INFRASTRUCTURE ADAPTERS
+
+ARB-019 [DONE]
+Persistence Adapters — JPA, PostgreSQL Repositories, Optimistic Locking
+
+ARB-020 [PLANNED]
+Database Migrations & Synthetic Data — Flyway/Liquibase, Init Data
+
+ARB-021 [PLANNED]
+Outbox / Inbox Foundation
+
+ARB-022 [PLANNED]
+Kafka Runtime Adapters — Consumers, Producers, KafkaTemplate, Avro Mappers
+
+ARB-023 [PLANNED]
+Schema Registry & Avro Serializer Finalization
+
+ARB-024 [PLANNED]
+Resilience4j Runtime Policies — Retry, Circuit Breaker, Bulkhead, TimeLimiter
 
 ---
 
 # USER INTERFACE
 
-ARB-018 [PLANNED]
+ARB-025 [PLANNED]
 Dashboard Backend API
 
-ARB-019 [PLANNED]
+ARB-026 [PLANNED]
 React Dashboard
 
 ---
 
-# OPERATIONS & DELIVERY
+# DELIVERY & OPERATIONS
 
-ARB-020 [PLANNED]
-Infrastructure
+ARB-027 [PLANNED]
+Local Runtime Stack — Docker Compose, Kafka, PostgreSQL, Keycloak, Schema Registry
 
-ARB-021 [PLANNED]
+ARB-028 [PLANNED]
+Cloud Infrastructure — Terraform, GCP, GKE, Cloud SQL, Networking, Secrets
+
+ARB-029 [PLANNED]
+Kubernetes Deployment — manifests/Helm, probes, resources, autoscaling
+
+ARB-030 [PLANNED]
 CI/CD
 
-ARB-022 [PLANNED]
-Performance & Resilience
+ARB-031 [PLANNED]
+Performance & Resilience Validation
 
-ARB-023 [PLANNED]
+ARB-032 [PLANNED]
 Production Readiness

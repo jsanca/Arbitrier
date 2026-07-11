@@ -11,6 +11,7 @@ import com.arbitrier.credit.domain.model.CreditReservationId;
 import com.arbitrier.credit.domain.model.CreditReservationStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Use-case implementation: release an approved credit reservation back to the credit line.
@@ -34,10 +35,6 @@ import org.slf4j.LoggerFactory;
  * not expect {@code CreditReleased} as a follow-up to {@code CreditRejected}. If the
  * orchestrator requires it, this behaviour must be revisited in ARB-014 / saga wiring.
  *
- * <h2>Transactionality (deferred)</h2>
- * <p>This service will become {@code @Transactional} when JPA persistence is introduced.
- * DB + Kafka consistency will be handled by the Outbox pattern.
- *
  * <p>Layer: application/service
  * <p>Module: credit-service
  */
@@ -56,6 +53,7 @@ public class ReleaseCreditService implements ReleaseCreditUseCase {
     }
 
     @Override
+    @Transactional
     public ReleaseCreditResult release(final ReleaseCreditCommand command) {
         final CreditReservationId reservationId = CreditReservationId.of(command.creditReservationId());
 

@@ -14,6 +14,7 @@ import com.arbitrier.credit.domain.model.CreditReservationStatus;
 import com.arbitrier.credit.domain.model.Money;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Use-case implementation: reserve credit for an order against the customer's credit limit.
@@ -32,11 +33,6 @@ import org.slf4j.LoggerFactory;
  * <p>OPEN QUESTION: Currency mismatch handling — if the requested currency differs from the
  * credit limit currency the behaviour is undefined. The JPA adapter implementation must
  * specify the comparison strategy before go-live.
- *
- * <h2>Transactionality (deferred)</h2>
- * <p>This service will become {@code @Transactional} when JPA persistence is introduced.
- * DB + Kafka consistency will be handled by the Outbox pattern — the event will be written
- * to an outbox table inside the same DB transaction rather than being published directly here.
  *
  * <p>Layer: application/service
  * <p>Module: credit-service
@@ -59,6 +55,7 @@ public class ReserveCreditService implements ReserveCreditUseCase {
     }
 
     @Override
+    @Transactional
     public ReserveCreditResult reserve(final ReserveCreditCommand command) {
 
         final CreditReservationId reservationId = CreditReservationId.of(command.creditReservationId());

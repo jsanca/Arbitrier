@@ -12,6 +12,7 @@ import com.arbitrier.orchestrator.domain.model.Saga;
 import com.arbitrier.orchestrator.domain.model.SagaId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Use-case implementation: handle a CreditApproved event to complete the UC-01 saga.
@@ -25,10 +26,6 @@ import org.slf4j.LoggerFactory;
  *   <li>Publish {@link SagaCompletedDomainEvent}.</li>
  *   <li>Issue a {@link ConfirmOrderSagaCommand} to the order-service.</li>
  * </ol>
- *
- * <h2>Transactionality (deferred)</h2>
- * <p>This service will become {@code @Transactional} when JPA persistence is introduced.
- * DB + Kafka consistency will be handled by the Outbox pattern (ADR-0005).
  *
  * <p>Layer: application/service
  * <p>Module: orchestrator-service
@@ -51,10 +48,12 @@ public class HandleCreditApprovedService implements HandleCreditApprovedUseCase 
     }
 
     @Override
+    @Transactional
     public HandleCreditApprovedResult handle(final HandleCreditApprovedCommand command) {
         final SagaId sagaId = SagaId.of(command.sagaId());
 
         final Saga saga = loadSaga(sagaId);
+        requireInventoryReserved(saga);
         final Saga completed = saga.creditApproved(command.creditReservationId()).complete();
 
         repository.save(completed);
@@ -71,6 +70,14 @@ public class HandleCreditApprovedService implements HandleCreditApprovedUseCase 
     private Saga loadSaga(final SagaId sagaId) {
         return repository.findById(sagaId)
                 .orElseThrow(() -> new IllegalArgumentException("No saga found with id: " + sagaId));
+    }
+
+    private void requireInventoryReserved(final Saga saga) {
+        if (saga.stockReservationId() == null) {
+            throw new IllegalArgumentException(
+                    "Saga sagaId=" + saga.id() + " has not yet recorded a stock reservation" +
+                    " — creditApproved requires inventory to be reserved first");
+        }
     }
 
     private void publishSagaCompleted(final Saga saga) {

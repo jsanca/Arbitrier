@@ -1,0 +1,37 @@
+{
+  "id": "co-1029",
+  "name": "Acme Industrial Corp",
+  "creditLimit": 150000.00,
+  "availableCredit": 85500.00,
+  "billingContact": {
+    "name": "Jane Doe",
+    "email": "billing@acmeindustrial.com",
+    "phone": "+1 (555) 019-2834"
+  },
+  "shippingAddresses": [
+    {
+      "id": "addr-1",
+      "name": "Primary Warehouse",
+      "street": "100 Industrial Parkway",
+      "city": "Detroit",
+      "state": "MI",
+      "zip": "48201",
+      "country": "USA"
+    },
+    {
+      "id": "addr-2",
+      "name": "Secondary Logistics Hub",
+      "street": "450 Supply Chain Way",
+      "city": "Dallas",
+      "state": "TX",
+      "zip": "75201",
+      "country": "USA"
+    }
+  ],
+  "paymentTerms": "NET 30",
+  "authorizedBuyers": [
+    "Brio Dev",
+    "Alice Smith",
+    "Bob Johnson"
+  ]
+}

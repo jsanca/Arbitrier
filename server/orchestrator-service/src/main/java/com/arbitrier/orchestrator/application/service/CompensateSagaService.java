@@ -10,6 +10,7 @@ import com.arbitrier.orchestrator.domain.model.Saga;
 import com.arbitrier.orchestrator.domain.model.SagaId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Use-case implementation: begin compensation for a saga instance.
@@ -19,10 +20,6 @@ import org.slf4j.LoggerFactory;
  *
  * <p>This service only marks the saga as COMPENSATING. It does not issue any
  * compensating commands — that wiring belongs to ARB-016.
- *
- * <h2>Transactionality (deferred)</h2>
- * <p>This service will become {@code @Transactional} when JPA persistence is introduced.
- * DB + Kafka consistency will be handled by the Outbox pattern.
  *
  * <p>Layer: application/service
  * <p>Module: orchestrator-service
@@ -40,6 +37,7 @@ public class CompensateSagaService implements CompensateSagaUseCase {
     }
 
     @Override
+    @Transactional
     public CompensateSagaResult compensate(final CompensateSagaCommand command) {
         final SagaId sagaId = SagaId.of(command.sagaId());
 

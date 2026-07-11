@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Arbitrier Portal - Create Order</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        /* Custom scrollbar for data tables */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+    </style>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary-fixed": "#e0e3e5",
+                    "secondary": "#505f76",
+                    "tertiary": "#1b1f20",
+                    "on-surface": "#111c2d",
+                    "outline": "#737780",
+                    "error-container": "#ffdad6",
+                    "on-primary-fixed": "#001b3c",
+                    "on-primary-container": "#799dd6",
+                    "secondary-fixed": "#d3e4fe",
+                    "surface-container-highest": "#d8e3fb",
+                    "tertiary-container": "#303436",
+                    "secondary-fixed-dim": "#b7c8e1",
+                    "on-background": "#111c2d",
+                    "on-tertiary-container": "#999c9e",
+                    "on-secondary-fixed-variant": "#38485d",
+                    "on-primary-fixed-variant": "#1f477b",
+                    "secondary-container": "#d0e1fb",
+                    "background": "#f9f9ff",
+                    "primary-container": "#003366",
+                    "surface-container": "#e7eeff",
+                    "on-tertiary-fixed-variant": "#444749",
+                    "inverse-on-surface": "#ecf1ff",
+                    "on-surface-variant": "#43474f",
+                    "inverse-primary": "#a7c8ff",
+                    "inverse-surface": "#263143",
+                    "on-tertiary": "#ffffff",
+                    "on-secondary-container": "#54647a",
+                    "surface-bright": "#f9f9ff",
+                    "surface-variant": "#d8e3fb",
+                    "on-secondary-fixed": "#0b1c30",
+                    "surface-dim": "#cfdaf2",
+                    "surface": "#f9f9ff",
+                    "surface-container-low": "#f0f3ff",
+                    "on-secondary": "#ffffff",
+                    "surface-container-high": "#dee8ff",
+                    "error": "#ba1a1a",
+                    "on-tertiary-fixed": "#191c1e",
+                    "surface-container-lowest": "#ffffff",
+                    "outline-variant": "#c3c6d1",
+                    "primary": "#001e40",
+                    "tertiary-fixed-dim": "#c4c7c9",
+                    "primary-fixed": "#d5e3ff",
+                    "on-primary": "#ffffff",
+                    "on-error-container": "#93000a",
+                    "surface-tint": "#3a5f94",
+                    "on-error": "#ffffff",
+                    "primary-fixed-dim": "#a7c8ff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "stack-md": "16px",
+                    "stack-lg": "24px",
+                    "margin-desktop": "40px",
+                    "stack-xl": "48px",
+                    "stack-xs": "4px",
+                    "margin-mobile": "16px",
+                    "stack-sm": "8px",
+                    "container-max": "1440px",
+                    "gutter": "24px"
+            },
+            "fontFamily": {
+                    "headline-md": ["Inter"],
+                    "body-md": ["Inter"],
+                    "data-table": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "headline-xl": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "headline-lg-mobile": ["Inter"],
+                    "label-md": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "data-table": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                    "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "headline-xl": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+</head>
+<body class="bg-background text-on-surface min-h-screen">
+<!-- Sidebar Navigation -->
+<aside class="fixed left-0 top-0 h-full w-64 bg-surface dark:bg-inverse-surface flex flex-col py-stack-lg z-50">
+<div class="px-6 mb-10">
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-inverse-primary tracking-tight">Arbitrier</h1>
+<p class="text-secondary text-xs opacity-70">Customer Portal</p>
+</div>
+<nav class="flex-1 px-2 space-y-1">
+<!-- Dashboard -->
+<a class="flex items-center px-4 py-3 transition-all duration-200 ease-in-out hover:bg-surface-variant dark:hover:bg-on-surface-variant text-on-surface-variant dark:text-surface-variant" href="#">
+<span class="material-symbols-outlined mr-3" data-icon="dashboard">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+<!-- Orders -->
+<a class="flex items-center px-4 py-3 transition-all duration-200 ease-in-out hover:bg-surface-variant dark:hover:bg-on-surface-variant text-on-surface-variant dark:text-surface-variant" href="#">
+<span class="material-symbols-outlined mr-3" data-icon="shopping_cart">shopping_cart</span>
+<span class="font-body-md text-body-md">Orders</span>
+</a>
+<!-- New Order (ACTIVE) -->
+<a class="flex items-center px-4 py-3 transition-all duration-200 ease-in-out text-primary dark:text-inverse-primary font-bold border-r-4 border-primary dark:border-inverse-primary bg-surface-container-low dark:bg-surface-container-highest" href="#">
+<span class="material-symbols-outlined mr-3" data-icon="add_circle" style="font-variation-settings: 'FILL' 1;">add_circle</span>
+<span class="font-body-md text-body-md">New Order</span>
+</a>
+<!-- Company -->
+<a class="flex items-center px-4 py-3 transition-all duration-200 ease-in-out hover:bg-surface-variant dark:hover:bg-on-surface-variant text-on-surface-variant dark:text-surface-variant" href="#">
+<span class="material-symbols-outlined mr-3" data-icon="domain">domain</span>
+<span class="font-body-md text-body-md">Company</span>
+</a>
+<!-- Profile -->
+<a class="flex items-center px-4 py-3 transition-all duration-200 ease-in-out hover:bg-surface-variant dark:hover:bg-on-surface-variant text-on-surface-variant dark:text-surface-variant" href="#">
+<span class="material-symbols-outlined mr-3" data-icon="person">person</span>
+<span class="font-body-md text-body-md">Profile</span>
+</a>
+</nav>
+<div class="px-6 pt-10">
+<button class="w-full py-3 bg-primary text-on-primary rounded-lg font-bold transition-all hover:opacity-90">
+                New Order
+            </button>
+</div>
+</aside>
+<!-- Top Navigation Bar -->
+<header class="flex justify-between items-center w-full px-margin-desktop h-16 ml-64 fixed top-0 bg-surface dark:bg-inverse-surface border-b border-outline-variant dark:border-outline z-40">
+<div class="flex items-center gap-6 flex-1">
+<span class="font-headline-md text-headline-md font-bold text-primary dark:text-inverse-primary">Arbitrier Portal</span>
+<div class="relative w-1/3">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline" data-icon="search">search</span>
+<input class="w-full bg-surface-container border-none rounded-full pl-10 pr-4 py-1.5 focus:ring-2 focus:ring-primary/20 text-body-md transition-all" placeholder="Search orders..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+</button>
+<div class="h-8 w-8 rounded-full bg-primary-fixed flex items-center justify-center border border-outline-variant overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a corporate executive in a modern office, featuring soft directional lighting, blurred glass background, and a sharp, clean professional aesthetic consistent with a premium SaaS interface." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAyHdo3UDPUtCfqbjHd5IagA03wTfsXKEg5Sy3RNkifuYVka3G2qvU4IIAf0QX-D7R494hVjz8PayD7TloAmcqH0yY2iq3OwMzwLhO5sbDpj4x1dh5WWm_6Ck9h-iTGapDbIl48HwDs2kxGsNyeImm8aKW9dNbkoeWkSK_jPEKFbOUob0474oOo0RYGOXFL5rmfKRKStgFTivHFvzHodnavQRHV4nZV_OQZNG2fSjG77Nqu4bSeONZBSFEHguNKfqJToz4fPB5x4YRv"/>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="ml-64 pt-16 min-h-screen">
+<div class="max-w-[1200px] mx-auto p-margin-desktop">
+<!-- Page Header -->
+<div class="mb-stack-xl">
+<h2 class="font-headline-xl text-headline-xl text-primary mb-2">Create New Order</h2>
+<p class="text-secondary font-body-lg text-body-lg">Select products and configure your procurement request.</p>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-12 gap-gutter items-start">
+<!-- Left: Search & Selection (Bento 8-col) -->
+<div class="col-span-12 lg:col-span-8 space-y-gutter">
+<!-- Main Search Area -->
+<div class="bg-surface-container-lowest p-stack-lg rounded-xl border border-outline-variant shadow-sm transition-all duration-300">
+<label class="block font-label-md text-label-md text-outline uppercase mb-stack-sm">Add Products</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-primary text-2xl" data-icon="add_shopping_cart">add_shopping_cart</span>
+<input class="w-full py-4 pl-14 pr-6 bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent text-body-lg font-body-lg transition-all shadow-inner" placeholder="Type to search for Business Pro Laptops, Ergonomic Chairs..." type="text"/>
+</div>
+<!-- Search Suggestions -->
+<div class="mt-stack-md flex gap-2 flex-wrap">
+<span class="font-label-md text-label-md text-secondary">Quick Add:</span>
+<button class="px-3 py-1 bg-surface-container border border-outline-variant rounded-full text-xs font-semibold text-primary hover:bg-primary hover:text-white transition-colors">Business Pro Laptop</button>
+<button class="px-3 py-1 bg-surface-container border border-outline-variant rounded-full text-xs font-semibold text-primary hover:bg-primary hover:text-white transition-colors">Ergonomic Desk Chair</button>
+<button class="px-3 py-1 bg-surface-container border border-outline-variant rounded-full text-xs font-semibold text-primary hover:bg-primary hover:text-white transition-colors">UltraWide 34" Monitor</button>
+</div>
+</div>
+<!-- Draft Order Table -->
+<div class="bg-white rounded-xl border border-outline-variant overflow-hidden shadow-sm">
+<div class="px-stack-lg py-4 border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
+<h3 class="font-headline-md text-headline-md text-on-surface">Draft Items</h3>
+<span class="px-2 py-1 bg-primary-fixed text-on-primary-fixed-variant text-[10px] font-bold rounded uppercase tracking-widest">3 Items Selected</span>
+</div>
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-lowest text-outline border-b border-outline-variant">
+<th class="px-stack-lg py-4 font-label-md text-label-md uppercase tracking-wider w-1/2">Product Name</th>
+<th class="px-stack-lg py-4 font-label-md text-label-md uppercase tracking-wider text-center">Quantity</th>
+<th class="px-stack-lg py-4 font-label-md text-label-md uppercase tracking-wider text-right">Unit Price</th>
+<th class="px-stack-lg py-4 w-16"></th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-stack-lg py-4">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 bg-surface-container rounded-lg flex items-center justify-center border border-outline-variant overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A sleek, modern silver business laptop on a clean white desk surface, minimalist aesthetic with soft natural light, sharp focus on the metallic finish, corporate tech style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCp9U9OjzThjrU8YN62YKXb_Yika3RNOieeYLE6XVx_eIx1K1XAvzJ_N0Iz5Jpv9P-uDC6dEVzvo5aGBBk-DTLxmmzAPu_yzBGSkUb99b-8h7b5Zg5LJgktumoTk4JQVKzNP3aVUwiqn61Uk6r71LCuju88EV5-Oa5MrIrAXMMhqFkeCzyTLXB-ZHKu1FE7Zjk7xUUjOItBcdmi7OihX8ZtJ_8Oi_FU4cm36z4iUjLXcspnYsV3kXOSEPk9Qm9HoVxnAK5W3e0BIoHS"/>
+</div>
+<div>
+<div class="font-bold text-on-surface">Business Pro Laptop</div>
+<div class="text-xs text-secondary">32GB RAM, 1TB SSD, Space Grey</div>
+</div>
+</div>
+</td>
+<td class="px-stack-lg py-4 text-center">
+<div class="inline-flex items-center bg-surface-container border border-outline-variant rounded-lg p-1">
+<button class="w-6 h-6 flex items-center justify-center hover:bg-white rounded transition-colors">-</button>
+<span class="w-8 text-center font-bold text-body-md">02</span>
+<button class="w-6 h-6 flex items-center justify-center hover:bg-white rounded transition-colors">+</button>
+</div>
+</td>
+<td class="px-stack-lg py-4 text-right font-bold text-on-surface">$1,899.00</td>
+<td class="px-stack-lg py-4">
+<button class="text-outline hover:text-error transition-colors p-1">
+<span class="material-symbols-outlined" data-icon="delete">delete</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-stack-lg py-4">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 bg-surface-container rounded-lg flex items-center justify-center border border-outline-variant overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A high-end ergonomic black mesh desk chair with adjustable arms, photorealistic product photography, neutral studio lighting, sleek corporate furniture aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAcrR9-3KVxa6hddDLNXiDH339sOf1dMpuIYVo6vs5ll1nve4PgIjbZOhPYEydj8vGHW-ex4Rs22TgVCtXW4q9gU75qL1gDNt3BCcm6ZhTvCJe-tJSaxaO0pr8S8iFG_5e3N0YIm8AD8naJ_leLqRY3lcnLnVLEEzMo5etOSjlpzUGOTpVjLswlCaGdfzdhPSq7U4cyslqIW5sbATeO2eZNX2wOvWuBh8QKORgEavYnO_ID5gD0vnXnDXS-Jh3-_ucEM8XIUgc-HM1H"/>
+</div>
+<div>
+<div class="font-bold text-on-surface">Ergonomic Desk Chair</div>
+<div class="text-xs text-secondary">Lumbar Support, 4D Armrests</div>
+</div>
+</div>
+</td>
+<td class="px-stack-lg py-4 text-center">
+<div class="inline-flex items-center bg-surface-container border border-outline-variant rounded-lg p-1">
+<button class="w-6 h-6 flex items-center justify-center hover:bg-white rounded transition-colors">-</button>
+<span class="w-8 text-center font-bold text-body-md">05</span>
+<button class="w-6 h-6 flex items-center justify-center hover:bg-white rounded transition-colors">+</button>
+</div>
+</td>
+<td class="px-stack-lg py-4 text-right font-bold text-on-surface">$549.00</td>
+<td class="px-stack-lg py-4">
+<button class="text-outline hover:text-error transition-colors p-1">
+<span class="material-symbols-outlined" data-icon="delete">delete</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-stack-lg py-4">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 bg-surface-container rounded-lg flex items-center justify-center border border-outline-variant overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A 34-inch curved ultrawide computer monitor on a minimalist desk, displaying a vibrant abstract wallpaper, high-resolution photography, modern workspace vibe." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDbjM0evmiUofjk_LVUY0PPbxY0F0fw3fOnXp1b44rWV1U65FBTSrkUyIVFrZsk2l__3g315OwOLC7_-T21qNfwN2v2gM_ALZH6LHD4mD6QtC939uOfKE7f6dH2UeyurR8hXNO_xMiLGC48Uu3T2Gqw8agh_Dtypp9QUvjGgs3up6L17aUxB6SuwWJmUlcbxm_YXlMvpSQlDmLWG0paUEUbntt1vxz0Oi9IFY8GjujLWEPjimUQ4OuYBRKirdx-9cppNESHrEeGb9Cb"/>
+</div>
+<div>
+<div class="font-bold text-on-surface">UltraWide 34" Monitor</div>
+<div class="text-xs text-secondary">144Hz, HDR10, USB-C Dock</div>
+</div>
+</div>
+</td>
+<td class="px-stack-lg py-4 text-center">
+<div class="inline-flex items-center bg-surface-container border border-outline-variant rounded-lg p-1">
+<button class="w-6 h-6 flex items-center justify-center hover:bg-white rounded transition-colors">-</button>
+<span class="w-8 text-center font-bold text-body-md">03</span>
+<button class="w-6 h-6 flex items-center justify-center hover:bg-white rounded transition-colors">+</button>
+</div>
+</td>
+<td class="px-stack-lg py-4 text-right font-bold text-on-surface">$899.00</td>
+<td class="px-stack-lg py-4">
+<button class="text-outline hover:text-error transition-colors p-1">
+<span class="material-symbols-outlined" data-icon="delete">delete</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="px-stack-lg py-4 bg-surface-container-lowest text-center">
+<button class="text-primary font-bold hover:underline inline-flex items-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+                                Add more items
+                            </button>
+</div>
+</div>
+</div>
+<!-- Right: Summary & Checkout (Bento 4-col) -->
+<div class="col-span-12 lg:col-span-4 sticky top-20">
+<div class="bg-primary text-on-primary p-stack-lg rounded-xl shadow-lg relative overflow-hidden">
+<!-- Decorative animated background element -->
+<div class="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+<div class="absolute -left-10 -bottom-10 w-32 h-32 bg-secondary-fixed/10 rounded-full blur-2xl"></div>
+<h3 class="font-headline-md text-headline-md mb-stack-lg relative z-10">Order Summary</h3>
+<div class="space-y-4 relative z-10 mb-stack-xl">
+<div class="flex justify-between text-body-md opacity-80">
+<span>Subtotal (10 items)</span>
+<span>$9,240.00</span>
+</div>
+<div class="flex justify-between text-body-md opacity-80">
+<span>Shipping &amp; Handling</span>
+<span>$150.00</span>
+</div>
+<div class="flex justify-between text-body-md opacity-80">
+<span>Estimated Tax</span>
+<span>$739.20</span>
+</div>
+<div class="pt-4 border-t border-white/20 flex justify-between items-end">
+<div>
+<span class="text-xs uppercase font-bold tracking-widest opacity-60">Total Amount</span>
+<div class="text-3xl font-extrabold tracking-tight">$10,129.20</div>
+</div>
+</div>
+</div>
+<div class="space-y-3 relative z-10">
+<button class="w-full py-4 bg-white text-primary rounded-lg font-extrabold text-lg shadow-sm hover:bg-secondary-fixed transition-all">
+                                Review Order
+                            </button>
+<button class="w-full py-3 bg-white/10 text-white rounded-lg font-bold border border-white/20 hover:bg-white/20 transition-all">
+                                Save as Draft
+                            </button>
+</div>
+</div>
+<!-- Shipping Settings Mini-Card -->
+<div class="mt-gutter bg-surface-container-lowest border border-outline-variant p-stack-lg rounded-xl shadow-sm">
+<div class="flex items-center gap-3 mb-stack-md">
+<span class="material-symbols-outlined text-primary" data-icon="local_shipping">local_shipping</span>
+<span class="font-bold text-on-surface">Delivery Settings</span>
+</div>
+<div class="space-y-stack-md">
+<div class="p-3 bg-background rounded-lg border border-outline-variant flex justify-between items-center cursor-pointer hover:border-primary transition-colors">
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-outline uppercase">Ship to</span>
+<span class="text-body-md font-semibold">HQ Office - Building A</span>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="chevron_right">chevron_right</span>
+</div>
+<div class="p-3 bg-background rounded-lg border border-outline-variant flex justify-between items-center cursor-pointer hover:border-primary transition-colors">
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-outline uppercase">Delivery Speed</span>
+<span class="text-body-md font-semibold">Express (2-3 Business Days)</span>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Recently Ordered (Horizontal Scroll Section) -->
+<div class="mt-stack-xl">
+<div class="flex justify-between items-end mb-stack-lg">
+<div>
+<h3 class="font-headline-md text-headline-md text-primary">Frequently Ordered</h3>
+<p class="text-secondary text-body-md">Items your team commonly purchases.</p>
+</div>
+<button class="text-primary font-bold text-sm hover:underline">View catalog</button>
+</div>
+<div class="flex gap-gutter overflow-x-auto pb-4 custom-scrollbar">
+<!-- Suggestion Card 1 -->
+<div class="min-w-[240px] bg-white border border-outline-variant rounded-xl p-4 hover:shadow-md transition-shadow group cursor-pointer">
+<div class="h-32 bg-surface-container rounded-lg mb-4 overflow-hidden relative">
+<img class="w-full h-full object-cover" data-alt="High-quality wireless ergonomic computer mouse in a professional studio setting, neutral gray background, clean and modern B2B tech accessory aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAbITaLsK-4I48jFOM8tCK1So_lRxXPdMp9igAnm3v0-oLNJ8tlqn4HxWekPfGUT4emOuXJPZuhk9eyUmUEPsIp2nUuzfuG63IVsWS_jjS7wZCN1jlUyKmQYKK7uTYcsZB8vIVOjWTvqbgAmDq2aF8ywCzdOVZO-hn8FKqneRWbSWBc12h0xX78X29XdcAByEx6Vd0YK-4ji2WAwWCS2iGLRKzARwkwncMwSARGKFjQVqyhzvURZV1wRPra_HdiI2dgvGPfuZLGcbTL"/>
+<button class="absolute bottom-2 right-2 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+</button>
+</div>
+<div class="font-bold text-on-surface">Precision Wireless Mouse</div>
+<div class="text-xs text-secondary mb-2">High-performance optical</div>
+<div class="text-primary font-bold">$79.00</div>
+</div>
+<!-- Suggestion Card 2 -->
+<div class="min-w-[240px] bg-white border border-outline-variant rounded-xl p-4 hover:shadow-md transition-shadow group cursor-pointer">
+<div class="h-32 bg-surface-container rounded-lg mb-4 overflow-hidden relative">
+<img class="w-full h-full object-cover" data-alt="A premium 4K video conferencing webcam for professional offices, sleek dark metallic finish, high-end optical lens visible, minimalist tech photography style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCCHCInQiBbC6X8xgRWGU3_ON1YJjJxdMxGkC-7nvk7YmjTAeKsCKoKNvPRYQhavbR9zmUUj-fJ-RjUhhJTXDMMbqDlS5P3IbyLkdRT60z5moap4moRKigmyypIEtSwAIAcgQ1A9VbOyL0xPGwCpBqx2RbO0DMz6pmHofbXtOMzQSsrsH2yss_4DxBoeoyX2x5j0FUMtozkGPLPldiWLOCJVenFal8UhGa4yq2_UNrAtnqcIVKx4OJyL6xVeoIEXdaIvE57JM2YsA0A"/>
+<button class="absolute bottom-2 right-2 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+</button>
+</div>
+<div class="font-bold text-on-surface">Pro 4K Webcam</div>
+<div class="text-xs text-secondary mb-2">Auto-focus, dual mics</div>
+<div class="text-primary font-bold">$199.00</div>
+</div>
+<!-- Suggestion Card 3 -->
+<div class="min-w-[240px] bg-white border border-outline-variant rounded-xl p-4 hover:shadow-md transition-shadow group cursor-pointer">
+<div class="h-32 bg-surface-container rounded-lg mb-4 overflow-hidden relative">
+<img class="w-full h-full object-cover" data-alt="A set of premium office organizational bins in a sleek white matte finish, organized in a modern desk drawer, clean minimalist corporate interior style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCwfu2FX3heCda8kWm5TudaGTPSHWilUhsxOl0kKQ-4STKcESmfEdsiy7PCFEnG22OJHMBxpDyHM8raGF4qxd5HMVJINWDAX3W_Fq37lg6IdkUtB1f8nCRcYPc61ldFQsl4-GAUQpMgXdYSaWTYiJzMIVQkaAadioOhG-NtuKmzwXx1hyXDMUdGRZUyRyGMnzM0t4XQrvm1Hjp5t-2kbG1L5byH5j3KSMBQfuqgLB3rHUh_ZS9USEd_LvHvPNsNKTLrBZ-tTV7RGa8j"/>
+<button class="absolute bottom-2 right-2 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+</button>
+</div>
+<div class="font-bold text-on-surface">Modular Desk Organizer</div>
+<div class="text-xs text-secondary mb-2">Set of 5, Matte White</div>
+<div class="text-primary font-bold">$45.00</div>
+</div>
+<!-- Suggestion Card 4 -->
+<div class="min-w-[240px] bg-white border border-outline-variant rounded-xl p-4 hover:shadow-md transition-shadow group cursor-pointer">
+<div class="h-32 bg-surface-container rounded-lg mb-4 overflow-hidden relative">
+<img class="w-full h-full object-cover" data-alt="Universal USB-C laptop docking station on a wooden desk, multiple cables plugged in neatly, professional workspace environment, sharp clear detail." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCxZUXsuedYQKVFb9GijoZCynG59Wf17C68RRiR0s8yJp6E7OEx4PSwGH0ZLwEXNWEQFRw7UroTd2VedeXLOuSDvJa0aGb5CkPxr2um1BoZ_54ezN6UBQtI9U52O7_hpi-wdzeYTM_T0B2az2spp0DHHHj_zvEp73CCbpAIe2GoHnodK14ZdvE_9Gu3fuVYLb9K6iJbJHfYHUgcKNeOxpshhwbecw8JD4HwLxNWVTWgF_zKo6cLXEGiiu3zzlQdPLVwt8Cqr60-BL2N"/>
+<button class="absolute bottom-2 right-2 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+</button>
+</div>
+<div class="font-bold text-on-surface">Thunderbolt 4 Dock</div>
+<div class="text-xs text-secondary mb-2">9-in-1 Power Delivery</div>
+<div class="text-primary font-bold">$249.00</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Micro-interaction script for search bar focus effects -->
+<script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const mainSearch = document.querySelector('input[placeholder*="Type to search"]');
+            const searchContainer = mainSearch.parentElement.parentElement;
+
+            mainSearch.addEventListener('focus', () => {
+                searchContainer.classList.add('ring-2', 'ring-primary/10', 'scale-[1.01]');
+            });
+
+            mainSearch.addEventListener('blur', () => {
+                searchContainer.classList.remove('ring-2', 'ring-primary/10', 'scale-[1.01]');
+            });
+        });
+    </script>
+</body></html>

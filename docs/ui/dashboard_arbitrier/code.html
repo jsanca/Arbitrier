@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Arbitrier Portal - Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9f9ff;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .sidebar-active {
+            font-weight: 700;
+            border-right: 4px solid #001e40;
+            color: #001e40;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed": "#e0e3e5",
+                        "secondary": "#505f76",
+                        "tertiary": "#1b1f20",
+                        "on-surface": "#111c2d",
+                        "outline": "#737780",
+                        "error-container": "#ffdad6",
+                        "on-primary-fixed": "#001b3c",
+                        "on-primary-container": "#799dd6",
+                        "secondary-fixed": "#d3e4fe",
+                        "surface-container-highest": "#d8e3fb",
+                        "tertiary-container": "#303436",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "on-background": "#111c2d",
+                        "on-tertiary-container": "#999c9e",
+                        "on-secondary-fixed-variant": "#38485d",
+                        "on-primary-fixed-variant": "#1f477b",
+                        "secondary-container": "#d0e1fb",
+                        "background": "#f9f9ff",
+                        "primary-container": "#003366",
+                        "surface-container": "#e7eeff",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "inverse-on-surface": "#ecf1ff",
+                        "on-surface-variant": "#43474f",
+                        "inverse-primary": "#a7c8ff",
+                        "inverse-surface": "#263143",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary-container": "#54647a",
+                        "surface-bright": "#f9f9ff",
+                        "surface-variant": "#d8e3fb",
+                        "on-secondary-fixed": "#0b1c30",
+                        "surface-dim": "#cfdaf2",
+                        "surface": "#f9f9ff",
+                        "surface-container-low": "#f0f3ff",
+                        "on-secondary": "#ffffff",
+                        "surface-container-high": "#dee8ff",
+                        "error": "#ba1a1a",
+                        "on-tertiary-fixed": "#191c1e",
+                        "surface-container-lowest": "#ffffff",
+                        "outline-variant": "#c3c6d1",
+                        "primary": "#001e40",
+                        "tertiary-fixed-dim": "#c4c7c9",
+                        "primary-fixed": "#d5e3ff",
+                        "on-primary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "surface-tint": "#3a5f94",
+                        "on-error": "#ffffff",
+                        "primary-fixed-dim": "#a7c8ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "stack-md": "16px",
+                        "stack-lg": "24px",
+                        "margin-desktop": "40px",
+                        "stack-xl": "48px",
+                        "stack-xs": "4px",
+                        "margin-mobile": "16px",
+                        "stack-sm": "8px",
+                        "container-max": "1440px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Inter"],
+                        "body-md": ["Inter"],
+                        "data-table": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "headline-xl": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "label-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "data-table": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "headline-xl": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface">
+<!-- SideNavBar Anchor -->
+<aside class="fixed left-0 top-0 h-full w-64 bg-surface-container-low flex flex-col py-stack-lg border-r border-outline-variant">
+<div class="px-stack-lg mb-stack-xl">
+<h1 class="font-headline-md text-headline-md font-bold text-primary">Arbitrier</h1>
+<p class="text-on-surface-variant font-body-md text-body-md opacity-70">Customer Portal</p>
+</div>
+<nav class="flex-grow">
+<ul class="space-y-stack-xs">
+<li>
+<a class="flex items-center px-stack-lg py-stack-md transition-all duration-200 ease-in-out sidebar-active" href="#">
+<span class="material-symbols-outlined mr-stack-md" data-icon="dashboard">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+</li>
+<li>
+<a class="flex items-center px-stack-lg py-stack-md text-on-surface-variant hover:bg-surface-variant hover:text-on-surface transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined mr-stack-md" data-icon="shopping_cart">shopping_cart</span>
+<span class="font-body-md text-body-md">Orders</span>
+</a>
+</li>
+<li>
+<a class="flex items-center px-stack-lg py-stack-md text-on-surface-variant hover:bg-surface-variant hover:text-on-surface transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined mr-stack-md" data-icon="add_circle">add_circle</span>
+<span class="font-body-md text-body-md">New Order</span>
+</a>
+</li>
+<li>
+<a class="flex items-center px-stack-lg py-stack-md text-on-surface-variant hover:bg-surface-variant hover:text-on-surface transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined mr-stack-md" data-icon="domain">domain</span>
+<span class="font-body-md text-body-md">Company</span>
+</a>
+</li>
+<li>
+<a class="flex items-center px-stack-lg py-stack-md text-on-surface-variant hover:bg-surface-variant hover:text-on-surface transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined mr-stack-md" data-icon="person">person</span>
+<span class="font-body-md text-body-md">Profile</span>
+</a>
+</li>
+</ul>
+</nav>
+<div class="px-stack-lg mt-auto">
+<button class="w-full bg-primary text-on-primary py-stack-md rounded-lg font-label-md text-label-md flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+                New Order
+            </button>
+</div>
+</aside>
+<!-- Main Content Wrapper -->
+<main class="ml-64 min-h-screen flex flex-col">
+<!-- TopNavBar Anchor -->
+<header class="flex justify-between items-center w-full px-margin-desktop h-16 bg-surface border-b border-outline-variant sticky top-0 z-10">
+<div class="flex items-center bg-surface-container-low px-stack-md py-stack-xs rounded-lg border border-outline-variant w-96">
+<span class="material-symbols-outlined text-outline" data-icon="search">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-body-md font-body-md w-full" placeholder="Search orders, invoices..." type="text"/>
+</div>
+<div class="flex items-center gap-stack-lg">
+<div class="flex gap-stack-md">
+<button class="text-on-surface-variant hover:bg-surface-container p-2 rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:bg-surface-container p-2 rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+</button>
+</div>
+<div class="flex items-center gap-stack-sm border-l border-outline-variant pl-stack-lg">
+<div class="text-right hidden sm:block">
+<p class="font-label-md text-label-md text-on-surface">ACME Corp Admin</p>
+<p class="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Manager</p>
+</div>
+<img class="w-10 h-10 rounded-full border border-outline-variant object-cover" data-alt="A professional corporate headshot of a business executive in a high-end office setting. The person is smiling confidently, dressed in a sleek charcoal suit. Soft natural light filters through large windows in the background, showing a blurred city skyline. The aesthetic is modern and authoritative, using a clean color palette of blues and grays to match the Arbitrier Portal design system." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA75Y01cz_8bHI78aDdDTY90gRjW1kXJ3Yd9_5PsWZ1ACqANXSr4tQgkUYgP3sWGJKVWqOPEUSSnIDY3V5uW8k5tiNyHtg-7VlD-T0fmiWitiPoBbMZW-K3wsy4cohxWe9mUExIKyWEXq384y-_idb1aJrctDHgbJ9mdTHJ9gnU_ykpUWNDct3OVfEqLO6ydjMSrBzcsyHl-J9rEjPEmauTsU6j2a4aRPsDyNNrGqLCLTPwHoRWIAv_m-nl2dZ0OVFoOd7JPK8gA_OM"/>
+</div>
+</div>
+</header>
+<!-- Dashboard Canvas -->
+<section class="p-margin-desktop max-w-container-max mx-auto w-full">
+<!-- Page Header -->
+<div class="flex justify-between items-end mb-stack-xl">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-primary">ACME Corporation Overview</h2>
+<p class="text-on-surface-variant font-body-lg text-body-lg">Real-time supply chain and order metrics.</p>
+</div>
+<div class="flex gap-stack-md">
+<button class="border border-outline text-on-surface px-stack-lg py-stack-md rounded-lg font-label-md text-label-md hover:bg-surface-container transition-colors">
+                        Download Report
+                    </button>
+<button class="bg-primary text-on-primary px-stack-lg py-stack-md rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity">
+                        View Analytics
+                    </button>
+</div>
+</div>
+<!-- Bento Grid - Key Metrics -->
+<div class="grid grid-cols-12 gap-gutter mb-stack-xl">
+<!-- Credit Line Metric -->
+<div class="col-span-12 lg:col-span-5 bg-surface-container-lowest border border-outline-variant p-stack-lg rounded-xl flex flex-col justify-between">
+<div class="flex justify-between items-start mb-stack-md">
+<span class="text-on-surface-variant font-label-md text-label-md uppercase tracking-wider">Available Credit</span>
+<span class="material-symbols-outlined text-primary" data-icon="account_balance_wallet">account_balance_wallet</span>
+</div>
+<div class="mb-stack-md">
+<div class="flex items-baseline gap-2">
+<span class="font-headline-xl text-headline-xl text-primary">$50,000</span>
+<span class="text-on-surface-variant font-body-md text-body-md">/ $100,000</span>
+</div>
+<!-- Progress Bar -->
+<div class="w-full bg-surface-container-highest h-2 rounded-full mt-stack-md overflow-hidden">
+<div class="bg-primary h-full w-1/2 rounded-full"></div>
+</div>
+</div>
+<p class="text-on-surface-variant font-body-md text-body-md">
+                        Your credit utilization is at <span class="font-bold text-on-surface">50%</span>. Next review in 14 days.
+                    </p>
+</div>
+<!-- Active Orders Metric -->
+<div class="col-span-12 md:col-span-6 lg:col-span-3 bg-surface-container-lowest border border-outline-variant p-stack-lg rounded-xl flex flex-col items-center justify-center text-center">
+<span class="material-symbols-outlined text-secondary text-4xl mb-stack-md" data-icon="package_2">package_2</span>
+<h3 class="font-headline-xl text-headline-xl text-on-surface">3</h3>
+<p class="text-on-surface-variant font-label-md text-label-md uppercase tracking-widest mt-stack-sm">Active Orders</p>
+<div class="mt-stack-md flex gap-stack-xs text-secondary">
+<span class="material-symbols-outlined text-sm" data-icon="trending_up">trending_up</span>
+<span class="text-xs font-bold">+1 from last month</span>
+</div>
+</div>
+<!-- System Notifications Area -->
+<div class="col-span-12 md:col-span-6 lg:col-span-4 bg-primary text-on-primary p-stack-lg rounded-xl overflow-hidden relative">
+<div class="relative z-10">
+<h3 class="font-headline-md text-headline-md mb-stack-md flex items-center gap-2">
+<span class="material-symbols-outlined" data-icon="campaign" style="font-variation-settings: 'FILL' 1;">campaign</span>
+                            System Alerts
+                        </h3>
+<div class="space-y-stack-md">
+<div class="bg-primary-container p-stack-md rounded-lg border border-on-primary-container/20">
+<p class="font-label-md text-label-md text-on-primary-fixed mb-1">LOGISTICS UPDATE</p>
+<p class="text-body-md font-body-md text-white/90 leading-tight">Holiday delivery schedules are now available in the resources tab.</p>
+</div>
+<div class="bg-primary-container p-stack-md rounded-lg border border-on-primary-container/20">
+<p class="font-label-md text-label-md text-on-primary-fixed mb-1">ACCOUNT SECURITY</p>
+<p class="text-body-md font-body-md text-white/90 leading-tight">Verify your primary contact email to ensure notification delivery.</p>
+</div>
+</div>
+</div>
+<!-- Decorative Element -->
+<div class="absolute -right-8 -bottom-8 opacity-10">
+<span class="material-symbols-outlined text-[160px]" data-icon="notifications">notifications</span>
+</div>
+</div>
+</div>
+<!-- Main Content Area: Table & Activity -->
+<div class="grid grid-cols-12 gap-gutter">
+<!-- Active Orders Table -->
+<div class="col-span-12 xl:col-span-8 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+<div class="p-stack-lg border-b border-outline-variant flex justify-between items-center">
+<h3 class="font-headline-md text-headline-md text-primary">Active Order Pipeline</h3>
+<a class="text-primary font-label-md text-label-md hover:underline" href="#">View All History</a>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left font-data-table text-data-table">
+<thead>
+<tr class="bg-surface-container-low text-on-surface-variant font-bold border-b border-outline-variant">
+<th class="px-stack-lg py-stack-md">Order ID</th>
+<th class="px-stack-lg py-stack-md">Product</th>
+<th class="px-stack-lg py-stack-md">Value</th>
+<th class="px-stack-lg py-stack-md">Status</th>
+<th class="px-stack-lg py-stack-md text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/30">
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-stack-lg py-stack-md font-bold text-primary">#ORD-88219</td>
+<td class="px-stack-lg py-stack-md text-on-surface">Industrial Refinement Unit X1</td>
+<td class="px-stack-lg py-stack-md text-on-surface">$24,500.00</td>
+<td class="px-stack-lg py-stack-md">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold text-[11px] uppercase">
+                                            In Transit
+                                        </span>
+</td>
+<td class="px-stack-lg py-stack-md text-right">
+<button class="text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="more_horiz">more_horiz</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-stack-lg py-stack-md font-bold text-primary">#ORD-88342</td>
+<td class="px-stack-lg py-stack-md text-on-surface">Bulk Polymer Feedstock (10t)</td>
+<td class="px-stack-lg py-stack-md text-on-surface">$12,200.00</td>
+<td class="px-stack-lg py-stack-md">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 font-bold text-[11px] uppercase">
+                                            Preparing
+                                        </span>
+</td>
+<td class="px-stack-lg py-stack-md text-right">
+<button class="text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="more_horiz">more_horiz</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-stack-lg py-stack-md font-bold text-primary">#ORD-88410</td>
+<td class="px-stack-lg py-stack-md text-on-surface">Custom Precision Components</td>
+<td class="px-stack-lg py-stack-md text-on-surface">$8,150.00</td>
+<td class="px-stack-lg py-stack-md">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold text-[11px] uppercase">
+                                            In Transit
+                                        </span>
+</td>
+<td class="px-stack-lg py-stack-md text-right">
+<button class="text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="more_horiz">more_horiz</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Recent Deliveries Side Panel -->
+<div class="col-span-12 xl:col-span-4 space-y-gutter">
+<div class="bg-surface-container-lowest border border-outline-variant p-stack-lg rounded-xl">
+<div class="flex justify-between items-center mb-stack-lg">
+<h3 class="font-headline-md text-headline-md text-primary">Recent Deliveries</h3>
+<span class="material-symbols-outlined text-outline" data-icon="local_shipping">local_shipping</span>
+</div>
+<div class="space-y-stack-lg relative before:content-[''] before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-outline-variant">
+<!-- Delivery Entry -->
+<div class="relative pl-stack-xl">
+<div class="absolute left-0 top-1 w-[24px] h-[24px] bg-white border-2 border-primary rounded-full flex items-center justify-center z-10">
+<div class="w-2 h-2 bg-primary rounded-full"></div>
+</div>
+<div>
+<p class="font-body-md text-body-md text-on-surface font-bold">Consignment #DEL-102</p>
+<p class="text-on-surface-variant text-xs">Delivered Oct 12, 14:20 PM</p>
+<p class="text-on-surface-variant font-body-md text-body-md mt-1 italic">"Received by Warehouse J. Smith"</p>
+</div>
+</div>
+<!-- Delivery Entry -->
+<div class="relative pl-stack-xl">
+<div class="absolute left-0 top-1 w-[24px] h-[24px] bg-white border-2 border-outline-variant rounded-full flex items-center justify-center z-10">
+<div class="w-2 h-2 bg-outline-variant rounded-full"></div>
+</div>
+<div>
+<p class="font-body-md text-body-md text-on-surface">Consignment #DEL-101</p>
+<p class="text-on-surface-variant text-xs">Delivered Oct 10, 09:15 AM</p>
+</div>
+</div>
+</div>
+</div>
+<!-- New Order Promotion Card -->
+<div class="bg-secondary-fixed text-on-secondary-fixed p-stack-lg rounded-xl flex items-center gap-stack-lg">
+<div class="flex-grow">
+<h4 class="font-headline-md text-headline-md">Inventory low?</h4>
+<p class="text-body-md font-body-md mb-stack-md">Quick re-order from your favorites is available now.</p>
+<button class="bg-primary text-on-primary px-stack-md py-stack-sm rounded-lg font-label-md text-label-md shadow-lg">
+                                Start Order
+                            </button>
+</div>
+<div class="w-24 h-24 flex-shrink-0">
+<div class="w-full h-full bg-cover bg-center rounded-lg shadow-sm" data-alt="A clean, high-resolution 3D render of a supply chain icon featuring a wooden crate and a digital checkmark. The icon uses sharp shadows and realistic textures. The background is a soft, professional light blue gradient that blends seamlessly with the Arbitrier Portal dashboard aesthetic. Lighting is bright and even, conveying trust and efficiency." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBUgJ8py0yim6OQmDM0lhD3WB9xITkpyV0dIUX6eaXz49INOrG-e9OWiBrIhcMm91LnoYaAKbDFZ7NyUbgm6Sfkisjt22CU3QYFGlO2eQjUwzk_zUFTQ9Ua2aAhXBWgK0sWwMcAGvvL0pG0fO5SkgV_dqazGwD8GV7ifTw_UjrJyG2PEsK9ftd85WAC-Gzr4YgthX2ClBIhPYLV1pV0yYG9ZYksggru7633WKsxeElEHuvg1cU_F9gi2s_KmxpxqfwRdkBgGlm1FzuE')"></div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Micro-interaction Script -->
+<script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Simple hover effect for table rows
+            const rows = document.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                row.addEventListener('mouseenter', () => {
+                    row.style.transform = 'translateX(4px)';
+                    row.style.transition = 'transform 0.2s ease-out';
+                });
+                row.addEventListener('mouseleave', () => {
+                    row.style.transform = 'translateX(0)';
+                });
+            });
+        });
+    </script>
+</body></html>

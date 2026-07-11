@@ -1,7 +1,6 @@
 package com.arbitrier.inventory.domain.event;
 
 import com.arbitrier.inventory.domain.model.StockReservationId;
-import com.arbitrier.inventory.domain.model.WarehouseId;
 import com.arbitrier.platform.validation.Require;
 
 /**
@@ -12,12 +11,10 @@ import com.arbitrier.platform.validation.Require;
  */
 public record StockRejectedDomainEvent(
         StockReservationId reservationId,
-        String orderId,
-        WarehouseId warehouseId) {
+        String orderId) {
 
     public StockRejectedDomainEvent {
         Require.notNull(reservationId, "StockRejectedDomainEvent.reservationId");
         Require.notBlank(orderId, "StockRejectedDomainEvent.orderId");
-        Require.notNull(warehouseId, "StockRejectedDomainEvent.warehouseId");
     }
 }

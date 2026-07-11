@@ -52,4 +52,30 @@ class ArchitectureTest {
                 .allowEmptyShould(true)
                 .check(classes);
     }
+
+    @Test
+    void application_must_not_depend_on_spring_data() {
+        ArchRuleDefinition.noClasses().that().resideInAPackage("..application..")
+                .should().dependOnClassesThat()
+                .resideInAPackage("org.springframework.data..")
+                .allowEmptyShould(true)
+                .check(classes);
+    }
+
+    @Test
+    void domain_must_not_import_jpa_annotations() {
+        ArchRuleDefinition.noClasses().that().resideInAPackage("..domain..")
+                .should().dependOnClassesThat().resideInAnyPackage("jakarta.persistence..")
+                .allowEmptyShould(true)
+                .check(classes);
+    }
+
+    @Test
+    void jpa_entities_must_reside_in_adapter_persistence_package() {
+        ArchRuleDefinition.noClasses().that()
+                .areAnnotatedWith("jakarta.persistence.Entity")
+                .should().resideOutsideOfPackage("..adapter.outbound.persistence..")
+                .allowEmptyShould(true)
+                .check(classes);
+    }
 }

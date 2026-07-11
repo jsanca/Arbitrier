@@ -15,14 +15,15 @@ Build a production-grade B2B saga orchestration platform that makes corporate bu
 
 | ID     | Feature                              | Status      | Reference                                          |
 |--------|--------------------------------------|-------------|----------------------------------------------------|
-| KF-001 | UC-01 Corporate Bulk Order saga      | In Progress | [UC-01](UC-01-corporate-bulk-order.md), [RF-UC-01](../rf/RF-UC-01-corporate-bulk-order.md) |
+| KF-001 | UC-01 Corporate Bulk Order saga      | In Progress — happy path + compensation done (ARB-016); pre-saga availability negotiation done (ARB-017) | [UC-01](UC-01-corporate-bulk-order.md), [RF-UC-01](../rf/RF-UC-01-corporate-bulk-order.md) |
 | KF-002 | B2B credit limit validation          | In Progress | RF-0001 §3                                         |
 | KF-003 | Inventory reservation + compensation | In Progress | RF-0001 §4                                         |
-| KF-004 | Human decision gate (partial backorder) | Planned  | RF-0001 §5                                         |
+| KF-004 | Human decision gate (partial backorder) | In Progress — pre-saga availability negotiation implemented (ARB-017); human decision happens before saga start; AWAITING_CUSTOMER_DECISION saga state deferred | RF-0001 §5                                         |
 | KF-005 | Saga state observability             | Planned     | [RNF-0001](../rnf/RNF-0001-technical-baseline.md)  |
 | KF-006 | Keycloak-based B2B identity          | Planned     | RNF-0001 §5                                        |
 | KF-007 | React corporate portal               | Planned     | —                                                  |
 | KF-008 | Playwright E2E coverage              | Planned     | [TC-UC-01](../test-cases/TC-UC-01-corporate-bulk-order.md) |
+| KF-009 | Reproducible local runtime infrastructure | Complete — ARB-027 | [Implementation](../implementation/ARB-027-local-runtime-stack.md) |
 
 ---
 

@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Arbitrier Portal - Availability Review (ARB-017)</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      line-height: 1;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f9f9ff;
+    }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(8px);
+      border: 1px solid #E2E8F0;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cfdaf2;
+      border-radius: 10px;
+    }
+  </style>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "tertiary-fixed": "#e0e3e5",
+            "secondary": "#505f76",
+            "tertiary": "#1b1f20",
+            "on-surface": "#111c2d",
+            "outline": "#737780",
+            "error-container": "#ffdad6",
+            "on-primary-fixed": "#001b3c",
+            "on-primary-container": "#799dd6",
+            "secondary-fixed": "#d3e4fe",
+            "surface-container-highest": "#d8e3fb",
+            "tertiary-container": "#303436",
+            "secondary-fixed-dim": "#b7c8e1",
+            "on-background": "#111c2d",
+            "on-tertiary-container": "#999c9e",
+            "on-secondary-fixed-variant": "#38485d",
+            "on-primary-fixed-variant": "#1f477b",
+            "secondary-container": "#d0e1fb",
+            "background": "#f9f9ff",
+            "primary-container": "#003366",
+            "surface-container": "#e7eeff",
+            "on-tertiary-fixed-variant": "#444749",
+            "inverse-on-surface": "#ecf1ff",
+            "on-surface-variant": "#43474f",
+            "inverse-primary": "#a7c8ff",
+            "inverse-surface": "#263143",
+            "on-tertiary": "#ffffff",
+            "on-secondary-container": "#54647a",
+            "surface-bright": "#f9f9ff",
+            "surface-variant": "#d8e3fb",
+            "on-secondary-fixed": "#0b1c30",
+            "surface-dim": "#cfdaf2",
+            "surface": "#f9f9ff",
+            "surface-container-low": "#f0f3ff",
+            "on-secondary": "#ffffff",
+            "surface-container-high": "#dee8ff",
+            "error": "#ba1a1a",
+            "on-tertiary-fixed": "#191c1e",
+            "surface-container-lowest": "#ffffff",
+            "outline-variant": "#c3c6d1",
+            "primary": "#001e40",
+            "tertiary-fixed-dim": "#c4c7c9",
+            "primary-fixed": "#d5e3ff",
+            "on-primary": "#ffffff",
+            "on-error-container": "#93000a",
+            "surface-tint": "#3a5f94",
+            "on-error": "#ffffff",
+            "primary-fixed-dim": "#a7c8ff"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "stack-md": "16px",
+            "stack-lg": "24px",
+            "margin-desktop": "40px",
+            "stack-xl": "48px",
+            "stack-xs": "4px",
+            "margin-mobile": "16px",
+            "stack-sm": "8px",
+            "container-max": "1440px",
+            "gutter": "24px"
+          },
+          "fontFamily": {
+            "headline-md": ["Inter"],
+            "body-md": ["Inter"],
+            "data-table": ["Inter"],
+            "headline-lg": ["Inter"],
+            "headline-xl": ["Inter"],
+            "body-lg": ["Inter"],
+            "label-md": ["Inter"]
+          },
+          "fontSize": {
+            "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+            "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+            "data-table": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+            "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+            "headline-xl": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+            "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+            "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}]
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-background text-on-background min-h-screen">
+<!-- Side Navigation Shell -->
+<aside class="fixed left-0 top-0 h-full w-64 bg-surface dark:bg-inverse-surface border-r border-outline-variant py-stack-lg flex flex-col z-50">
+<div class="px-6 mb-stack-xl">
+<h1 class="font-headline-md text-headline-md font-bold text-primary">Arbitrier</h1>
+<p class="text-secondary font-label-md">Customer Portal</p>
+</div>
+<nav class="flex-1 px-3 space-y-1">
+<a class="flex items-center px-4 py-3 font-body-md text-on-surface-variant hover:bg-surface-variant hover:text-on-surface rounded transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3">dashboard</span>
+        Dashboard
+      </a>
+<a class="flex items-center px-4 py-3 font-body-md text-primary font-bold border-r-4 border-primary bg-surface-container-low transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3">shopping_cart</span>
+        Orders
+      </a>
+<a class="flex items-center px-4 py-3 font-body-md text-on-surface-variant hover:bg-surface-variant hover:text-on-surface rounded transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3">add_circle</span>
+        New Order
+      </a>
+<a class="flex items-center px-4 py-3 font-body-md text-on-surface-variant hover:bg-surface-variant hover:text-on-surface rounded transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3">domain</span>
+        Company
+      </a>
+<a class="flex items-center px-4 py-3 font-body-md text-on-surface-variant hover:bg-surface-variant hover:text-on-surface rounded transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3">person</span>
+        Profile
+      </a>
+</nav>
+<div class="px-6 mt-auto">
+<button class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-md flex items-center justify-center gap-2 hover:bg-primary-container transition-colors">
+<span class="material-symbols-outlined">add</span>
+        New Order
+      </button>
+</div>
+</aside>
+<!-- Top AppBar Shell -->
+<header class="flex justify-between items-center w-full px-margin-desktop h-16 ml-64 fixed top-0 bg-surface border-b border-outline-variant z-40">
+<div class="flex items-center">
+<span class="font-headline-md text-headline-md font-bold text-primary mr-stack-xl">Arbitrier Portal</span>
+<div class="relative w-64">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full pl-10 pr-4 py-1.5 bg-surface-container-low border-none rounded-full text-body-md focus:ring-1 focus:ring-primary" placeholder="Search orders..." type="text"/>
+</div>
+</div>
+<div class="flex items-center space-x-6">
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant">
+<img class="w-full h-full object-cover" data-alt="A professional corporate headshot of a business executive in a high-tech office environment. Soft natural lighting from floor-to-ceiling windows illuminates the subject against a blurred background of minimalist white and blue accents. The visual style is clean, modern, and high-trust, maintaining the Arbitrier brand's professional stability." src="https://lh3.googleusercontent.com/aida-public/AB6AXuANBXqdUu2ekVG6um5D_5DBynNjGhjeJv4sRHOryCTl4CqwvXIt797yPcE8NiyQac0gHn7uTZGYwA4e-271F1ffGcjbeTHVbeja_699uk7Hj7xuphISoExi5LD1cGjMaCGZDFWeRMAGyKNoJTgLG9JkmHeFhY1no-1_cTBRTUXjgSdbQR8KuECCAb8uFEAH394545wtw815epkbm_rqWXNrYmkMS-OVGgGyH5l7ep4532IhyveXb1pAUr131gAK0Wzk6NJKQSfQxyEC"/>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-64 pt-16 min-h-screen flex flex-col">
+<div class="flex-1 p-margin-desktop space-y-stack-lg max-w-container-max mx-auto w-full">
+<!-- Stepper / Progress -->
+<div class="flex items-center justify-center mb-stack-xl">
+<div class="flex items-center space-x-4">
+<div class="flex items-center">
+<div class="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold text-label-md">1</div>
+<span class="ml-2 font-label-md text-primary">Configuration</span>
+</div>
+<div class="h-px w-16 bg-primary"></div>
+<div class="flex items-center">
+<div class="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold text-label-md">2</div>
+<span class="ml-2 font-label-md text-primary">Availability</span>
+</div>
+<div class="h-px w-16 bg-outline-variant"></div>
+<div class="flex items-center">
+<div class="w-8 h-8 rounded-full border-2 border-outline-variant text-outline flex items-center justify-center font-bold text-label-md">3</div>
+<span class="ml-2 font-label-md text-outline">Checkout</span>
+</div>
+</div>
+</div>
+<!-- Header Section -->
+<div class="space-y-stack-sm">
+<h2 class="font-headline-lg text-headline-lg text-primary">Availability Review (ARB-017)</h2>
+<p class="font-body-md text-secondary max-w-2xl">Please review the current stock availability for your order. Some items are partially available and require manual confirmation to proceed.</p>
+</div>
+<!-- Bento Grid for Overview & Stats -->
+<div class="grid grid-cols-12 gap-gutter">
+<div class="col-span-8 space-y-stack-lg">
+<!-- Main Availability Table -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-low border-b border-outline-variant">
+<tr>
+<th class="px-6 py-4 font-label-md text-secondary uppercase tracking-wider">Product Details</th>
+<th class="px-6 py-4 font-label-md text-secondary uppercase tracking-wider text-center">Requested</th>
+<th class="px-6 py-4 font-label-md text-secondary uppercase tracking-wider text-center">Available</th>
+<th class="px-6 py-4 font-label-md text-secondary uppercase tracking-wider">Status</th>
+<th class="px-6 py-4 font-label-md text-secondary uppercase tracking-wider text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<!-- Row 1: Fully Available -->
+<tr class="hover:bg-surface-container transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center">
+<div class="w-10 h-10 rounded bg-surface-container-highest mr-4 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">memory</span>
+</div>
+<div>
+<div class="font-body-md font-bold text-on-surface">Arbitrier X1 Processor</div>
+<div class="font-label-md text-secondary">SKU: ARB-X1-402</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-center font-body-md text-on-surface">250</td>
+<td class="px-6 py-4 text-center font-body-md text-on-surface">250</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800">
+<span class="material-symbols-outlined text-xs mr-1" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                      Ready
+                    </span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-secondary hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 2: Partial Availability Highlight -->
+<tr class="bg-surface-container-low/50 hover:bg-surface-container transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center">
+<div class="w-10 h-10 rounded bg-surface-container-highest mr-4 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">lan</span>
+</div>
+<div>
+<div class="font-body-md font-bold text-on-surface">High-Bandwidth Bus</div>
+<div class="font-label-md text-secondary">SKU: ARB-BUS-88</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-center font-body-md text-on-surface">100</td>
+<td class="px-6 py-4 text-center">
+<div class="flex flex-col items-center">
+<span class="font-body-md font-bold text-primary">50</span>
+<div class="w-16 h-1.5 bg-outline-variant rounded-full mt-1 overflow-hidden">
+<div class="h-full bg-primary w-1/2"></div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-secondary-container text-on-secondary-container">
+<span class="material-symbols-outlined text-xs mr-1">warning</span>
+                      Partial
+                    </span>
+</td>
+<td class="px-6 py-4 text-right space-x-2">
+<div class="inline-flex rounded border border-outline-variant overflow-hidden">
+<button class="px-2 py-1 bg-surface hover:bg-primary-container hover:text-on-primary-container text-label-md border-r border-outline-variant transition-colors" onclick="this.closest('tr').style.opacity='0.5'">Accept</button>
+<button class="px-2 py-1 bg-surface hover:bg-primary-container hover:text-on-primary-container text-label-md border-r border-outline-variant transition-colors">Modify</button>
+<button class="px-2 py-1 bg-surface hover:bg-error-container hover:text-error text-label-md transition-colors">Remove</button>
+</div>
+</td>
+</tr>
+<!-- Row 3: Out of Stock -->
+<tr class="hover:bg-surface-container transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center">
+<div class="w-10 h-10 rounded bg-surface-container-highest mr-4 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">settings_input_component</span>
+</div>
+<div>
+<div class="font-body-md font-bold text-on-surface">Thermal Controller v3</div>
+<div class="font-label-md text-secondary">SKU: ARB-TCV3-01</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-center font-body-md text-on-surface">15</td>
+<td class="px-6 py-4 text-center font-body-md text-error font-bold">0</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-error-container text-on-error-container">
+<span class="material-symbols-outlined text-xs mr-1">cancel</span>
+                      Unavailable
+                    </span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-error font-label-md hover:underline">Remove Item</button>
+</td>
+</tr>
+<!-- Row 4: Partial Availability Highlight -->
+<tr class="bg-surface-container-low/50 hover:bg-surface-container transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center">
+<div class="w-10 h-10 rounded bg-surface-container-highest mr-4 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">developer_board</span>
+</div>
+<div>
+<div class="font-body-md font-bold text-on-surface">Modular Logic Board</div>
+<div class="font-label-md text-secondary">SKU: ARB-MLB-12</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-center font-body-md text-on-surface">80</td>
+<td class="px-6 py-4 text-center">
+<div class="flex flex-col items-center">
+<span class="font-body-md font-bold text-primary">60</span>
+<div class="w-16 h-1.5 bg-outline-variant rounded-full mt-1 overflow-hidden">
+<div class="h-full bg-primary w-3/4"></div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-secondary-container text-on-secondary-container">
+<span class="material-symbols-outlined text-xs mr-1">warning</span>
+                      Partial
+                    </span>
+</td>
+<td class="px-6 py-4 text-right space-x-2">
+<div class="inline-flex rounded border border-outline-variant overflow-hidden">
+<button class="px-2 py-1 bg-surface hover:bg-primary-container hover:text-on-primary-container text-label-md border-r border-outline-variant transition-colors">Accept</button>
+<button class="px-2 py-1 bg-surface hover:bg-primary-container hover:text-on-primary-container text-label-md border-r border-outline-variant transition-colors">Modify</button>
+<button class="px-2 py-1 bg-surface hover:bg-error-container hover:text-error text-label-md transition-colors">Remove</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Order Summary & Context Sidebar -->
+<div class="col-span-4 space-y-stack-lg">
+<div class="bg-primary text-on-primary p-6 rounded-xl space-y-4 relative overflow-hidden">
+
+<h3 class="font-headline-md text-headline-md relative z-10">Order Forecast</h3>
+<div class="space-y-3 relative z-10">
+<div class="flex justify-between text-body-md opacity-90">
+<span>Total Items Requested</span>
+<span>445 units</span>
+</div>
+<div class="flex justify-between text-body-md opacity-90">
+<span>Available Now</span>
+<span>360 units</span>
+</div>
+<div class="h-px bg-on-primary/20"></div>
+<div class="flex justify-between font-headline-md">
+<span>Estimated Value</span>
+<span>$182,450.00</span>
+</div>
+</div>
+<p class="text-xs italic opacity-70 relative z-10">*Pricing reflects currently available quantities only.</p>
+</div>
+<div class="bg-surface-container-high p-6 rounded-xl border border-outline-variant">
+<h4 class="font-label-md text-secondary uppercase mb-4">Immediate Actions Needed</h4>
+<ul class="space-y-3">
+<li class="flex items-start">
+<span class="material-symbols-outlined text-error mr-2 text-sm">priority_high</span>
+<span class="font-body-md">Resolve 1 unavailable item to proceed.</span>
+</li>
+<li class="flex items-start">
+<span class="material-symbols-outlined text-primary mr-2 text-sm">info</span>
+<span class="font-body-md">Confirm quantities for 2 partial availability items.</span>
+</li>
+</ul>
+</div>
+<div class="aspect-video rounded-xl overflow-hidden relative">
+<img class="w-full h-full object-cover" data-alt="A sophisticated data visualization dashboard showing logistical flow and supply chain routes on a dark world map. The aesthetic is ultra-modern, with clean neon blue and white light trails representing movement. The lighting is low-key and dramatic, emphasizing transparency and institutional authority in a sleek corporate setting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCJO1U2WhPr5fvj1V00Evu1rOLLgs7tOmYcZEZ2ODZmvPDHdvIyn1LZgi4CsbTFxl5CGuxxARWmARPWNFv1nuE99KVNNXP1szokCR6g9Sb1oea9iJh6E8JqmA6kb5-zuZhE84RtvZJqZMZEyFedb64ea82-8HojxkZXn_3B544AIS1alFndBr6XehO2UFw2DaKbEjmlgc6JTTFW_cc9Pt1j07ZmZark5K8LWuXUNfSXJQ8fdWW5JTyxsWbxk9IcJEs7-v1pHrINR0q1"/>
+<div class="absolute inset-0 bg-gradient-to-t from-primary/80 to-transparent flex items-end p-6">
+<div class="text-on-primary">
+<p class="font-label-md font-bold uppercase tracking-widest opacity-80">Inventory Pulse</p>
+<p class="font-body-md">Real-time supply synchronization across global hubs.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Sticky Summary Footer -->
+<footer class="mt-auto bg-surface-container-lowest border-t border-outline-variant p-stack-lg sticky bottom-0 z-40">
+<div class="max-w-container-max mx-auto w-full flex items-center justify-between">
+<div class="flex space-x-stack-xl">
+<div class="flex flex-col">
+<span class="font-label-md text-secondary">Total Line Items</span>
+<span class="font-body-md font-bold text-on-surface">4 Products</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-md text-secondary">Ready for Shipping</span>
+<span class="font-body-md font-bold text-green-700">360 / 445 units</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-md text-secondary">Adjustment Needed</span>
+<span class="font-body-md font-bold text-error">85 units</span>
+</div>
+</div>
+<div class="flex items-center space-x-4">
+<button class="px-6 py-3 border border-outline text-secondary font-label-md rounded-lg hover:bg-surface-variant transition-colors">
+            Save as Draft
+          </button>
+<button class="px-10 py-3 bg-primary text-on-primary font-label-md rounded-lg hover:bg-primary-container shadow-md flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+            Proceed to Checkout
+            <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+</div>
+</footer>
+</main>
+<script>
+    // Micro-interaction for row selection or highlighting
+    document.querySelectorAll('tbody tr').forEach(row => {
+      row.addEventListener('click', () => {
+        // Simple visual toggle for selection state
+        if (row.classList.contains('bg-primary-fixed/20')) {
+          row.classList.remove('bg-primary-fixed/20');
+        } else {
+          // Reset others
+          document.querySelectorAll('tbody tr').forEach(r => r.classList.remove('bg-primary-fixed/20'));
+          row.classList.add('bg-primary-fixed/20');
+        }
+      });
+    });
+
+    // Mock progress calculation
+    const buttons = document.querySelectorAll('button');
+    buttons.forEach(btn => {
+      btn.addEventListener('mouseenter', () => {
+        // Subtle hover sounds or effects could go here
+      });
+    });
+  </script>
+</body></html>

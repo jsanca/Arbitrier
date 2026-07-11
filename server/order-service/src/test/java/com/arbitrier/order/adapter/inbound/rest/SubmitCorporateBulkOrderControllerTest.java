@@ -39,7 +39,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>Verifies HTTP status codes, JWT-based user identity extraction, and the
  * absence of {@code submittedByUserId} from the request payload (ARB-010).
  */
-@SpringBootTest(webEnvironment = WebEnvironment.MOCK)
+@SpringBootTest(
+        webEnvironment = WebEnvironment.MOCK,
+        properties = {
+                "spring.autoconfigure.exclude=" +
+                        "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration," +
+                        "org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration"
+        }
+)
 @Import(OrderServiceTestConfiguration.class)
 class SubmitCorporateBulkOrderControllerTest {
 

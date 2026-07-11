@@ -2,6 +2,8 @@ package com.arbitrier.order.integration;
 
 import com.arbitrier.order.adapter.outbound.InMemoryOrderRepository;
 import com.arbitrier.order.adapter.outbound.RecordingOrderEventPublisher;
+import com.arbitrier.order.adapter.outbound.StubInventoryAvailabilityPort;
+import com.arbitrier.order.application.port.outbound.InventoryAvailabilityPort;
 import com.arbitrier.order.application.port.outbound.OrderEventPublisher;
 import com.arbitrier.order.application.port.outbound.OrderRepository;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -35,6 +37,12 @@ public class OrderServiceTestConfiguration {
     @Primary
     OrderEventPublisher orderEventPublisher() {
         return new RecordingOrderEventPublisher();
+    }
+
+    @Bean
+    @Primary
+    InventoryAvailabilityPort inventoryAvailabilityPort() {
+        return new StubInventoryAvailabilityPort();
     }
 
     /**

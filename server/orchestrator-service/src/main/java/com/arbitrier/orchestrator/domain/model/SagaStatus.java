@@ -8,6 +8,8 @@ package com.arbitrier.orchestrator.domain.model;
  */
 public enum SagaStatus {
     STARTED,
+    WAITING_FOR_INVENTORY,
+    WAITING_FOR_CREDIT,
     AWAITING_CUSTOMER_DECISION,
     COMPENSATING,
     COMPLETED,

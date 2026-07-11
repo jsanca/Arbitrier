@@ -1,6 +1,6 @@
 package com.arbitrier.inventory.application.service;
 
-import com.arbitrier.inventory.adapter.outbound.ConfigurableStockAvailabilityPort;
+import com.arbitrier.inventory.adapter.outbound.ConfigurableWarehouseAllocationPort;
 import com.arbitrier.inventory.adapter.outbound.InMemoryStockReservationRepository;
 import com.arbitrier.inventory.adapter.outbound.RecordingStockReservationEventPublisher;
 import com.arbitrier.inventory.application.port.inbound.ReserveStockCommand;
@@ -24,16 +24,15 @@ class ReserveStockServiceTest {
 
     private static final String ORDER_ID = "order-001";
     private static final String RESERVATION_ID = "res-001";
-    private static final String WAREHOUSE_ID = "wh-001";
 
-    private ConfigurableStockAvailabilityPort availability;
+    private ConfigurableWarehouseAllocationPort availability;
     private InMemoryStockReservationRepository repository;
     private RecordingStockReservationEventPublisher publisher;
     private ReserveStockService service;
 
     @BeforeEach
     void setUp() {
-        availability = new ConfigurableStockAvailabilityPort();
+        availability = new ConfigurableWarehouseAllocationPort();
         repository = new InMemoryStockReservationRepository();
         publisher = new RecordingStockReservationEventPublisher();
         service = new ReserveStockService(availability, repository, publisher);
@@ -85,7 +84,20 @@ class ReserveStockServiceTest {
         var event = publisher.reservedEvents().get(0);
         assertThat(event.reservationId().value()).isEqualTo(RESERVATION_ID);
         assertThat(event.orderId()).isEqualTo(ORDER_ID);
-        assertThat(event.warehouseId().value()).isEqualTo(WAREHOUSE_ID);
+    }
+
+    @Test
+    void stock_split_across_warehouses_is_fully_reserved() {
+        availability.setAvailable("wh-001", "SKU-A", 6);
+        availability.setAvailable("wh-002", "SKU-A", 4);
+
+        ReserveStockResult result = service.reserve(command(line("SKU-A", 10)));
+
+        assertThat(result.outcome()).isEqualTo(StockReservationStatus.RESERVED);
+        var saved = repository.getById(
+                com.arbitrier.inventory.domain.model.StockReservationId.of(RESERVATION_ID));
+        assertThat(saved.lines().get(0).allocations()).hasSize(2);
+        assertThat(saved.lines().get(0).reservedQuantity()).isEqualTo(10);
     }
 
     // ── Partial reservation ───────────────────────────────────────────────────
@@ -160,7 +172,7 @@ class ReserveStockServiceTest {
     void missing_orderId_throws() {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new ReserveStockCommand(
-                        "", RESERVATION_ID, WAREHOUSE_ID, List.of(line("SKU-A", 1))))
+                        "", RESERVATION_ID, List.of(line("SKU-A", 1))))
                 .withMessageContaining("orderId");
     }
 
@@ -168,23 +180,15 @@ class ReserveStockServiceTest {
     void missing_reservationId_throws() {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new ReserveStockCommand(
-                        ORDER_ID, "", WAREHOUSE_ID, List.of(line("SKU-A", 1))))
+                        ORDER_ID, "", List.of(line("SKU-A", 1))))
                 .withMessageContaining("reservationId");
-    }
-
-    @Test
-    void missing_warehouseId_throws() {
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new ReserveStockCommand(
-                        ORDER_ID, RESERVATION_ID, "", List.of(line("SKU-A", 1))))
-                .withMessageContaining("warehouseId");
     }
 
     @Test
     void empty_lines_throws() {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new ReserveStockCommand(
-                        ORDER_ID, RESERVATION_ID, WAREHOUSE_ID, List.of()))
+                        ORDER_ID, RESERVATION_ID, List.of()))
                 .withMessageContaining("lines");
     }
 
@@ -221,7 +225,7 @@ class ReserveStockServiceTest {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private ReserveStockCommand command(ReserveStockLineCommand... lines) {
-        return new ReserveStockCommand(ORDER_ID, RESERVATION_ID, WAREHOUSE_ID, List.of(lines));
+        return new ReserveStockCommand(ORDER_ID, RESERVATION_ID, List.of(lines));
     }
 
     private ReserveStockLineCommand line(String sku, int quantity) {

@@ -142,6 +142,105 @@ class SagaTest {
                 .isThrownBy(() -> saga.creditApproved(""));
     }
 
+    // ── stockRejected ─────────────────────────────────────────────────────────
+
+    @Test
+    void stock_rejected_cancels_saga_directly() {
+        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID).stockRejected();
+
+        assertThat(saga.status()).isEqualTo(SagaStatus.CANCELLED);
+        assertThat(saga.currentStep()).isEqualTo(SagaStep.ORDER_CREATED);
+    }
+
+    @Test
+    void stock_rejected_preserves_ids() {
+        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID).stockRejected();
+
+        assertThat(saga.id()).isEqualTo(SAGA_ID);
+        assertThat(saga.orderId()).isEqualTo(ORDER_ID);
+        assertThat(saga.customerId()).isEqualTo(CUSTOMER_ID);
+    }
+
+    @Test
+    void stock_rejected_on_terminal_saga_throws() {
+        Saga completed = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID).complete();
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(completed::stockRejected)
+                .withMessageContaining("non-terminal");
+    }
+
+    // ── creditRejected ────────────────────────────────────────────────────────
+
+    @Test
+    void credit_rejected_transitions_to_compensating_and_compensate_inventory_step() {
+        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID)
+                .inventoryReserved(STOCK_RESERVATION_ID)
+                .creditRejected();
+
+        assertThat(saga.status()).isEqualTo(SagaStatus.COMPENSATING);
+        assertThat(saga.currentStep()).isEqualTo(SagaStep.COMPENSATE_INVENTORY);
+    }
+
+    @Test
+    void credit_rejected_preserves_stock_reservation_id() {
+        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID)
+                .inventoryReserved(STOCK_RESERVATION_ID)
+                .creditRejected();
+
+        assertThat(saga.stockReservationId()).isEqualTo(STOCK_RESERVATION_ID);
+    }
+
+    @Test
+    void credit_rejected_without_stock_reservation_throws() {
+        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID);
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(saga::creditRejected)
+                .withMessageContaining("stock reservation");
+    }
+
+    @Test
+    void credit_rejected_on_terminal_saga_throws() {
+        Saga completed = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID).complete();
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(completed::creditRejected)
+                .withMessageContaining("non-terminal");
+    }
+
+    // ── inventoryReleased ─────────────────────────────────────────────────────
+
+    @Test
+    void inventory_released_cancels_saga_from_compensating() {
+        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID)
+                .inventoryReserved(STOCK_RESERVATION_ID)
+                .creditRejected()
+                .inventoryReleased();
+
+        assertThat(saga.status()).isEqualTo(SagaStatus.CANCELLED);
+        assertThat(saga.currentStep()).isEqualTo(SagaStep.COMPENSATE_INVENTORY);
+    }
+
+    @Test
+    void inventory_released_preserves_stock_reservation_id() {
+        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID)
+                .inventoryReserved(STOCK_RESERVATION_ID)
+                .creditRejected()
+                .inventoryReleased();
+
+        assertThat(saga.stockReservationId()).isEqualTo(STOCK_RESERVATION_ID);
+    }
+
+    @Test
+    void inventory_released_from_non_compensating_throws() {
+        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID);
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(saga::inventoryReleased)
+                .withMessageContaining("COMPENSATING");
+    }
+
     // ── complete / cancel ─────────────────────────────────────────────────────
 
     @Test
@@ -266,6 +365,166 @@ class SagaTest {
         assertThatIllegalArgumentException()
                 .isThrownBy(compensating::compensate)
                 .withMessageContaining("already COMPENSATING");
+    }
+
+    // ── awaitInventoryResponse ────────────────────────────────────────────────
+
+    @Test
+    void await_inventory_response_transitions_to_waiting_for_inventory_and_reserve_inventory_step() {
+        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID).awaitInventoryResponse();
+
+        assertThat(saga.status()).isEqualTo(SagaStatus.WAITING_FOR_INVENTORY);
+        assertThat(saga.currentStep()).isEqualTo(SagaStep.RESERVE_INVENTORY);
+    }
+
+    @Test
+    void await_inventory_response_preserves_identifiers() {
+        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID).awaitInventoryResponse();
+
+        assertThat(saga.id()).isEqualTo(SAGA_ID);
+        assertThat(saga.orderId()).isEqualTo(ORDER_ID);
+        assertThat(saga.customerId()).isEqualTo(CUSTOMER_ID);
+    }
+
+    @Test
+    void await_inventory_response_from_non_started_throws() {
+        Saga waiting = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID).awaitInventoryResponse();
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(waiting::awaitInventoryResponse)
+                .withMessageContaining("STARTED");
+    }
+
+    // ── awaitCreditResponse ───────────────────────────────────────────────────
+
+    @Test
+    void await_credit_response_transitions_to_waiting_for_credit() {
+        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID)
+                .awaitInventoryResponse()
+                .inventoryReserved(STOCK_RESERVATION_ID)
+                .awaitCreditResponse();
+
+        assertThat(saga.status()).isEqualTo(SagaStatus.WAITING_FOR_CREDIT);
+        assertThat(saga.currentStep()).isEqualTo(SagaStep.VALIDATE_CREDIT);
+    }
+
+    @Test
+    void await_credit_response_from_non_waiting_for_inventory_throws() {
+        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID);
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(saga::awaitCreditResponse)
+                .withMessageContaining("WAITING_FOR_INVENTORY");
+    }
+
+    // ── inventoryTimedOut ─────────────────────────────────────────────────────
+
+    @Test
+    void inventory_timed_out_validates_waiting_for_inventory_and_returns_same_instance() {
+        Saga waiting = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID).awaitInventoryResponse();
+
+        assertThat(waiting.inventoryTimedOut()).isSameAs(waiting);
+    }
+
+    @Test
+    void inventory_timed_out_from_wrong_status_throws() {
+        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID);
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(saga::inventoryTimedOut)
+                .withMessageContaining("WAITING_FOR_INVENTORY");
+    }
+
+    @Test
+    void inventory_timed_out_on_completed_saga_throws() {
+        Saga completed = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID).complete();
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(completed::inventoryTimedOut)
+                .withMessageContaining("WAITING_FOR_INVENTORY");
+    }
+
+    // ── creditTimedOut ────────────────────────────────────────────────────────
+
+    @Test
+    void credit_timed_out_validates_waiting_for_credit_and_returns_same_instance() {
+        Saga waiting = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID)
+                .awaitInventoryResponse()
+                .inventoryReserved(STOCK_RESERVATION_ID)
+                .awaitCreditResponse();
+
+        assertThat(waiting.creditTimedOut()).isSameAs(waiting);
+    }
+
+    @Test
+    void credit_timed_out_from_wrong_status_throws() {
+        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID).awaitInventoryResponse();
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(saga::creditTimedOut)
+                .withMessageContaining("WAITING_FOR_CREDIT");
+    }
+
+    // ── retryInventory / retryCredit ──────────────────────────────────────────
+
+    @Test
+    void retry_inventory_returns_same_instance() {
+        Saga waiting = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID).awaitInventoryResponse();
+
+        assertThat(waiting.retryInventory()).isSameAs(waiting);
+        assertThat(waiting.retryInventory().status()).isEqualTo(SagaStatus.WAITING_FOR_INVENTORY);
+    }
+
+    @Test
+    void retry_inventory_from_wrong_status_throws() {
+        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID);
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(saga::retryInventory)
+                .withMessageContaining("WAITING_FOR_INVENTORY");
+    }
+
+    @Test
+    void retry_credit_returns_same_instance() {
+        Saga waiting = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID)
+                .awaitInventoryResponse()
+                .inventoryReserved(STOCK_RESERVATION_ID)
+                .awaitCreditResponse();
+
+        assertThat(waiting.retryCredit()).isSameAs(waiting);
+        assertThat(waiting.retryCredit().status()).isEqualTo(SagaStatus.WAITING_FOR_CREDIT);
+    }
+
+    @Test
+    void retry_credit_from_wrong_status_throws() {
+        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID).awaitInventoryResponse();
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(saga::retryCredit)
+                .withMessageContaining("WAITING_FOR_CREDIT");
+    }
+
+    // ── compensate from waiting states ────────────────────────────────────────
+
+    @Test
+    void compensate_from_waiting_for_inventory_transitions_to_compensating() {
+        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID)
+                .awaitInventoryResponse()
+                .compensate();
+
+        assertThat(saga.status()).isEqualTo(SagaStatus.COMPENSATING);
+    }
+
+    @Test
+    void compensate_from_waiting_for_credit_transitions_to_compensating() {
+        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID)
+                .awaitInventoryResponse()
+                .inventoryReserved(STOCK_RESERVATION_ID)
+                .awaitCreditResponse()
+                .compensate();
+
+        assertThat(saga.status()).isEqualTo(SagaStatus.COMPENSATING);
+        assertThat(saga.stockReservationId()).isEqualTo(STOCK_RESERVATION_ID);
     }
 
     // ── misc ──────────────────────────────────────────────────────────────────

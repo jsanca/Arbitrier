@@ -107,6 +107,19 @@ class HandleCreditApprovedServiceTest {
         assertThat(eventPublisher.compensatedEvents()).isEmpty();
     }
 
+    // ── Out-of-sequence guard ─────────────────────────────────────────────────
+
+    @Test
+    void credit_approved_before_stock_reserved_throws_with_clear_message() {
+        repository.save(Saga.start(SagaId.of("saga-fresh"), ORDER_ID, CUSTOMER_ID));
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> service.handle(
+                        new HandleCreditApprovedCommand("saga-fresh", CREDIT_RESERVATION_ID)))
+                .withMessageContaining("stock reservation")
+                .withMessageContaining("saga-fresh");
+    }
+
     // ── Saga not found ────────────────────────────────────────────────────────
 
     @Test
