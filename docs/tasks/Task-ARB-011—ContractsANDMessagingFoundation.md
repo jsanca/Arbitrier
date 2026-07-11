@@ -1,7 +1,7 @@
 Task: ARB-011 — Contracts & Messaging Foundation
 
 Status:
-[PLANNED]
+[COMPLETE]
 
 Owner:
 Clio

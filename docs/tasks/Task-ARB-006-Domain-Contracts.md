@@ -1,7 +1,7 @@
 Task: ARB-006 — Domain Contracts
 
 Status:
-[PLANNED]
+[COMPLETE]
 
 Owner:
 Clio

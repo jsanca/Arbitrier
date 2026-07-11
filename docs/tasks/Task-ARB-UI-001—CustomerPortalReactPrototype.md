@@ -1,7 +1,7 @@
 Task: ARB-UI-001 — Customer Portal React Prototype
 
 Status:
-[PLANNED]
+[COMPLETE]
 
 Owner:
 Brio
@@ -508,4 +508,4 @@ Report:
 - tests run
 - known gaps
 
-Do not implement the admin UI.  
+Do not implement the admin UI.

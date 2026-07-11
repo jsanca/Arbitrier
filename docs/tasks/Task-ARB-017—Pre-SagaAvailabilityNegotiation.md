@@ -1,7 +1,7 @@
 Task: ARB-017 — Pre-Saga Availability Negotiation
 
 Status:
-[PLANNED]
+[COMPLETE]
 
 Owner:
 Clio

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Draft |
+| Status | Active — domain/application core implemented; runtime adapters pending |
 | Date | 2026-07-07 |
 | Source | `docs/okf/seeds/UC-01-corporate-bulk-order.md`, `docs/okf/seeds/UC-01-use-case-and-test-matrix.md` |
 
@@ -12,7 +12,7 @@ Model a corporate bulk order as an orchestrated saga where inventory reservation
 
 ## Context
 
-The corporate buyer submits one or more SKU lines through the B2B portal. The order begins in `PENDING`, the orchestrator coordinates inventory and credit services, and the buyer or operator must be able to see the current saga status and event timeline.
+The corporate buyer prepares one or more SKU lines through the B2B portal. A read-only global availability check occurs before submission. If availability is partial, the buyer accepts available quantities or cancels before an Order or Saga exists. After submission, the order begins in `PENDING` and the orchestrator coordinates authoritative inventory and credit reservations.
 
 The only documented terminal states for UC-01 are:
 
@@ -20,9 +20,7 @@ The only documented terminal states for UC-01 are:
 - `PARTIALLY_CONFIRMED`
 - `CANCELLED`
 
-The documented waiting state is:
-
-- `AWAITING_CUSTOMER_DECISION`
+`AWAITING_CUSTOMER_DECISION` remains a legacy enum value but is not part of the implemented UC-01 saga path. ARB-017 moved the human decision before saga start.
 
 ## Decision or Requirement
 
@@ -32,7 +30,7 @@ UC-01 must preserve these guarantees:
 - Reserved inventory is released when the current saga does not confirm the reserved stock.
 - Credit is never consumed for an order that ends as `CANCELLED`.
 - Credit is consumed exactly for the amount that is confirmed.
-- Partial backorder requires an explicit buyer decision before proceeding.
+- Partial availability requires an explicit buyer decision before order submission.
 - The orchestrator owns business transitions; adapters must not hide business decisions.
 
 ## Inputs
@@ -41,10 +39,10 @@ UC-01 must preserve these guarantees:
 - Corporate account with active B2B credit line.
 - Order lines containing SKU and quantity.
 - Product catalog availability.
-- Warehouse inventory availability.
+- Global inventory availability; warehouse allocation remains internal to Inventory.
 - Inventory events: `StockReserved`, `StockPartiallyReserved`.
 - Credit events: `CreditApproved`, `CreditRejected`.
-- Buyer decisions: `ACCEPT_PARTIAL`, `WAIT_BACKORDER`, `CANCEL_ORDER`.
+- Pre-saga buyer decisions: `ACCEPT_FULL`, `ACCEPT_PARTIAL`, `CANCEL`.
 
 ## Outputs
 
@@ -53,8 +51,8 @@ UC-01 must preserve these guarantees:
 - Inventory reservation request.
 - Credit validation and consumption request.
 - `OrderConfirmed` event when fully confirmed.
-- `PARTIALLY_CONFIRMED` order when the buyer accepts available lines.
-- `CANCELLED` order with reason `insufficient_credit`, `system_timeout`, `customer_deferred`, or `customer_cancelled`.
+- `PARTIALLY_CONFIRMED` order when accepted partial quantities are authoritatively reserved and credit-approved.
+- `CANCELLED` order with a technical or business reason after submission; cancellation before submission creates no order.
 - Visible saga status and event timeline.
 
 ## Preconditions
@@ -67,16 +65,15 @@ UC-01 must preserve these guarantees:
 ## Postconditions
 
 - Happy path: order is `CONFIRMED`, all requested stock is reserved, and credit is consumed for the full confirmed amount.
-- Accepted partial path: order is `PARTIALLY_CONFIRMED`, available stock remains reserved, backorder lines are cancelled or released, and credit is consumed only for confirmed lines.
-- Deferred backorder path: current saga is `CANCELLED` with reason `customer_deferred`, all reserved inventory is released, and a derived waiting order is created or requested.
-- Cancelled partial path: order is `CANCELLED` with reason `customer_cancelled`, and all reserved inventory is released.
+- Accepted partial path: only buyer-accepted quantities are submitted; the authoritative saga may end `PARTIALLY_CONFIRMED` when those quantities are confirmed.
+- Pre-saga cancellation creates neither an Order nor a Saga and holds no stock or credit.
 - Credit rejected path: order is `CANCELLED` with reason `insufficient_credit`, reserved inventory is released, and exact credit limit details are not exposed to the buyer.
 - Timeout path: order is `CANCELLED` with reason `system_timeout`, and compensation runs according to the current saga step.
 
 ## Failure Behavior
 
-- Inventory timeout before reservation: retry according to the documented Resilience4j policy, then cancel with `system_timeout`; credit must not be consumed.
-- Credit timeout after stock reservation: retry according to the documented Resilience4j policy, then emit or request `ReleaseStock` and cancel with `system_timeout`.
+- Inventory timeout before reservation: use the implemented attempt-count policy to decide retry or exhaustion; runtime scheduling/backoff is pending ARB-024. On exhaustion, compensate and do not consume credit.
+- Credit timeout after stock reservation: use the same decision boundary; on exhaustion, request `ReleaseStock` and cancel through compensation.
 - Credit rejection after stock reservation: release reserved inventory and cancel with `insufficient_credit`.
 - Duplicate `OrderCreated`: do not create a duplicate saga or duplicate stock reservation.
 - Duplicate `ReleaseStock`: leave inventory consistent and do not create negative reservation.
@@ -85,22 +82,18 @@ UC-01 must preserve these guarantees:
 
 - Every saga transition logs `sagaId`, `orderId`, state, transition, and reason when available.
 - Every important transition produces traces and metrics.
-- The dashboard shows order status, saga state, event timeline, and pending human decision when the saga is waiting.
+- The future runtime dashboard shows order status, saga state, and event timeline. Buyer availability decisions are shown before submission.
 - Compensation attempts and idempotent duplicate handling must be visible in logs and traces.
 
-## Test Evidence Placeholder
+## Test Evidence
 
-- Unit tests: to be linked after implementation.
+- Unit/application tests exist in each service module; persistence integration tests cover JPA adapters.
 - Integration tests: see `docs/test-cases/TC-UC-01-001-create-pending-order.md` through `TC-UC-01-011-duplicate-order-created-idempotent.md`.
 - E2E tests: see `docs/test-cases/TC-UC-01-012-saga-timeline-visible.md`.
-- Contract tests: OPEN QUESTION until Avro schemas and topics are documented.
+- Contract tests load and generate types from the 26 Avro schemas in `server/contracts`.
 
 ## Open Questions
 
-- OPEN QUESTION: Should commands also go through Kafka, or only events?
-- OPEN QUESTION: Should customer decision be exposed through `order-service` or `orchestrator-service`?
-- OPEN QUESTION: Should waiting backorder create a new order immediately or emit `BackorderRequested`?
-- OPEN QUESTION: What is the timeout SLA for inventory and credit?
-- OPEN QUESTION: What roles are needed in Keycloak for buyer, operator, approver, and admin?
-- OPEN QUESTION: What exact topic names, event schemas, and command schemas should be used?
+- OPEN QUESTION: What runtime timeout durations and backoff belong in ARB-024?
+- OPEN QUESTION: What exact topic names and partitioning keys complete the Kafka runtime adapter set?
 - OPEN QUESTION: What exact estimated shipping date rule is shown after confirmation?

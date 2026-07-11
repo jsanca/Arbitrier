@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Draft |
+| Status | Superseded by pre-saga cancellation in ARB-017 |
 | Type | Integration / E2E |
 | Requirement | [RF-UC-01](../rf/RF-UC-01-corporate-bulk-order.md) |
 
@@ -13,6 +13,8 @@ Verify that buyer cancellation from the partial waiting state releases reservati
 ## Context
 
 This test covers the `CANCEL_ORDER` branch of UC-01.03.
+
+> Historical test target. In the active flow the buyer selects `CANCEL` during availability review, before any Order, Saga, or reservation exists; therefore no compensation is required.
 
 ## Decision or Requirement
 

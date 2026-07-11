@@ -1,7 +1,7 @@
 Task: ARB-018 — Saga Timeout & Retry Policy
 
 Status:
-[PLANNED]
+[COMPLETE]
 
 Owner:
 Clio

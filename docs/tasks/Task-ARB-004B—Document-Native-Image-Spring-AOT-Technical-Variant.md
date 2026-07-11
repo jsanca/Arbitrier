@@ -1,7 +1,7 @@
 Task: ARB-004B — Document Native Image / Spring AOT Technical Variant
 
 Status:
-[PLANNED]
+[COMPLETE]
 
 Owner:
 Elito

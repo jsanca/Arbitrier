@@ -1,5 +1,7 @@
 # Arbitrier Project Blueprint
 
+> Historical architectural intent. Accepted ADRs, current RF/RNF documents, the roadmap, and implementation reports supersede this blueprint where the repository has evolved. In particular, customer availability decisions now occur before saga start (ARB-017), warehouse allocation belongs exclusively to Inventory (ADR-0009), and JPA persistence/local runtime infrastructure are implemented.
+
 **Status:** Draft
 **Version:** 0.1
 **Author:** Jsanca
@@ -320,6 +322,10 @@ Evaluation.
 Brio
 
 Frontend.
+
+Stitch
+
+Visual exploration and mockups used as frontend design inputs.
 
 MiniMax
 

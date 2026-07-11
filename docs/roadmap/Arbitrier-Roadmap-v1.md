@@ -77,8 +77,26 @@ Saga Compensation
 ARB-017 [DONE]
 Pre-Saga Availability Negotiation
 
+ARB-017B [DONE]
+Global Inventory Allocation Ownership — warehouse selection remains inside Inventory
+
 ARB-018 [DONE]
-Saga Timeout & Retry Policy
+Saga Retry Decision Policy — attempt-count decisions; runtime scheduling remains ARB-024
+
+---
+
+=========================
+SECURITY REVIEW
+=========================
+
+ARB-018A
+Architecture Security Review
+
+ARB-018B
+Threat Model
+
+ARB-018C
+Security Hardening
 
 ---
 
@@ -106,17 +124,20 @@ Resilience4j Runtime Policies — Retry, Circuit Breaker, Bulkhead, TimeLimiter
 
 # USER INTERFACE
 
+ARB-UI-001 [DONE]
+Customer Portal React Prototype — mock-backed, no backend integration
+
 ARB-025 [PLANNED]
 Dashboard Backend API
 
 ARB-026 [PLANNED]
-React Dashboard
+Production Customer Portal Integration — real APIs, Keycloak, runtime status
 
 ---
 
 # DELIVERY & OPERATIONS
 
-ARB-027 [PLANNED]
+ARB-027 [DONE]
 Local Runtime Stack — Docker Compose, Kafka, PostgreSQL, Keycloak, Schema Registry
 
 ARB-028 [PLANNED]
@@ -133,3 +154,10 @@ Performance & Resilience Validation
 
 ARB-032 [PLANNED]
 Production Readiness
+
+---
+
+# DOCUMENTATION
+
+ARB-DOC-001 [DONE]
+Documentation Audit & README Refresh

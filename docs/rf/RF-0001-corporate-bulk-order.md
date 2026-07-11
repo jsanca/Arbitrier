@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Draft |
+| Status | Active index |
 | Date | 2026-07-07 |
 | Canonical Detail | [RF-UC-01](RF-UC-01-corporate-bulk-order.md) |
 
@@ -12,7 +12,7 @@ Provide the ARB-001 functional-requirement anchor for UC-01 and point implementa
 
 ## Context
 
-ARB-002 expands the placeholder UC-01 documentation into [RF-UC-01](RF-UC-01-corporate-bulk-order.md), [UC-01](../okf/UC-01-corporate-bulk-order.md), [RNF-UC-01](../rnf/RNF-UC-01-saga-runtime.md), and detailed test cases.
+This document is the stable index for [RF-UC-01](RF-UC-01-corporate-bulk-order.md), [UC-01](../okf/UC-01-corporate-bulk-order.md), [RNF-UC-01](../rnf/RNF-UC-01-saga-runtime.md), and detailed test cases.
 
 ## Decision or Requirement
 
@@ -24,9 +24,7 @@ Final states are:
 - `PARTIALLY_CONFIRMED`
 - `CANCELLED`
 
-The documented waiting state is:
-
-- `AWAITING_CUSTOMER_DECISION`
+Partial-availability decisions occur before submission. `AWAITING_CUSTOMER_DECISION` is not on the active saga path.
 
 ## Inputs
 
@@ -52,7 +50,7 @@ See [RF-UC-01](RF-UC-01-corporate-bulk-order.md).
 
 See [RF-UC-01](RF-UC-01-corporate-bulk-order.md).
 
-## Test Evidence Placeholder
+## Test Evidence
 
 See [TC-UC-01](../test-cases/TC-UC-01-corporate-bulk-order.md) and the detailed TC-UC-01-001 through TC-UC-01-012 files.
 

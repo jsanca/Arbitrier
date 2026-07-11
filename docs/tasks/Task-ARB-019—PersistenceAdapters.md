@@ -1,7 +1,7 @@
 Task: ARB-019 — Persistence Adapters
 
 Status:
-[PLANNED]
+[COMPLETE]
 
 Owner:
 Clio

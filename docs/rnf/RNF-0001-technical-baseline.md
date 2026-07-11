@@ -49,16 +49,16 @@ Use the baseline technologies and quality gates documented in the sections below
 - Logs, metrics, traces, and health signals follow the observability baseline in this document.
 - Saga-related log lines include `sagaId`, `orderId`, and `traceId`.
 
-## Test Evidence Placeholder
+## Test Evidence
 
-- CI evidence pending implementation.
-- Contract, integration, and E2E evidence pending implementation.
+- Maven unit, architecture, controller, contract-generation, and PostgreSQL Testcontainers coverage exists.
+- Customer Portal unit/component tests exist; browser E2E and CI evidence remain pending.
 
 ## Open Questions
 
 - OPEN QUESTION: Google Cloud region for deployed infrastructure.
-- OPEN QUESTION: Exact UC-01 timeout SLA and retry policy.
-- OPEN QUESTION: Exact Kafka topic names and Avro schemas.
+- OPEN QUESTION: Exact UC-01 runtime timeout SLA and backoff; attempt-count decisions are implemented.
+- OPEN QUESTION: Final Kafka topic/partition map; 26 Avro schemas are implemented.
 
 ## 1. Runtime Platform
 
@@ -116,7 +116,7 @@ All services must compile and pass tests on **Java 25** only. No multi-release j
 | Token type         | JWT (Bearer)                                        |
 | Service-to-service | Client credentials grant                           |
 | User-facing API    | Authorization code + PKCE (React client)           |
-| Role model         | `ROLE_BUYER`, `ROLE_APPROVER`, `ROLE_ADMIN`         |
+| Local realm roles  | `CUSTOMER_USER`, `CUSTOMER_ADMIN`, `OPERATIONS_USER`, `OPERATIONS_ADMIN` |
 
 ---
 

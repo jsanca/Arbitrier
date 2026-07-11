@@ -1,159 +1,130 @@
 # Arbitrier
 
-**Arbitrier** is a B2B saga orchestration platform built on Java 25 and Spring Boot 4.1.0.  
-It models the full lifecycle of a Corporate Bulk Order — from credit validation and inventory reservation through human decision gates for partial backorders to a final confirmed, partially confirmed, or cancelled outcome.
+Arbitrier is a B2B bulk-order orchestration reference system built with Java 25, Spring Boot 4.1, PostgreSQL, Kafka/Avro, Keycloak, and React. It makes inventory reservation, credit approval, compensation, retries, and customer-facing outcomes explicit across independently owned bounded contexts.
 
----
+The current repository contains a tested backend domain/application core, JPA persistence adapters, a mock-backed Customer Portal prototype, and a reproducible local infrastructure stack. Kafka runtime consumers, complete production messaging, database migrations, and deployed cloud infrastructure remain roadmap work.
 
-## Vision
+## UC-01: Corporate Bulk Order
 
-Enterprise purchasing is a multi-party, multi-step process.  
-Arbitrier makes those steps explicit, observable, and compensatable:
+The buyer first performs a non-binding global availability check. Inventory—not the buyer, Order, or Saga—chooses warehouses and may allocate one requested line across multiple locations. If availability is partial, the buyer resolves that choice before submission; the saga never waits indefinitely for a customer decision.
 
-- Every saga step is a named transition with a clear owner (service or human).
-- Every failure has a matching compensation that leaves the system in a consistent state.
-- Every decision point — including the partial backorder human gate — is auditable.
-
----
-
-## Domain: UC-01 Corporate Bulk Order
-
-| Final State             | Condition                                          |
-|-------------------------|----------------------------------------------------|
-| `CONFIRMED`             | Credit approved + all items reserved               |
-| `PARTIALLY_CONFIRMED`   | Credit approved + partial reservation, human okays |
-| `CANCELLED`             | Credit denied or human rejects partial backorder   |
-
-See [`docs/rf/RF-0001-corporate-bulk-order.md`](docs/rf/RF-0001-corporate-bulk-order.md) for the full functional requirement.
-
----
-
-## Repository Layout
-
-```
-arbitrier/
-├── server/
-│   ├── order-service/          # Order lifecycle; saga entry point
-│   ├── inventory-service/      # Inventory reservation and compensation
-│   ├── credit-service/         # B2B credit limit validation
-│   ├── orchestrator-service/   # Saga orchestrator (Spring State Machine / BPMN)
-│   ├── contracts/              # Shared Avro schemas and API contracts
-│   └── platform/               # Cross-cutting: security, observability, exceptions
-├── client/                     # React frontend
-├── docs/
-│   ├── okf/                    # Project objectives and key features index
-│   ├── adr/                    # Architecture Decision Records
-│   ├── rf/                     # Requisitos Funcionais (Functional Requirements)
-│   ├── rnf/                    # Requisitos Não-Funcionais (Non-Functional Requirements)
-│   ├── test-cases/             # Test case specifications
-│   └── diagrams/               # Architecture and sequence diagrams
-├── infra/
-│   ├── docker/                 # docker-compose for local dev
-│   ├── k8s/                    # Kubernetes manifests
-│   ├── terraform/              # Google Cloud IaC
-│   └── strimzi/                # Kafka on Kubernetes via Strimzi
-└── .github/
-    └── workflows/              # GitHub Actions CI/CD
+```mermaid
+flowchart LR
+    Buyer["Buyer"] --> Precheck["Advisory availability check"]
+    Precheck --> Decision{"Buyer proceeds?"}
+    Decision -->|full or accepted partial quantities| Order["Order: PENDING"]
+    Decision -->|cancel| Stop["No order or saga"]
+    Order --> Inventory["Reserve inventory"]
+    Inventory -->|reserved| Credit["Reserve credit"]
+    Inventory -->|rejected or retry exhausted| Cancel["Compensate and cancel"]
+    Credit -->|approved| Confirm["Confirm order"]
+    Credit -->|rejected or retry exhausted| Release["Release stock"]
+    Release --> Cancel
 ```
 
----
-
-## Technical Baseline
-
-| Layer            | Technology                          |
-|------------------|-------------------------------------|
-| Language         | Java 25                             |
-| Framework        | Spring Boot 4.1.0                   |
-| Runtime modes    | JVM (development) · Native Image (GraalVM, deployment) |
-| Database         | PostgreSQL                          |
-| Messaging        | Apache Kafka + Avro (Schema Registry) |
-| Identity         | Keycloak (OIDC / OAuth 2.0)         |
-| Resilience       | Resilience4j                        |
-| Observability    | OpenTelemetry + SLF4J               |
-| Persistence      | JPA (Hibernate)                     |
-| Frontend         | React (TypeScript)                  |
-| E2E Testing      | Playwright                          |
-| Container        | Docker / Kubernetes                 |
-| Cloud            | Google Cloud Platform               |
-| IaC              | Terraform                           |
-| CI/CD            | GitHub Actions                      |
-
-See [`docs/rnf/RNF-0001-technical-baseline.md`](docs/rnf/RNF-0001-technical-baseline.md) for full non-functional requirements.  
-See [`docs/adr/ADR-0007-spring-aot-graalvm-native-image.md`](docs/adr/ADR-0007-spring-aot-graalvm-native-image.md) for the Native Image decision and constraints.
-
----
+The implemented saga terminal states are `COMPLETED`, `CANCELLED`, and `FAILED_COMPENSATION`. Customer-facing order outcomes are `CONFIRMED`, `PARTIALLY_CONFIRMED`, or `CANCELLED`. The retry policy decides `RETRY` versus `EXHAUST` from attempt counts; scheduling durations and Resilience4j runtime wiring are separate concerns.
 
 ## Architecture
 
-All server-side modules follow **Hexagonal Architecture** (Ports & Adapters):
+Each business service uses hexagonal architecture. Domain models are immutable, pure Java, and independent of Spring/JPA/Kafka. Application services own transaction boundaries; repository adapters map aggregates to separate JPA entities and Spring Data repositories. Aggregate roots use optimistic locking.
 
-```
-com.arbitrier.<service>/
-├── domain/           # Entities, value objects, domain events — no framework deps
-├── application/
-│   ├── port/
-│   │   ├── in/       # Use-case input ports (interfaces driven by adapters)
-│   │   └── out/      # Output ports (repository, messaging interfaces)
-│   └── service/      # Use-case implementations
-├── adapter/
-│   ├── in/           # Driving adapters: REST controllers, Kafka consumers
-│   └── out/          # Driven adapters: JPA repositories, Kafka producers
-└── config/           # Spring @Configuration classes
-```
+| Module | Ownership | Current implementation |
+|---|---|---|
+| `order-service` | Order lifecycle and authenticated saga entry | REST submission, JWT resource-server security, pre-saga negotiation, Order JPA adapter, conditional Kafka `OrderCreated` publisher foundation |
+| `inventory-service` | Global availability, warehouse allocation, reservations and release | Multi-warehouse allocation domain, application services, Stock Reservation JPA adapter; runtime inbound/Kafka adapters pending |
+| `credit-service` | Credit reservation and release | Domain/application services and Credit Reservation JPA adapter; external credit-limit and Kafka adapters pending |
+| `orchestrator-service` | UC-01 saga state and compensation | Explicit aggregate transitions, happy path, compensation, attempt-based retry decisions, Saga JPA adapter; runtime Kafka adapters/scheduler pending |
+| `contracts` | Shared Avro wire contracts | 26 schemas with generated Java types; production Schema Registry serializer integration pending |
+| `platform` | Cross-cutting, domain-neutral primitives | Validation, errors, correlation, W3C trace conventions, observability names, idempotency port, Spring web auto-configuration |
+| `client` | Customer Portal | React 19 prototype with typed mock-service boundary and localStorage; backend integration and E2E automation pending |
 
-### `package-info.java` Policy
+PostgreSQL uses one database with service-owned schemas (`order_service`, `inventory_service`, `credit_service`, `orchestrator_service`) and no cross-context foreign keys. Keycloak uses a separate database. See [ADR-0003](docs/adr/ADR-0003-schema-per-service-postgres.md) and [ADR-0009](docs/adr/ADR-0009—GlobalInventoryAllocationOwnership.md).
 
-Every package **must** have a `package-info.java`.  
-The file must contain at minimum:
+## Repository layout
 
-```java
-/**
- * <One-sentence purpose of this package.>
- *
- * <p>Layer: [domain | application | adapter | config]
- * <p>Module: <service-name>
- */
-package com.arbitrier.<service>.<layer>;
+```text
+server/                 Maven modules: services, contracts, platform
+client/                 React/Vite Customer Portal prototype
+infra/docker/           Local PostgreSQL, Kafka, Schema Registry, Keycloak, Kafka UI
+docs/adr/               Architectural decisions
+docs/rf/ and docs/rnf/  Functional and non-functional requirements
+docs/tasks/             Task specifications
+docs/implementation/    Implementation and deep-review records
+docs/test-cases/        UC-01 behavioral specifications
+docs/ui/                Customer Portal UX and design documentation
 ```
 
-This ensures Javadoc coverage and makes package intent explicit for new contributors.  
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full convention guide.
+## Quick start
 
----
-
-## Documentation Index
-
-| Folder              | Contents                                    |
-|---------------------|---------------------------------------------|
-| `docs/okf/`         | Objectives and Key Features index           |
-| `docs/adr/`         | Architecture Decision Records               |
-| `docs/rf/`          | Functional Requirements (RF-XXXX)           |
-| `docs/rnf/`         | Non-Functional Requirements (RNF-XXXX)      |
-| `docs/test-cases/`  | Test case specs linked to use cases         |
-| `docs/diagrams/`    | C4, sequence, and state-machine diagrams    |
-
-Start at [`docs/okf/index.md`](docs/okf/index.md).
-
----
-
-## Getting Started (Local Dev)
-
-> **Prerequisites:** Docker Desktop, Java 25 SDK, Node 20+
+Prerequisites: Java 25, Maven, Node.js 20+, and Docker Compose v2.
 
 ```bash
-# Start and verify PostgreSQL, Kafka, Schema Registry, Keycloak, and Kafka UI
+# Local infrastructure
 infra/docker/start.sh
 infra/docker/health.sh
 
-# (services and client build instructions will be added per module)
+# Complete server quality gate
+mvn -B verify --no-transfer-progress
+
+# Customer Portal prototype (separate terminal)
+cd client
+npm ci
+npm run dev
 ```
 
-Local URLs, development-only credentials, environment variables, reset instructions,
-and troubleshooting are documented in [`infra/docker/README.md`](infra/docker/README.md).
+Open the Customer Portal at <http://localhost:5173>, Keycloak at <http://localhost:8180>, Kafka UI at <http://localhost:8088>, and Schema Registry at <http://localhost:8081>. Development-only identities, database credentials, environment variables, reset steps, and troubleshooting are in [infra/docker/README.md](infra/docker/README.md).
 
----
+The client does not require the backend or local runtime: its services are currently mock implementations backed by browser `localStorage`. Use `brio@arbitrier.com` with any password.
 
-## Status
+## Development and testing
 
-`ARB-027` — Reproducible local infrastructure stack available. Application adapters and
-business migrations remain separately owned roadmap work.
+`mvn -B verify --no-transfer-progress` is the server quality gate. Domain and application tests are hand-wired and do not require infrastructure. Persistence integration tests use PostgreSQL Testcontainers. Controller tests use a mock Spring context and JWT test support. Architecture tests enforce layering and package documentation.
+
+```bash
+# Active server modules
+mvn -B test --no-transfer-progress \
+  -pl server/contracts,server/platform,server/order-service,server/inventory-service
+
+# One service (contracts and platform must precede it)
+mvn -B test --no-transfer-progress \
+  -pl server/contracts,server/platform,server/order-service
+
+# Client unit tests and production build
+cd client
+npm test
+npm run build
+```
+
+The Maven `-pl` order matters because services depend on local SNAPSHOT artifacts from `contracts` and `platform`. Full commands and test conventions are documented in [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Engineering workflow
+
+```text
+Idea → ADR → Task → Implementation → Deep Review → Fix → Done → Documentation
+```
+
+- **Clio** implements backend/domain/application slices and their tests.
+- **Deep** performs independent technical review and identifies required fixes or explicit debt.
+- **Brio** implements the Customer Portal and frontend test surface.
+- **Stitch** develops visual explorations and mockups; accepted concepts are translated into repository-native UI by Brio.
+- **Elito** owns infrastructure, documentation coherence, evaluation, and project-level integration.
+
+An ADR settles architecture before implementation when a decision crosses boundaries. Tasks define scope and acceptance criteria. Implementation reports record what actually changed; Deep review reports are immutable review evidence. Fix tasks close material findings. Documentation is refreshed after the implementation truth is established. Unknown business rules remain `OPEN QUESTION`; agents do not invent them.
+
+## Current status and roadmap
+
+Completed foundations include the domain model, service application slices, explicit saga happy path and compensation, pre-saga availability negotiation, global inventory ownership, attempt-based retry policy, JPA persistence with application-owned transactions, Customer Portal prototype, and local runtime stack.
+
+The next planned runtime slices are database migrations/synthetic data, outbox/inbox, Kafka consumers and producers, Schema Registry serializer finalization, Resilience4j scheduling/runtime policies, dashboard APIs, production frontend integration, and delivery infrastructure. The authoritative sequence is [docs/roadmap/Arbitrier-Roadmap-v1.md](docs/roadmap/Arbitrier-Roadmap-v1.md).
+
+## Documentation map
+
+Start with [the OKF index](docs/okf/index.md), then use:
+
+- [UC-01 requirement](docs/rf/RF-UC-01-corporate-bulk-order.md) and [runtime constraints](docs/rnf/RNF-UC-01-saga-runtime.md)
+- [architecture decisions](docs/adr/)
+- [implementation reports](docs/implementation/)
+- [Customer Portal documentation](client/README.md) and [UX map](docs/ui/ux_strategy_navigation_map.md)
+- [local runtime guide](infra/docker/README.md)
+
+Historical task and review documents describe the state and decisions of their slice at the time they were written. Current-state summaries live in this README, module READMEs, accepted ADRs, and the roadmap.

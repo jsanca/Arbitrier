@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Draft |
+| Status | Active — implementation and runtime gaps distinguished |
 | Date | 2026-07-07 |
 | Related Use Case | [UC-01](../okf/UC-01-corporate-bulk-order.md) |
 
@@ -22,14 +22,14 @@ UC-01 depends on Java 25, Spring Boot 4.1.0, PostgreSQL schemas per service, Kaf
 - Every event handler and command handler must be idempotent.
 - Every compensable step must have an explicit compensation.
 - Important state transitions must produce logs, metrics, and traces.
-- Human waiting in `AWAITING_CUSTOMER_DECISION` is a business waiting state, not a downstream technical timeout.
+- Customer availability decisions occur before saga start. The active saga must not wait indefinitely for a buyer.
 
 ## Inputs
 
 - Saga commands and events for UC-01.
 - Service-specific persistence records.
 - Correlation identifiers: `sagaId`, `orderId`, and `traceId`.
-- Resilience4j timeout and retry configuration.
+- Attempt number and configured maximum attempts; future runtime scheduling configuration.
 
 ## Outputs
 
@@ -57,18 +57,18 @@ UC-01 depends on Java 25, Spring Boot 4.1.0, PostgreSQL schemas per service, Kaf
 - At-least-once Kafka delivery requires idempotent consumers.
 - Producer failure must not lose already-committed business state; use outbox where events depend on database commits.
 - Consumer failure must not reapply already-handled messages; use inbox or equivalent idempotency records.
-- Exhausted inventory or credit retries must transition to `CANCELLED` with `system_timeout`.
-- Compensation failure handling policy is OPEN QUESTION.
+- Exhausted inventory or credit attempts enter the existing compensation path and close as `CANCELLED` or `FAILED_COMPENSATION`.
+- `FAILED_COMPENSATION` is the explicit terminal state requiring operational intervention.
 
 ## Observability Expectations
 
 - Every log line produced during a saga step includes `sagaId`, `orderId`, and `traceId`.
-- Metrics include saga starts, completions by final state, waiting-state entries, timeout cancellations, compensation attempts, compensation failures, and duplicate suppressions.
+- Metrics should include saga starts, completions by final state, attempt exhaustion, compensation attempts, compensation failures, and duplicate suppressions.
 - Traces span REST entry points, application services, persistence, Kafka publish/consume, and dashboard reads.
 
 ## Test Evidence Placeholder
 
-- Unit tests for state transition and idempotency rules: pending.
+- Unit tests cover state transitions, retry decisions, compensation, and idempotent release behavior.
 - Integration tests for outbox/inbox behavior: pending.
 - Contract tests for Avro compatibility: pending.
 - E2E dashboard evidence: pending.
@@ -76,8 +76,8 @@ UC-01 depends on Java 25, Spring Boot 4.1.0, PostgreSQL schemas per service, Kaf
 ## Open Questions
 
 - OPEN QUESTION: Exact timeout SLA for inventory and credit.
-- OPEN QUESTION: Exact retry count and backoff policy.
+- OPEN QUESTION: Exact runtime timeout duration and backoff policy; attempt limits are modeled by `CorporateBulkOrderSagaRetryPolicy`.
 - OPEN QUESTION: Exact Kafka topic names and partitioning keys.
 - OPEN QUESTION: Exact outbox and inbox table shape.
-- OPEN QUESTION: Compensation failure escalation path.
+- OPEN QUESTION: Operational escalation mechanism for `FAILED_COMPENSATION`.
 - OPEN QUESTION: Retention period for saga timeline data.

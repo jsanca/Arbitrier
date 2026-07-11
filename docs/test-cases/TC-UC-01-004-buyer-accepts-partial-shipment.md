@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Draft |
+| Status | Superseded by TC-UC-01-003 / ARB-017 |
 | Type | Integration / E2E |
 | Requirement | [RF-UC-01](../rf/RF-UC-01-corporate-bulk-order.md) |
 
@@ -13,6 +13,8 @@ Verify that accepting partial shipment confirms only available lines.
 ## Context
 
 This test covers the `ACCEPT_PARTIAL` branch of UC-01.03.
+
+> Historical test target. The current design resolves `ACCEPT_PARTIAL` before order and saga creation; use TC-UC-01-003. No active saga enters `AWAITING_CUSTOMER_DECISION`.
 
 ## Decision or Requirement
 

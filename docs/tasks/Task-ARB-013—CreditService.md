@@ -1,7 +1,7 @@
 Task: ARB-013 — Credit Service
 
 Status:
-[PLANNED]
+[COMPLETE]
 
 Owner:
 Clio

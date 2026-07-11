@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Draft |
+| Status | Deferred — not in current UC-01 implementation |
 | Type | Integration |
 | Requirement | [RF-UC-01](../rf/RF-UC-01-corporate-bulk-order.md) |
 
@@ -13,6 +13,8 @@ Verify that waiting for backorder releases current reservations and ends the cur
 ## Context
 
 This test covers the `WAIT_BACKORDER` branch of UC-01.03.
+
+> Historical discovery target. ARB-017 removed in-saga customer waiting. A future backorder-deferral requirement must define a new flow before this test can become active.
 
 ## Decision or Requirement
 

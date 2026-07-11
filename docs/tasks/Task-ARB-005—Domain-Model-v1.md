@@ -1,7 +1,7 @@
 Task: ARB-005 — Domain Model v1
 
 Status:
-[PLANNED]
+[COMPLETE]
 
 Owner:
 Clio

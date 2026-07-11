@@ -62,7 +62,7 @@ Given an intended order with at least one line lacking sufficient stock:
 
 ## Observability Expectations
 
-- Application log includes `customerId`, `warehouseId`, `lines`, and `action=ASK_CUSTOMER_ACCEPT_PARTIAL`.
+- Application log includes `customerId`, requested lines, and `action=ASK_CUSTOMER_ACCEPT_PARTIAL`. Warehouse allocation is internal to Inventory.
 
 ## Test Evidence
 
@@ -77,5 +77,4 @@ Given an intended order with at least one line lacking sufficient stock:
 ## Open Questions
 
 - OPEN QUESTION: UI route and API for submitting the pre-saga decision.
-- OPEN QUESTION: Source of `warehouseId` — catalog, customer default, or buyer selection.
 - OPEN QUESTION: Decision persistence if the buyer's session expires between pre-check and submit.

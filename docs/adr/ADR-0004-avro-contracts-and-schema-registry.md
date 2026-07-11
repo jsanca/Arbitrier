@@ -13,7 +13,7 @@ RNF-0001 defines Kafka, Avro, and Confluent Schema Registry as the messaging bas
 
 Kafka message contracts must be defined as Avro schemas under `server/contracts/` and validated through Schema Registry compatibility checks before production code consumes or produces them.
 
-ARB-006 delivered 26 Avro schemas covering all UC-01 events and commands across four bounded contexts (order, inventory, credit, orchestrator) plus common shared types. Generated Java classes are produced at build time by `avro-maven-plugin` inside the `contracts` module. No service module depends on the generated classes yet — that dependency is activated when the first Kafka adapter for that service is implemented.
+ARB-006 delivered 26 Avro schemas covering UC-01 events and commands across four bounded contexts plus common shared types. Generated Java classes are produced at build time by `avro-maven-plugin` inside `contracts`. Service modules depend on contracts; order-service already maps `OrderCreated` for its conditional publisher foundation, while the remaining runtime adapters are pending.
 
 ## Consequences
 
@@ -24,6 +24,6 @@ ARB-006 delivered 26 Avro schemas covering all UC-01 events and commands across 
 
 ## Open Questions
 
-- OPEN QUESTION: Schema compatibility mode (BACKWARD, FORWARD, FULL) for Schema Registry.
+- Local development uses `BACKWARD` compatibility and `TopicNameStrategy`; production policy must confirm or supersede this before deployment.
 - OPEN QUESTION: Naming convention for command schemas if commands use Kafka (see also UC-01 open question on whether commands travel over Kafka or only events).
 - OPEN QUESTION: Exact Kafka topic names for each event and command.

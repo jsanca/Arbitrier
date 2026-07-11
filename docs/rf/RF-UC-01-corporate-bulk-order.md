@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Draft |
+| Status | Active — reconciled with ARB-017/017B/018/019 |
 | Date | 2026-07-07 |
 | Use Case | [UC-01](../okf/UC-01-corporate-bulk-order.md) |
 
@@ -12,7 +12,7 @@ Define the functional requirements for submitting and completing a corporate bul
 
 ## Context
 
-UC-01 is the first documented business flow for Arbitrier. The use case starts when a corporate buyer submits order lines and ends only in `CONFIRMED`, `PARTIALLY_CONFIRMED`, or `CANCELLED`. The intermediate human waiting state is `AWAITING_CUSTOMER_DECISION`.
+UC-01 is the first documented business flow for Arbitrier. Availability negotiation and the buyer's partial-quantity decision occur before submission. The saga starts only after the buyer submits the selected quantities and ends in a confirmed or cancelled business outcome.
 
 ## Decision or Requirement
 
@@ -41,25 +41,25 @@ After `OrderCreated`, the orchestrator must request inventory reservation for ea
 
 When all stock is reserved and credit is approved, the order must transition to `CONFIRMED`.
 
-### RF-UC-01-004 Pause on Partial Backorder
+### RF-UC-01-004 Resolve Partial Availability Before Submission
 
-When inventory emits `StockPartiallyReserved`, the order must transition to `AWAITING_CUSTOMER_DECISION` and show available lines and backorder lines to the buyer.
+When the advisory availability check returns partial quantities, the portal must show available and backorder quantities before submission. Inventory owns warehouse selection and exposes no warehouse choice to the buyer.
 
-### RF-UC-01-005 Execute Buyer Decision
+### RF-UC-01-005 Execute Pre-Saga Buyer Decision
 
-The system must support buyer decisions `ACCEPT_PARTIAL`, `WAIT_BACKORDER`, and `CANCEL_ORDER`.
+The system must support `ACCEPT_FULL`, `ACCEPT_PARTIAL`, and `CANCEL`. Cancellation creates no Order or Saga.
 
 ### RF-UC-01-006 Accept Partial Shipment
 
-When the buyer selects `ACCEPT_PARTIAL`, the saga must continue only with available lines, release or cancel backorder lines, consume credit only for confirmed lines, and end as `PARTIALLY_CONFIRMED`.
+When the buyer selects `ACCEPT_PARTIAL`, only accepted available quantities are submitted. The availability check remains advisory; the authoritative reservation may still differ.
 
-### RF-UC-01-007 Wait for Backorder
+### RF-UC-01-007 Backorder Deferral
 
-When the buyer selects `WAIT_BACKORDER`, all reserved inventory must be released, the current saga must end as `CANCELLED` with reason `customer_deferred`, and a derived waiting order must be created or requested.
+Creating a waiting/backorder order is not part of the current implemented slice and must not be represented as an active saga state. A future requirement must define it explicitly.
 
 ### RF-UC-01-008 Cancel Partial Order
 
-When the buyer selects `CANCEL_ORDER`, all reserved inventory must be released and the order must end as `CANCELLED` with reason `customer_cancelled`.
+When the buyer cancels during availability review, no order, saga, stock reservation, or credit reservation is created.
 
 ### RF-UC-01-009 Cancel on Credit Rejection
 
@@ -67,7 +67,7 @@ When credit is rejected after stock is reserved, the system must release reserve
 
 ### RF-UC-01-010 Cancel on Downstream Timeout
 
-When inventory or credit retries are exhausted, the saga must compensate according to the current step and cancel with reason `system_timeout`.
+When the attempt-count retry policy returns `EXHAUST`, the saga must compensate according to the current step. ARB-024 owns runtime duration, scheduling, and backoff.
 
 ### RF-UC-01-011 Preserve Idempotency
 
@@ -82,11 +82,11 @@ The buyer or internal operator must be able to see order status, saga state, eve
 - Authenticated corporate buyer.
 - Order lines with SKU and quantity.
 - `OrderCreated`, `StockReserved`, `StockPartiallyReserved`, `CreditApproved`, and `CreditRejected` events.
-- Buyer decision value: `ACCEPT_PARTIAL`, `WAIT_BACKORDER`, or `CANCEL_ORDER`.
+- Pre-saga buyer decision value: `ACCEPT_FULL`, `ACCEPT_PARTIAL`, or `CANCEL`.
 
 ## Outputs
 
-- `PENDING`, `AWAITING_CUSTOMER_DECISION`, `CONFIRMED`, `PARTIALLY_CONFIRMED`, or `CANCELLED` order status.
+- `PENDING`, `CONFIRMED`, `PARTIALLY_CONFIRMED`, or `CANCELLED` active order outcomes.
 - `OrderCreated` and `OrderConfirmed` events where applicable.
 - Inventory reservation and release requests.
 - Credit validation and consumption requests.
@@ -103,7 +103,7 @@ The buyer or internal operator must be able to see order status, saga state, eve
 
 - Successful full order ends as `CONFIRMED`.
 - Successful accepted partial order ends as `PARTIALLY_CONFIRMED`.
-- Rejected credit, timeout, deferred backorder, or buyer cancellation ends as `CANCELLED`.
+- Rejected credit or exhausted runtime attempt handling ends through cancellation/compensation.
 - Cancelled orders do not retain reserved inventory.
 - Cancelled orders do not consume credit.
 
@@ -121,16 +121,14 @@ The buyer or internal operator must be able to see order status, saga state, eve
 - Emit metrics for started, confirmed, partially confirmed, cancelled, timed out, compensated, and duplicate-suppressed sagas.
 - Trace the complete flow across order, orchestrator, inventory, credit, and frontend status requests.
 
-## Test Evidence Placeholder
+## Test Evidence
 
-- Evidence pending implementation.
+- Domain, application, controller, architecture, and persistence integration tests exist in the service modules.
 - Target tests are documented in `docs/test-cases/TC-UC-01-001-create-pending-order.md` through `docs/test-cases/TC-UC-01-012-saga-timeline-visible.md`.
 
 ## Open Questions
 
-- OPEN QUESTION: Exact request and response payloads for order submission.
 - OPEN QUESTION: Exact event and command topic names.
-- OPEN QUESTION: Whether customer decision is handled by order-service or orchestrator-service.
-- OPEN QUESTION: Whether waiting backorder creates an order synchronously or emits a request.
-- OPEN QUESTION: Exact retry counts, backoff policy, and timeout SLA.
+- OPEN QUESTION: Whether a future waiting-backorder capability creates an order synchronously or emits a request.
+- OPEN QUESTION: Exact runtime backoff and timeout SLA (ARB-024); attempt-count decisions are implemented.
 - OPEN QUESTION: Exact buyer notification channel.

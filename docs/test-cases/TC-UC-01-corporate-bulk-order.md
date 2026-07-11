@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Draft |
+| Status | Active index — legacy scenarios labeled |
 | Date | 2026-07-07 |
 | Requirement | [RF-UC-01](../rf/RF-UC-01-corporate-bulk-order.md) |
 
@@ -16,7 +16,7 @@ ARB-002 expands the original placeholder into detailed, one-scenario-per-file te
 
 ## Decision or Requirement
 
-UC-01 test coverage must preserve the documented business guarantees, final states `CONFIRMED`, `PARTIALLY_CONFIRMED`, and `CANCELLED`, the waiting state `AWAITING_CUSTOMER_DECISION`, explicit compensation, and idempotency.
+UC-01 test coverage must preserve the documented business guarantees, final states `CONFIRMED`, `PARTIALLY_CONFIRMED`, and `CANCELLED`, pre-saga partial-availability decisions, explicit compensation, and idempotency.
 
 ## Inputs
 
@@ -43,16 +43,16 @@ UC-01 test coverage must preserve the documented business guarantees, final stat
 
 - Test cases that touch saga transitions must assert or capture logs, traces, metrics, or dashboard visibility where implementation makes that possible.
 
-## Test Evidence Placeholder
+## Test Evidence Map
 
 | TC ID | Scenario | Type | Document |
 |-------|----------|------|----------|
 | TC-UC-01-001 | Create pending order | Integration | [TC-UC-01-001](TC-UC-01-001-create-pending-order.md) |
 | TC-UC-01-002 | Happy path full confirmation | Integration / E2E | [TC-UC-01-002](TC-UC-01-002-happy-path-full-confirmation.md) |
-| TC-UC-01-003 | Partial backorder moves to human decision | Integration / E2E | [TC-UC-01-003](TC-UC-01-003-partial-backorder-human-decision.md) |
-| TC-UC-01-004 | Buyer accepts partial shipment | Integration / E2E | [TC-UC-01-004](TC-UC-01-004-buyer-accepts-partial-shipment.md) |
-| TC-UC-01-005 | Buyer waits for backorder | Integration | [TC-UC-01-005](TC-UC-01-005-buyer-waits-for-backorder.md) |
-| TC-UC-01-006 | Buyer cancels partial order | Integration / E2E | [TC-UC-01-006](TC-UC-01-006-buyer-cancels-partial-order.md) |
+| TC-UC-01-003 | Pre-saga partial availability and buyer decision | Unit / Integration | [TC-UC-01-003](TC-UC-01-003-partial-backorder-human-decision.md) |
+| TC-UC-01-004 | Historical in-saga accept-partial target — superseded by TC-003 | Historical | [TC-UC-01-004](TC-UC-01-004-buyer-accepts-partial-shipment.md) |
+| TC-UC-01-005 | Backorder deferral — deferred future requirement | Deferred | [TC-UC-01-005](TC-UC-01-005-buyer-waits-for-backorder.md) |
+| TC-UC-01-006 | Historical in-saga cancellation — superseded by pre-saga cancel | Historical | [TC-UC-01-006](TC-UC-01-006-buyer-cancels-partial-order.md) |
 | TC-UC-01-007 | Credit rejected compensation | Integration | [TC-UC-01-007](TC-UC-01-007-credit-rejected-compensation.md) |
 | TC-UC-01-008 | Inventory timeout | Integration | [TC-UC-01-008](TC-UC-01-008-inventory-timeout.md) |
 | TC-UC-01-009 | Credit timeout after stock reserved | Integration | [TC-UC-01-009](TC-UC-01-009-credit-timeout-after-stock-reserved.md) |

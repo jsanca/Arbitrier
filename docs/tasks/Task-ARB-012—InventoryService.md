@@ -1,7 +1,7 @@
 Task: ARB-012 — Inventory Service
 
 Status:
-[PLANNED]
+[COMPLETE]
 
 Owner:
 Clio

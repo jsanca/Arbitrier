@@ -28,7 +28,7 @@ Given an order has emitted multiple saga events, when buyer or operator opens th
 - Current order status.
 - Current saga state.
 - Event timeline.
-- Pending decision UI when state is `AWAITING_CUSTOMER_DECISION`.
+- Pre-submission availability action when buyer input is required; the active saga timeline has no customer-wait state.
 
 ## Preconditions
 

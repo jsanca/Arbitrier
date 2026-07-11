@@ -1,7 +1,7 @@
 Task: ARB-009 — Observability Foundation
 
 Status:
-[PLANNED]
+[COMPLETE]
 
 Owner:
 Clio

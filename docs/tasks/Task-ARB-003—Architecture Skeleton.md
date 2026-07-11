@@ -1,7 +1,7 @@
 Task: ARB-003 — Architecture Skeleton
 
 Status:
-[PLANNED]
+[COMPLETE]
 
 Owner:
 Clio
