@@ -1,13 +1,13 @@
 package com.arbitrier.platform.messaging.outbox;
 
 /**
- * Placeholder for the future outbox-to-Kafka publisher.
+ * Retained for binary compatibility; use {@link OutboundMessagePublisher} directly.
  *
- * <p>Future Kafka publisher — not yet implemented. The contract will be defined in a
- * follow-up slice when the outbox-drainer / Kafka producer is wired.
+ * @deprecated superseded by {@link OutboundMessagePublisher}
  *
  * <p>Layer: platform/messaging/outbox
  * <p>Module: platform
  */
-public interface OutboxPublisher {
+@Deprecated
+public interface OutboxPublisher extends OutboundMessagePublisher {
 }
