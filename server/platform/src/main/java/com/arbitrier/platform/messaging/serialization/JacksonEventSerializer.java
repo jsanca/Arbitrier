@@ -17,12 +17,13 @@ public final class JacksonEventSerializer implements EventSerializer {
 
     private final ObjectMapper objectMapper;
 
-    public JacksonEventSerializer(ObjectMapper objectMapper) {
+    public JacksonEventSerializer(final ObjectMapper objectMapper) {
         this.objectMapper = Require.notNull(objectMapper, "objectMapper");
     }
 
     @Override
-    public String serialize(Object event) {
+    public String serialize(final Object event) {
+
         Require.notNull(event, "event");
         try {
             return objectMapper.writeValueAsString(event);
@@ -33,7 +34,8 @@ public final class JacksonEventSerializer implements EventSerializer {
     }
 
     @Override
-    public <T> T deserialize(String payload, Class<T> type) {
+    public <T> T deserialize(final String payload, final Class<T> type) {
+
         Require.notBlank(payload, "payload");
         Require.notNull(type, "type");
         try {

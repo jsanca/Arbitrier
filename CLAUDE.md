@@ -321,7 +321,9 @@ The `platform` module provides cross-cutting utilities that all services must us
 | `EventSerializer` / `JacksonEventSerializer` | `platform.messaging` | Serialize domain events for the outbox record |
 | `DomainEventToOutboxMapper` | `platform.messaging` | Converts a domain event + aggregateId + aggregateType to an `OutboxEvent` with correlation/causation IDs |
 | `MessageNature` | `platform.messaging.outbox` | Enum — `EVENT` (record of what happened) or `COMMAND` (directed instruction). Required field on every `OutboxEvent`; chosen over "type" (collides with `eventType`) and "kind" (too informal) |
-| `OutboundRoutingStrategy` | `platform.messaging.outbox` | Port interface — resolves `OutboxEvent` → logical destination string. Runtime-independent; Kafka adapter implements it in a later slice |
+| `OutboundRoutingStrategy` | `platform.messaging.outbox` | Port interface — resolves `OutboxEvent` → Kafka topic name. The returned string is used directly as the topic by `KafkaOutboundMessagePublisher` |
+| `OutboundPayloadSerializer` | `platform.messaging.outbox` | Port interface — serializes `OutboxEvent` → transport payload string. Transport-neutral; default impl is `JsonOutboundPayloadSerializer` (passthrough). Override with a custom bean to swap formats (e.g. Avro) |
+| `JsonOutboundPayloadSerializer` | `platform.messaging.serialization` | Default `OutboundPayloadSerializer` — returns `OutboxEvent.payload()` unchanged. Auto-configured; Avro impl is a future task |
 | `CorrelationId`, `CausationId`, `MessageId`, `RequestId` | `platform.correlation` | Distinct value objects for message tracing — do not conflate with `traceparent` |
 
 ---

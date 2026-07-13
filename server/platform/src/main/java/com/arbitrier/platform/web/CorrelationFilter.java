@@ -32,21 +32,23 @@ import java.io.IOException;
 public class CorrelationFilter implements Filter {
 
     @Override
-    public void init(FilterConfig filterConfig) {
+    public void init(final FilterConfig filterConfig) {
     }
 
     @Override
-    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain)
+    public void doFilter(final ServletRequest req, final ServletResponse res,
+                         final FilterChain chain)
             throws IOException, ServletException {
 
-        HttpServletRequest  request  = (HttpServletRequest)  req;
-        HttpServletResponse response = (HttpServletResponse) res;
+        final HttpServletRequest  request  = (HttpServletRequest)  req;
+        final HttpServletResponse response = (HttpServletResponse) res;
 
         String correlationId = request.getHeader(CorrelationHeaders.CORRELATION_ID);
         if (correlationId == null || correlationId.isBlank()) {
             correlationId = CorrelationId.generate().value();
         }
-        String requestId = RequestId.generate().value();
+
+        final String requestId = RequestId.generate().value();
 
         MDC.put(StructuredLogFields.CORRELATION_ID, correlationId);
         MDC.put(StructuredLogFields.REQUEST_ID, requestId);

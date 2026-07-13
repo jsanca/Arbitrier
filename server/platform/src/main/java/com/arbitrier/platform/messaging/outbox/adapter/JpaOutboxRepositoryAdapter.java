@@ -25,13 +25,13 @@ public final class JpaOutboxRepositoryAdapter implements OutboxRepository {
     private final SpringDataOutboxRepository repository;
     private final TimeProvider timeProvider;
 
-    public JpaOutboxRepositoryAdapter(SpringDataOutboxRepository repository, TimeProvider timeProvider) {
+    public JpaOutboxRepositoryAdapter(final SpringDataOutboxRepository repository, final TimeProvider timeProvider) {
         this.repository = Require.notNull(repository, "repository");
         this.timeProvider = Require.notNull(timeProvider, "timeProvider");
     }
 
     @Override
-    public void save(OutboxEvent event) {
+    public void save(final OutboxEvent event) {
         Require.notNull(event, "event");
         repository.save(toEntity(event));
     }
@@ -44,9 +44,10 @@ public final class JpaOutboxRepositoryAdapter implements OutboxRepository {
     }
 
     @Override
-    public void markPublished(UUID eventId) {
+    public void markPublished(final UUID eventId) {
+
         Require.notNull(eventId, "eventId");
-        OutboxEventEntity entity = repository.findById(eventId)
+        final OutboxEventEntity entity = repository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "No outbox event found with id: " + eventId));
         entity.setPublishStatus(PublishStatus.PUBLISHED.name());
@@ -55,9 +56,10 @@ public final class JpaOutboxRepositoryAdapter implements OutboxRepository {
     }
 
     @Override
-    public void markFailed(UUID eventId) {
+    public void markFailed(final UUID eventId) {
+
         Require.notNull(eventId, "eventId");
-        OutboxEventEntity entity = repository.findById(eventId)
+        final OutboxEventEntity entity = repository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "No outbox event found with id: " + eventId));
         entity.setPublishStatus(PublishStatus.FAILED.name());
@@ -66,8 +68,9 @@ public final class JpaOutboxRepositoryAdapter implements OutboxRepository {
         repository.save(entity);
     }
 
-    private static OutboxEventEntity toEntity(OutboxEvent event) {
-        OutboxEventEntity entity = new OutboxEventEntity();
+    private static OutboxEventEntity toEntity(final OutboxEvent event) {
+
+        final OutboxEventEntity entity = new OutboxEventEntity();
         entity.setId(event.eventId());
         entity.setAggregateId(event.aggregateId());
         entity.setAggregateType(event.aggregateType());
@@ -85,7 +88,7 @@ public final class JpaOutboxRepositoryAdapter implements OutboxRepository {
         return entity;
     }
 
-    private static OutboxEvent toRecord(OutboxEventEntity entity) {
+    private static OutboxEvent toRecord(final OutboxEventEntity entity) {
         return new OutboxEvent(
                 entity.getId(),
                 entity.getAggregateId(),

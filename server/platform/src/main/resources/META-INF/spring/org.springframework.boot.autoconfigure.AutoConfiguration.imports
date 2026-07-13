@@ -1,1 +1,2 @@
 com.arbitrier.platform.spring.PlatformAutoConfiguration
+com.arbitrier.platform.spring.KafkaPublisherAutoConfiguration

@@ -51,6 +51,24 @@ public final class KafkaHeaders {
     /** Avro schema version string (e.g. {@code "v1"}) identifying the message schema. */
     public static final String SCHEMA_VERSION = "schemaVersion";
 
+    /** Message name used for routing (e.g. {@code "OrderCreatedDomainEvent"}, {@code "ReserveStockCommand"}). */
+    public static final String EVENT_TYPE = "eventType";
+
+    /**
+     * Nature of the message: {@code "EVENT"} or {@code "COMMAND"}.
+     * Corresponds to {@link com.arbitrier.platform.messaging.outbox.MessageNature}.
+     */
+    public static final String MESSAGE_NATURE = "messageNature";
+
+    /** Identifier of the aggregate that produced this message. */
+    public static final String AGGREGATE_ID = "aggregateId";
+
+    /** Short type name of the aggregate (e.g. {@code "Order"}, {@code "Saga"}). */
+    public static final String AGGREGATE_TYPE = "aggregateType";
+
+    /** Payload format identifier (e.g. {@code "JSON"}). */
+    public static final String PAYLOAD_FORMAT = "payloadFormat";
+
     private KafkaHeaders() {
     }
 }

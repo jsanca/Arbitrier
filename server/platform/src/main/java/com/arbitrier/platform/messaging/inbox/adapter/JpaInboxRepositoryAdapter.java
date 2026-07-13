@@ -20,27 +20,31 @@ public final class JpaInboxRepositoryAdapter implements InboxRepository {
     private final SpringDataInboxRepository repository;
     private final TimeProvider timeProvider;
 
-    public JpaInboxRepositoryAdapter(SpringDataInboxRepository repository, TimeProvider timeProvider) {
+    public JpaInboxRepositoryAdapter(final SpringDataInboxRepository repository, final TimeProvider timeProvider) {
+
         this.repository = Require.notNull(repository, "repository");
         this.timeProvider = Require.notNull(timeProvider, "timeProvider");
     }
 
     @Override
-    public void save(InboxEvent event) {
+    public void save(final InboxEvent event) {
+
         Require.notNull(event, "event");
         repository.save(toEntity(event));
     }
 
     @Override
-    public Optional<InboxEvent> findById(UUID eventId) {
+    public Optional<InboxEvent> findById(final UUID eventId) {
+
         Require.notNull(eventId, "eventId");
         return repository.findById(eventId).map(JpaInboxRepositoryAdapter::toRecord);
     }
 
     @Override
-    public void markProcessed(UUID eventId) {
+    public void markProcessed(final UUID eventId) {
+
         Require.notNull(eventId, "eventId");
-        InboxEventEntity entity = repository.findById(eventId)
+        final InboxEventEntity entity = repository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "No inbox event found with id: " + eventId));
         entity.setProcessingStatus(ProcessingStatus.PROCESSED.name());
@@ -48,8 +52,9 @@ public final class JpaInboxRepositoryAdapter implements InboxRepository {
         repository.save(entity);
     }
 
-    private static InboxEventEntity toEntity(InboxEvent event) {
-        InboxEventEntity entity = new InboxEventEntity();
+    private static InboxEventEntity toEntity(final InboxEvent event) {
+
+        final InboxEventEntity entity = new InboxEventEntity();
         entity.setId(event.eventId());
         entity.setConsumerId(event.consumerId());
         entity.setReceivedAt(event.receivedAt());
@@ -60,7 +65,7 @@ public final class JpaInboxRepositoryAdapter implements InboxRepository {
         return entity;
     }
 
-    private static InboxEvent toRecord(InboxEventEntity entity) {
+    private static InboxEvent toRecord(final InboxEventEntity entity) {
         return new InboxEvent(
                 entity.getId(),
                 entity.getConsumerId(),

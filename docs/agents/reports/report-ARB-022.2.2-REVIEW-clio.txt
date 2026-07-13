@@ -1,0 +1,353 @@
+TASK: ARB-022.2.2-REVIEW — Kafka Outbound Publisher Adapter Review
+DATE: 2026-07-13
+AGENT: clio
+
+SUMMARY
+-------
+Reviewed the Kafka transport adapter introduced by ARB-022.2.2 across 7 areas.
+Verified all source files, auto-configuration, headers, tests, and architecture
+boundaries against the implementation on disk.
+
+Overall: PASS WITH WARNINGS. The adapter is correctly implemented as a hexagonal
+transport adapter. Three warnings (absent routing-strategy guard, missing ArchUnit
+coverage for kafka package, subtle routing contract tension) and one informational
+observation (JSON vs Avro) are noted below. None block acceptance.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 1: HEXAGONAL BOUNDARY — PASS WITH WARNINGS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING H1 — [POSITIVE] Kafka types remain isolated in the adapter
+Category: Architecture
+Severity: INFO (positive)
+
+Verified:
+  - KafkaOutboundMessagePublisher: in com.arbitrier.platform.messaging.kafka.outbound
+    → adapter layer. Imports: KafkaTemplate, ProducerRecord, KafkaHeaders (platform),
+    OutboxEvent, OutboundMessagePublisher, OutboundRoutingStrategy, Require.
+  - OutboundMessagePublisher: in com.arbitrier.platform.messaging.outbox
+    → domain layer. Zero Kafka imports. Pure JDK types.
+  - OutboundRoutingStrategy: in com.arbitrier.platform.messaging.outbox
+    → domain layer. Zero Kafka imports.
+  - No Kafka types in any application service, domain model, or outbox model.
+  - Dependency direction: adapter → outbox (inward). Correct.
+
+FINDING H2 — [LOW] No ArchUnit rule covers Kafka types in outbox/messaging packages
+Category: Architecture
+Severity: LOW
+
+Evidence: PlatformArchitectureTest has 5 rules. The ObjectMapper confinement rule
+covers com.fasterxml.jackson.databind but NOT Kafka. The messaging-domain purity
+rule covers JPA/Spring/Hibernate but NOT Kafka. There is no rule that prevents
+com.arbitrier.platform.messaging.outbox from depending on
+org.springframework.kafka.. or org.apache.kafka.. packages.
+
+Impact: A future developer could accidentally import KafkaTemplate into the
+OutboundMessagePublisher port or the OutboxEvent model, and no ArchUnit test
+would catch it. The hexagonal boundary enforced by convention would degrade
+without detection.
+
+Recommendation: Add an ArchUnit rule to PlatformArchitectureTest verifying that
+messaging.outbox and messaging.inbox packages do not depend on
+org.springframework.kafka.. or org.apache.kafka.. This mirrors the existing
+Jackson confinement rule (line 60-68) but for Kafka types.
+Fix now or future slice: Fix now (one test method).
+Blocks roadmap: No.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 2: PUBLISHER CONTRACT — PASS (with deferred concern)
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING P1 — [POSITIVE] void contract is correct for this slice
+Category: Architecture
+Severity: INFO (positive)
+
+Verified:
+  - OutboundMessagePublisher.publish(OutboxEvent) returns void
+  - KafkaOutboundMessagePublisher.publish() calls kafkaTemplate.send(record)
+    which returns CompletableFuture<SendResult<...>> but the adapter ignores it
+  - The adapter does NOT call OutboxRepository.markPublished/markFailed — correct
+  - Transport errors propagate as unchecked exceptions — correct
+
+The implementation report correctly identifies the OPEN QUESTION: a void return
+type prevents the adapter from directly notifying the drainer of delivery outcome.
+The implementation stays within scope by deferring this to the drainer slice.
+
+Assessment: The void contract is sufficient for the following reasons:
+  1. The outbox drainer (future slice) owns the success/failure lifecycle. It
+     can either (a) register a callback on the returned CompletableFuture before
+     handing control back, (b) use KafkaTemplate.send() with a ListenableFuture
+     callback directly in the drainer, or (c) wrap the adapter with a version
+     that exposes the future.
+  2. Changing to CompletableFuture<Void> would couple the transport-neutral
+     port to java.util.concurrent — a Java-specific concurrency abstraction.
+  3. Changing to a custom callback interface would add complexity before the
+     drainer demonstrates the need.
+
+Recommendation: Keep void. When the drainer is implemented, the adapter can
+expose its internal KafkaTemplate.send() future through a separate SPI (e.g.,
+the drainer declares it needs asynchronous acknowledgement and the adapter
+provides a getLastSendFuture() method). Do not change the port.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 3: JSON VS AVRO STRATEGY — INFO (recommendation)
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING S1 — [INFO] JSON is appropriate for development; Avro should be the production default
+Category: Architecture
+Severity: INFO
+
+Current state:
+  - KafkaOutboundMessagePublisher uses KafkaTemplate<String, String>
+  - Payloads are JSON strings stored in OutboxEvent.payload
+  - 26 Avro schemas exist in server/contracts/src/main/avro/
+  - Schema Registry is configured in docker-compose (port 8081, BACKWARD compat)
+  - No Avro serialization is wired in the adapter
+
+Assessment: JSON as the development adapter is appropriate — it enables fast
+iteration without Schema Registry dependency. Production should use Avro given:
+  1. 26 existing Avro schemas define the cross-service contract
+  2. Schema Registry infrastructure is already provisioned
+  3. Avro provides schema evolution (BACKWARD compatibility configured)
+  4. Kafka consumers in external services expect Avro-encoded messages matching
+     the published schemas
+
+Recommendation: Option C — single adapter with a configurable serializer, not
+two parallel adapters. The current JSON adapter serves as the development
+default. When Avro is ready, replace the KafkaTemplate<String, String> with
+KafkaTemplate<String, Object> (or a SpecificRecord-based template) in a new
+@Profile or @ConditionalOnProperty-gated bean. The OutboundMessagePublisher
+port need not change — it receives an OutboxEvent, and the adapter decides
+how to serialize the payload. If byte[] Avro serialization is needed, the
+adapter could call EventSerializer.deserialize() to recover the object, then
+re-serialize it with Avro — or the outbox could store the Avro payload directly
+when the Avro serializer is active.
+
+Do not implement Avro now. The JSON adapter is correct for this slice.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 4: ROUTING — PASS (with observation)
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING R1 — [POSITIVE] Destination resolution and key strategy are correct
+Category: Architecture
+Severity: INFO (positive)
+
+Verified:
+  - OutboundRoutingStrategy.resolveDestination(OutboxEvent) returns String
+  - The returned value is used as the Kafka topic name directly
+  - aggregateId is used as the partition key — correct for ordered delivery
+  - No topic-name logic, no partition decisions, no transport coupling in the
+    routing strategy interface
+  - All 6 non-null metadata headers are propagated; 2 nullable headers (correlationId,
+    causationId) are conditionally added
+
+FINDING R2 — [INFO] Subtle tension: "logical destination" vs direct topic usage
+Category: Architecture
+Severity: INFO
+
+OutboundRoutingStrategy Javadoc says the return value is a "logical destination"
+that "infrastructure adapters will translate...to the physical address at dispatch
+time." However, KafkaOutboundMessagePublisher uses the returned String directly as
+the Kafka topic name — no translation occurs.
+
+This is pragmatic for now but creates an implicit coupling: every
+OutboundRoutingStrategy implementation MUST return valid Kafka topic names. A
+service developer writing a strategy may not realize this and return a logical
+name like "order.created" while the actual Kafka topic is
+"arbitrier.order.created.v1".
+
+Impact: Low today (no services provide an OutboundRoutingStrategy bean yet).
+When the first strategy is implemented, this tension should be resolved — either
+the Javadoc should state that the returned value IS the Kafka topic, or the
+adapter should add a translation step (e.g., a TopicNameResolver that maps
+"order.created" to "arbitrier.order.created.v1").
+
+Recommendation: Clarify the contract. Either:
+  A. Update the Javadoc: "The returned String is the physical destination (e.g.,
+     Kafka topic name)." Simple, honest, pragmatic.
+  B. Add a TopicNameResolver interface that translates logical destinations to
+     physical topics, and have the adapter delegate through it.
+
+Option A is sufficient for now. Option B adds flexibility but should not be
+implemented until multiple routing strategies demonstrate different translation
+needs.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 5: AUTO CONFIGURATION — PASS WITH WARNINGS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING A1 — [POSITIVE] Activation conditions are correct
+Category: Architecture
+Severity: INFO (positive)
+
+Verified:
+  - KafkaPublisherAutoConfiguration is registered in AutoConfiguration.imports
+  - @ConditionalOnClass(KafkaTemplate.class) — deactivated without spring-kafka
+  - @ConditionalOnProperty("spring.kafka.bootstrap-servers") — deactivated in
+    tests and environments without a broker
+  - Named beans (outboundMessageProducerFactory, outboundMessageKafkaTemplate)
+    avoid collisions with service-level KafkaTemplate beans (e.g., the Avro
+    KafkaTemplate in order-service)
+  - ProducerFactory uses StringSerializer for both key and value — correct for
+    JSON payloads
+  - @ConditionalOnMissingBean on each bean allows service-level overrides
+
+FINDING A2 — [MEDIUM] No @ConditionalOnBean guard on OutboundRoutingStrategy
+Category: Architecture
+Severity: MEDIUM
+
+Evidence: KafkaOutboundMessagePublisher requires an OutboundRoutingStrategy bean
+(constructor parameter). KafkaPublisherAutoConfiguration does not include
+@ConditionalOnBean(OutboundRoutingStrategy.class) on the publisher bean method.
+If spring-kafka IS on the classpath and bootstrap-servers IS configured, but no
+service provides an OutboundRoutingStrategy, Spring will fail at startup with
+a NoSuchBeanDefinitionException.
+
+The implementation report explicitly documents this: "services must provide an
+OutboundRoutingStrategy bean for KafkaPublisherAutoConfiguration to create the
+OutboundMessagePublisher. No default implementation exists yet; the
+auto-configuration will fail to wire the publisher if no strategy is present."
+
+Why it matters: This creates a hidden startup dependency. An operator who
+enables Kafka in production without also providing a routing strategy will
+get a crash, not a clean startup with a warning.
+
+Impact: Runtime startup failure if Kafka is configured but no routing strategy
+exists. Acceptable in development where the failure is immediate and clear.
+
+Recommendation: Add @ConditionalOnBean(OutboundRoutingStrategy.class) to the
+kafkaOutboundMessagePublisher bean method. This makes the dependency explicit
+and causes a clean deactivation (no bean created) rather than a startup crash
+if the strategy is missing. Alternatively, provide a default no-op
+implementation that logs a warning.
+Fix now or future slice: Fix now (one annotation).
+Blocks roadmap: No.
+
+FINDING A3 — [POSITIVE] Coexistence with existing Kafka beans is clean
+Category: Architecture
+Severity: INFO (positive)
+
+Named beans (outboundMessageProducerFactory, outboundMessageKafkaTemplate) avoid
+conflict with order-service's existing KafkaTemplate<String, Object> that is
+wired by KafkaPublisherConfiguration for the Avro adapter. The generic types
+differ (String vs Object for values) and the bean names differ, preventing
+ambiguity.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 6: TESTS — PASS (with observation)
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING T1 — [POSITIVE] 8 unit tests cover the core contract
+
+Verified:
+  1. resolves_destination_through_routing_strategy — verifies routingStrategy
+     is called and destination is used as Kafka topic
+  2. publishes_stored_payload_unchanged — verifies payload is passed through
+     without mutation
+  3. uses_aggregateId_as_partition_key — verifies aggregateId is the Kafka key
+  4. propagates_event_nature_metadata_headers — verifies all 8 EVENT headers
+     with correlationId and causationId present
+  5. propagates_command_nature_metadata_headers — verifies COMMAND nature and
+     distinct eventType
+  6. omits_null_correlation_and_causation_headers — verifies null nullable
+     headers are excluded from the record
+  7. rejects_null_outbox_event — verifies null guard
+  8. invokes_kafka_template_exactly_once — verifies exactly one send call
+
+All tests use Mockito mocks for KafkaTemplate and OutboundRoutingStrategy.
+No broker, no Docker, no Testcontainers. Correct per scope.
+
+FINDING T2 — [LOW] Missing test for routing-strategy failure propagation
+Category: Architecture
+Severity: LOW
+
+No test verifies behavior when OutboundRoutingStrategy.resolveDestination()
+throws an exception. The adapter calls routingStrategy.resolveDestination()
+on line 58 before KafkaTemplate.send(). If the strategy throws, the exception
+propagates through publish() — but no test verifies this.
+
+Impact: Low — the behavior is correct (exception propagates, KafkaTemplate
+is not called). A test would serve as documentation.
+
+Recommendation: Add a test: when routingStrategy throws, publish() rethrows
+the same exception and kafkaTemplate.send() is never called.
+Fix now or future slice: Future slice (optional).
+Blocks roadmap: No.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 7: SCOPE — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING S2 — [POSITIVE] Implementation stayed within ARB-022.2.2 boundaries
+
+Verified scope compliance:
+  - ✅ KafkaOutboundMessagePublisher implements OutboundMessagePublisher
+  - ✅ Destination resolved through OutboundRoutingStrategy
+  - ✅ Existing serialized payload published unchanged
+  - ✅ Stable key (aggregateId) used and documented
+  - ✅ Metadata headers propagated (8 headers, conditional on null)
+  - ✅ No Kafka types leaked into platform messaging contracts
+  - ✅ No Outbox polling or status updates introduced
+  - ✅ No scheduler, retry, DLQ, consumer, or Inbox processing
+  - ✅ No Avro serialization or Schema Registry integration
+  - ✅ No command publisher replacement or application-service wiring
+  - ✅ No topic provisioning or Docker Compose changes
+
+Incidental change: OutboxPublisher.java was @Deprecated and made to extend
+OutboundMessagePublisher for binary compatibility. This is a clean, minimal
+refactor that respects existing callers (none exist).
+
+────────────────────────────────────────────────────────────────────────────────
+EXPLICIT ANSWERS
+────────────────────────────────────────────────────────────────────────────────
+
+1. Can ARB-022.2.2 be marked DONE?
+   YES. All acceptance criteria are met. The three warnings (A2, H2, T2) are
+   minor and fixable. No architectural redesign needed.
+
+2. Should the publisher contract evolve before the Outbox drainer?
+   NO. Keep void. The drainer should handle asynchronous coordination through
+   a future-exposing SPI or by wrapping the adapter. Changing the port to
+   CompletableFuture<Void> would couple a transport-neutral interface to
+   java.util.concurrent. See Finding P1.
+
+3. Should production use JSON, Avro, or both adapters?
+   JSON for development; Avro for production. One configurable adapter, not
+   two. The current JSON adapter serves as the development default. When Avro
+   is ready, replace KafkaTemplate<String, String> with a Schema-Registry-
+   aware template. The OutboundMessagePublisher port is unchanged. See Finding S1.
+
+4. Is the current auto-configuration sound?
+   YES, with one gap. Add @ConditionalOnBean(OutboundRoutingStrategy.class)
+   to the publisher bean method to prevent startup crash when Kafka is
+   enabled but no routing strategy exists. See Finding A2.
+
+5. Is the architecture ready for ARB-022.2.3?
+   YES. The transport adapter exists. The OutboundMessagePublisher port is
+   defined. OutboundRoutingStrategy is defined. The next slice (outbox drainer)
+   can load pending events from OutboxRepository and call
+   publisher.publish(event) on each. The drainer owns success/failure
+   coordination and Outbox status updates.
+
+────────────────────────────────────────────────────────────────────────────────
+VERDICT
+────────────────────────────────────────────────────────────────────────────────
+
+Overall: PASS WITH WARNINGS
+
+Findings summary:
+  [INFO]  H1 — Kafka types isolated in adapter (positive)
+  [LOW]   H2 — No ArchUnit rule covers Kafka types in messaging packages
+  [INFO]  P1 — void contract is correct for this slice (positive)
+  [INFO]  S1 — JSON dev, Avro production; one adapter recommended
+  [INFO]  R1 — Destination resolution correct; aggregateId key correct (positive)
+  [INFO]  R2 — "logical destination" Javadoc vs direct topic usage tension
+  [INFO]  A1 — Activation conditions correct (positive)
+  [MED]   A2 — Missing @ConditionalOnBean guard on OutboundRoutingStrategy
+  [INFO]  A3 — Coexistence with existing Kafka beans clean (positive)
+  [INFO]  T1 — 8 unit tests cover core contract (positive)
+  [LOW]   T2 — Missing test for routing-strategy failure propagation
+  [INFO]  S2 — Implementation stayed within scope (positive)
+
+No FAIL findings. No blockers.

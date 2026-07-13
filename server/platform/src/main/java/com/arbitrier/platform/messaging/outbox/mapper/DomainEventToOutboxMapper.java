@@ -32,7 +32,8 @@ public final class DomainEventToOutboxMapper {
     private final EventSerializer serializer;
     private final TimeProvider timeProvider;
 
-    public DomainEventToOutboxMapper(EventSerializer serializer, TimeProvider timeProvider) {
+    public DomainEventToOutboxMapper(final EventSerializer serializer, final TimeProvider timeProvider) {
+
         this.serializer = Require.notNull(serializer, "serializer");
         this.timeProvider = Require.notNull(timeProvider, "timeProvider");
     }
@@ -46,7 +47,10 @@ public final class DomainEventToOutboxMapper {
      * @param aggregateType  short aggregate type name (e.g. {@code "Order"}); must not be blank
      * @return the corresponding {@link OutboxEvent}
      */
-    public OutboxEvent map(Object domainEvent, String aggregateId, String aggregateType) {
+    public OutboxEvent map(final Object domainEvent,
+                           final String aggregateId,
+                           final String aggregateType) {
+
         return map(domainEvent, aggregateId, aggregateType, MessageNature.EVENT);
     }
 
@@ -62,7 +66,11 @@ public final class DomainEventToOutboxMapper {
      * @param nature         the message nature; must not be null
      * @return the corresponding {@link OutboxEvent}
      */
-    public OutboxEvent map(Object message, String aggregateId, String aggregateType, MessageNature nature) {
+    public OutboxEvent map(final Object message,
+                           final String aggregateId,
+                           final String aggregateType,
+                           final MessageNature nature) {
+
         Require.notNull(message, "message");
         Require.notBlank(aggregateId, "aggregateId");
         Require.notBlank(aggregateType, "aggregateType");

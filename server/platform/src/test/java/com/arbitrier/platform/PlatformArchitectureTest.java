@@ -69,6 +69,20 @@ class PlatformArchitectureTest {
     }
 
     @Test
+    void messaging_contracts_must_not_depend_on_kafka() {
+        ArchRuleDefinition.noClasses().that()
+                .resideInAnyPackage(
+                        "com.arbitrier.platform.messaging.outbox",
+                        "com.arbitrier.platform.messaging.inbox")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                        "org.springframework.kafka..",
+                        "org.apache.kafka..")
+                .allowEmptyShould(true)
+                .check(classes);
+    }
+
+    @Test
     void messaging_public_api_exposes_only_eventSerializer() {
         ArchRuleDefinition.classes().that()
                 .resideInAnyPackage(
