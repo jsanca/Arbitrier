@@ -4,6 +4,8 @@
 
 **Java 25** required. No lint/typecheck/formatter for server — `mvn -B verify` is the only quality gate.
 
+`mvn test` runs both `*Test.java` and `*IT.java` (Surefire is configured to include `*IT.java` — no Failsafe plugin).
+
 ```bash
 # All server modules
 mvn -B verify --no-transfer-progress
@@ -18,13 +20,30 @@ mvn -B test --no-transfer-progress -pl server/contracts,server/platform,server/o
 # Client (React 19 + TypeScript mock-based prototype — no backend required)
 cd client && npm ci && npm run build && npm run lint && npm test
 
+# Client dev server (does not require backend or infra)
+cd client && npm run dev
+
+# Client typecheck only (build = tsc -b + vite build)
+cd client && npx tsc -b
+
+# Client linter is oxlint (not eslint)
+cd client && npm run lint
+
+# Client tests are vitest run (single-run, not watch)
+cd client && npm test
+
+# E2E (Playwright, against running stack)
+cd client && npx playwright test
+cd client && npx playwright test e2e/uc01-confirmed.spec.ts
+
 # Regenerate Avro types after schema changes (never commit generated sources)
 mvn -B generate-sources --no-transfer-progress -pl server/contracts
 
 # Infrastructure (Kafka, Postgres, Keycloak, Schema Registry)
-infra/docker/start.sh             # preferred — auto-loads .env or .env.example
+infra/docker/start.sh             # auto-loads .env or .env.example; docker compose up -d --wait
 infra/docker/health.sh
-infra/docker/down -v              # wipe volumes
+infra/docker/stop.sh              # docker compose down
+infra/docker/stop.sh -v           # docker compose down -v (wipe volumes)
 ```
 
 **`-pl` requirement**: `server/contracts` and `server/platform` are SNAPSHOT dependencies — they **must** appear before any service in `-pl`. Without them, Maven fails to resolve the artifact.
@@ -46,8 +65,8 @@ platform (library) → contracts (Avro codegen) → [order-service | inventory-s
 | credit-service | Full | Full | JPA persistence | Domain + app |
 | orchestrator-service | Full | Full | JPA persistence | Domain + app |
 | platform | N/A (library) | N/A | Full web infra | Full |
-| contracts | 27 Avro schemas | N/A | N/A | Schema load |
-| client | React 19 prototype (mock-based, no backend) | - | - | Vitest + jsdom |
+| contracts | 26 Avro schemas | N/A | N/A | Schema load |
+| client | React 19 prototype (mock-based, no backend) | - | - | Vitest + jsdom (globals: true: no imports for describe/it/expect) |
 
 ## Test Patterns
 
@@ -101,6 +120,15 @@ STARTED → CREDIT_RESERVATION_REQUESTED
   → CREDIT_RESERVATION_DENIED → CANCELLED
 ```
 
+## Execution Policy
+
+All non-trivial implementation tasks must apply the execution-timebox skill:
+**target 20–30 min · warning at 30 min · hard stop at 45 min → recovery checkpoint.**
+
+See [`.claude/skills/execution-timebox/SKILL.md`](.claude/skills/execution-timebox/SKILL.md) for stop conditions, checkpoint format, and task-splitting guidance.
+
+All non-trivial implementation, review, recovery, architecture, security, and documentation tasks must use the [engineering reporting protocol](.claude/skills/engineering-reporting/SKILL.md). Put durable tasks, reports, reviews, fixes, and checkpoints in its canonical locations; read any OPEN checkpoint before continuing. Shared ownership rules live in [documentation ownership](docs/engineering/documentation-ownership.md).
+
 ## References
 
 - **CLAUDE.md** — detailed style guide, Spring Boot 4.1 patterns, application service design, testing expectations.
@@ -109,3 +137,6 @@ STARTED → CREDIT_RESERVATION_REQUESTED
 - **docs/test-cases/** — Test case specs for UC-01 (TC-UC-01-001 through TC-UC-01-012).
 - **docs/okf/**, **docs/rf/** — Use-case narratives and functional requirements.
 - **`~/.claude/skills/`** — OpenCode skill files for Java, Spring Boot, testing, and platform patterns.
+- **docs/engineering/agent-execution-timebox.md** — rationale and examples for the timebox policy.
+- **docs/engineering/documentation-ownership.md** — role boundaries and current-versus-planned documentation rules.
+- **docs/engineering/knowledge-curator.md** — curation responsibilities and limits.

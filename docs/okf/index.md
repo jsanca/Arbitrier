@@ -18,12 +18,12 @@ Build a production-grade B2B saga orchestration platform that makes corporate bu
 | KF-001 | UC-01 Corporate Bulk Order saga      | Domain/application implemented; runtime messaging pending | [UC-01](UC-01-corporate-bulk-order.md), [RF-UC-01](../rf/RF-UC-01-corporate-bulk-order.md) |
 | KF-002 | B2B credit reservation               | Domain, application, and JPA implemented; external credit source pending | [RF-UC-01](../rf/RF-UC-01-corporate-bulk-order.md) |
 | KF-003 | Inventory reservation + compensation | Domain, multi-warehouse allocation, application, and JPA implemented | [ADR-0009](../adr/ADR-0009—GlobalInventoryAllocationOwnership.md) |
-| KF-004 | Partial-availability buyer decision  | Implemented before order/saga submission; no saga customer-wait state | [ARB-017](../implementation/ARB-017-pre-saga-availability-negotiation.md) |
+| KF-004 | Partial-availability buyer decision  | Implemented before order/saga submission; no saga customer-wait state | [ARB-017](../agents/reports/ARB-017-pre-saga-availability-negotiation.md) |
 | KF-005 | Saga state observability             | HTTP correlation foundation implemented; full runtime timeline pending | [RNF-0001](../rnf/RNF-0001-technical-baseline.md) |
-| KF-006 | Keycloak-based B2B identity          | Order JWT integration and local realm implemented; production membership adapter pending | [ARB-010](../implementation/ARB-010-security-integration.md) |
-| KF-007 | React Customer Portal                | Mock-backed prototype complete; backend integration pending | [ARB-UI-001](../implementation/ARB-UI-001-customer-portal-react-prototype.md) |
+| KF-006 | Keycloak-based B2B identity          | Order JWT integration and local realm implemented; production membership adapter pending | [ARB-010](../agents/reports/ARB-010-security-integration.md) |
+| KF-007 | React Customer Portal                | Mock-backed prototype complete; backend integration pending | [ARB-UI-001](../agents/reports/ARB-UI-001-customer-portal-react-prototype.md) |
 | KF-008 | Browser E2E coverage                 | Planned after backend integration | [TC-UC-01](../test-cases/TC-UC-01-corporate-bulk-order.md) |
-| KF-009 | Reproducible local runtime infrastructure | Complete — ARB-027 | [Implementation](../implementation/ARB-027-local-runtime-stack.md) |
+| KF-009 | Reproducible local runtime infrastructure | Complete — ARB-027 | [Implementation](../agents/reports/ARB-027-local-runtime-stack.md) |
 
 ---
 

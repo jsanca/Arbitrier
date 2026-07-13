@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Work documentation-first. Read the relevant OKF, RF, RNF, ADR, and test-case files before coding. Do not invent business behavior; mark missing details as `OPEN QUESTION`. Keep changes scoped to the requested slice.
 
+For non-trivial implementation tasks apply the execution-timebox skill: target 20–30 min, warn at 30 min, hard stop at 45 min with a recovery checkpoint. See [`.claude/skills/execution-timebox/SKILL.md`](.claude/skills/execution-timebox/SKILL.md).
+
+Every non-trivial implementation, review, recovery, architecture, security, or documentation task must also apply the [engineering reporting protocol](.claude/skills/engineering-reporting/SKILL.md). Use its canonical task/report/review/checkpoint locations and consult [documentation ownership](docs/engineering/documentation-ownership.md) rather than duplicating the system narrative here.
+
 ---
 
 ## Build Commands
@@ -15,7 +19,7 @@ Work documentation-first. Read the relevant OKF, RF, RNF, ADR, and test-case fil
 mvn -B verify --no-transfer-progress
 
 # Server — modules with active implementation (fastest feedback loop)
-mvn -B test --no-transfer-progress -pl server/contracts,server/platform,server/order-service,server/inventory-service
+mvn -B test --no-transfer-progress -pl server/contracts,server/platform,server/order-service,server/inventory-service,server/credit-service,server/orchestrator-service
 
 # Server — single module
 mvn -B test --no-transfer-progress -pl server/contracts,server/platform,server/order-service
@@ -38,7 +42,11 @@ docker compose -f infra/docker/docker-compose.yml up -d
 docker compose -f infra/docker/docker-compose.yml down -v
 ```
 
+Local stack ports: PostgreSQL 5432, Kafka 9092, Schema Registry 8081, Keycloak 8180, Kafka UI 8088.
+
 Dependent modules must always be included when running a service test. `server/contracts` and `server/platform` must appear before any service in the `-pl` list.
+
+`*IT.java` files run under Surefire (`mvn test`), not Failsafe. This is intentional — do not add a Failsafe plugin.
 
 ---
 
@@ -214,6 +222,8 @@ Use `OPEN QUESTION:` (all caps) for unresolved items. Never invent values for op
 - No new final UC-01 states without updating the docs first.
 - No bypassing Kafka/Avro decisions without an ADR.
 - `platform` must have no business domain knowledge (no order/credit/inventory types).
+- Callers of Inventory Service express only SKUs and quantities — never warehouse IDs. Warehouse selection is internal to Inventory (ADR-0009).
+- `IdempotencyStore` has no production implementation yet — do not wire it as if it does.
 
 ## Native Image Compatibility (cross-cutting constraint — ADR-0007)
 
@@ -263,6 +273,37 @@ Spring Boot 4.x rejects two bean definitions with the same name (`BeanDefinition
 
 Spring Boot 4.1.0 does not auto-configure `KafkaTemplate`. Services that publish to Kafka must define their own `ProducerFactory` and `KafkaTemplate` beans explicitly. Gate Kafka configuration with `@ConditionalOnProperty("spring.kafka.bootstrap-servers")` so the beans are absent in tests (where bootstrap-servers is not set) and test adapters fill the port instead.
 
+### Virtual threads
+
+All services set `spring.threads.virtual.enabled: true`. Do not create explicit thread pools for request handling.
+
+### Flyway — schema-per-service
+
+Each service owns its migrations under `src/main/resources/db/migration/<service>/` (e.g., `order_service/V1__create_order_tables.sql`). The platform owns shared tables in `platform/V2__create_outbox_inbox_tables.sql`. `spring.jpa.hibernate.ddl-auto=validate` — Hibernate never creates or alters tables; Flyway is the sole schema owner. `spring.flyway.clean-disabled=true` always.
+
+Flyway `locations` in `application.yml` lists both the platform path and the service path:
+```yaml
+spring.flyway.locations:
+  - classpath:db/migration/platform
+  - classpath:db/migration/order_service
+```
+
+### Security configuration
+
+Every service is stateless: `SessionCreationPolicy.STATELESS`, CSRF disabled. `/actuator/**` is permit-all for Kubernetes health probes. REST controllers extract the caller's identity from the JWT subject — `authentication.getName()` — rather than accepting it as a request field (prevents identity spoofing).
+
+### `@EntityScan` package moved in Spring Boot 4.1
+
+In Spring Boot 4.1, `@EntityScan` lives in `org.springframework.boot.persistence.autoconfigure` (in the `spring-boot-persistence` artifact), **not** `org.springframework.boot.autoconfigure.domain`. Using the old package causes a compile error. Every `*PersistenceConfiguration` class must use:
+
+```java
+import org.springframework.boot.persistence.autoconfigure.EntityScan;
+
+@EntityScan(basePackageClasses = {ServiceRepository.class, OutboxEventEntity.class, InboxEventEntity.class})
+```
+
+This matters in JPA adapter Testcontainer tests that boot an inner `@SpringBootConfiguration` — `spring.jpa.packages` in `application.yml` is not effective in those contexts; explicit `@EntityScan` on the persistence configuration class is required.
+
 ### Including `server/contracts` when compiling service tests
 
 `arbitrier-contracts` is a snapshot dependency. Always include `server/contracts` in the `-pl` list when building or testing a service module, otherwise Maven cannot resolve the artifact:
@@ -270,6 +311,94 @@ Spring Boot 4.1.0 does not auto-configure `KafkaTemplate`. Services that publish
 ```bash
 mvn -B test --no-transfer-progress -pl server/contracts,server/platform,server/order-service
 ```
+
+---
+
+## Platform Utilities
+
+The `platform` module provides cross-cutting utilities that all services must use:
+
+| Utility | Location | Purpose |
+|---------|----------|---------|
+| `Require` | `platform.validation` | Precondition checks in value-object/record constructors — throws `IllegalArgumentException` / `NullPointerException`, not business failures |
+| `Result<T>` | `platform.result` | Expected business failures — `Result.success(value)` / `Result.failure(code, message)`. Use `valueOrThrow()` in adapters to convert to `ApplicationProblemException` |
+| `TimeProvider` / `FixedTimeProvider` | `platform.time` | Never call `Instant.now()` directly; inject `TimeProvider` and bind `SystemClock.INSTANCE` in production config |
+| `IdempotencyStore` | `platform.idempotency` | Port contract for event deduplication — no production implementation yet |
+| `SafeLoggable` | `platform.logging` | Marker interface for objects safe to render in structured log fields |
+| `OutboxRepository` / `InboxRepository` | `platform.messaging` | Outbox/inbox ports — write domain events to outbox inside the same transaction as the aggregate save; `InMemoryOutboxRepository` / `InMemoryInboxRepository` are available for tests |
+| `EventSerializer` / `JacksonEventSerializer` | `platform.messaging` | Serialize domain events for the outbox record |
+| `DomainEventToOutboxMapper` | `platform.messaging` | Converts a domain event + aggregateId + aggregateType to an `OutboxEvent` with correlation/causation IDs |
+| `MessageNature` | `platform.messaging.outbox` | Enum — `EVENT` (record of what happened) or `COMMAND` (directed instruction). Required field on every `OutboxEvent`; chosen over "type" (collides with `eventType`) and "kind" (too informal) |
+| `OutboundRoutingStrategy` | `platform.messaging.outbox` | Port interface — resolves `OutboxEvent` → logical destination string. Runtime-independent; Kafka adapter implements it in a later slice |
+| `CorrelationId`, `CausationId`, `MessageId`, `RequestId` | `platform.correlation` | Distinct value objects for message tracing — do not conflate with `traceparent` |
+
+---
+
+## Test Layers
+
+Three distinct test layers exist in every service, and they must not be conflated:
+
+### 1. Unit tests (`src/test/.../domain/` and `.../application/service/`)
+
+No Spring context. Test domain rules and use-case services directly. Instantiate in-memory adapters manually. Fast.
+
+### 2. Application integration tests (`*ApplicationIT.java`)
+
+`@SpringBootTest` with JPA autoconfiguration excluded, Kafka absent. All outbound ports are replaced by in-memory adapters declared in `*TestConfiguration`. Verify the full Spring wiring (DI, security, controller routing) without a database.
+
+```java
+@SpringBootTest(properties = {
+    "spring.autoconfigure.exclude=" +
+    "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration," +
+    "org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration," +
+    "org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration"
+})
+@Import(InventoryServiceTestConfiguration.class)
+class InventoryServiceApplicationIT { ... }
+```
+
+### 3. JPA adapter tests (`Jpa*RepositoryAdapterTest`)
+
+`@SpringBootTest` + `@Testcontainers` with `@ServiceConnection` on a `PostgreSQLContainer`. Test the persistence adapter in isolation against a real schema. Competing beans from `*TestConfiguration` are marked `@Primary` to win over main-config beans without triggering `BeanDefinitionOverrideException`.
+
+### Test `JwtDecoder` override
+
+`*TestConfiguration` provides a mock `JwtDecoder` that accepts any token without cryptographic verification, creating a JWT with `sub=test-user`. Mark it `@Primary` to shadow the resource-server auto-configured decoder.
+
+### ArchUnit enforcement
+
+Every service has `src/test/java/.../unit/ArchitectureTest.java`. It enforces hexagonal boundaries at compile time: domain must not import Spring/JPA/Avro/Kafka; application must not import Avro/Kafka/Spring Data; `@Entity` classes must reside only in `..adapter.outbound.persistence..`. Always run `mvn test` after adding a new entity or dependency to catch violations early.
+
+---
+
+## JPA Persistence Adapter Pattern
+
+Every aggregate that requires persistence needs four artifacts in `adapter/outbound/persistence/`:
+
+| Class | Role |
+|-------|------|
+| `*Entity` | JPA `@Entity` — flat DB representation, no domain logic |
+| `*PersistenceMapper` | Translates domain aggregate ↔ JPA entity |
+| `Jpa*RepositoryAdapter` | Implements the outbound port using `SpringData*Repository` |
+| `SpringData*Repository` | `JpaRepository<*Entity, UUID>` — Spring Data interface |
+
+ArchUnit enforces that `@Entity` classes stay in `..adapter.outbound.persistence..` — run `mvn test` after adding any new entity to confirm.
+
+### Persistence mapper — three-method contract
+
+Every `*PersistenceMapper` must implement:
+
+| Method | When used |
+|--------|-----------|
+| `toEntity(Aggregate)` | Insert — creates a new entity |
+| `updateEntity(Entity, Aggregate)` | Update — mutates the managed entity, preserves `version` field for optimistic locking |
+| `toDomain(Entity)` | Reconstruction — rebuilds the aggregate, validating via domain constructors |
+
+Preserve `entity.getVersion()` during `updateEntity`; never overwrite it. Use `list.clear()` + re-add for replacing child collections atomically.
+
+### Persistence configuration — `@ConditionalOnMissingBean`
+
+`*PersistenceConfiguration` classes gate every repository bean with `@ConditionalOnMissingBean`. This lets `*ApplicationIT` tests supply in-memory repositories from `*TestConfiguration` without triggering `BeanDefinitionOverrideException` and without needing a real database.
 
 ---
 
@@ -292,4 +421,4 @@ Each step should be delegated to a well-named private method so the main use-cas
 - Long if/else trees in the main method body
 - Mixing persistence decisions with domain decisions
 
-**Transactionality note:** Application services will become `@Transactional` when JPA persistence is introduced. DB + Kafka consistency will be handled by the Outbox pattern (ADR-0005) — events are written to an outbox table inside the DB transaction rather than published directly in the service method.
+**Transactionality:** Application services are `@Transactional`. DB + Kafka consistency uses the Outbox pattern (ADR-0005): within the same transaction, persist the aggregate and then call `OutboxRepository.save(DomainEventToOutboxMapper.map(event, aggregateId, aggregateType))`. Never publish directly to Kafka from a service method.

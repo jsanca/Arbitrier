@@ -58,7 +58,7 @@ Tests use Vitest + jsdom. No backend, Docker, or external services needed.
 
 All data access goes through typed service interfaces in `src/services/`. Mock implementations (`mockServices.ts`) are swappable with real REST adapters — components never call `fetch()` directly.
 
-See [`docs/implementation/ARB-UI-001-customer-portal-react-prototype.md`](docs/implementation/ARB-UI-001-customer-portal-react-prototype.md) for full implementation details.
+See [`docs/implementation/ARB-UI-001-customer-portal-react-prototype.md`](../docs/agents/reports/ARB-UI-001-customer-portal-react-prototype.md) for full implementation details.
 
 ---
 
@@ -76,3 +76,5 @@ See [`docs/implementation/ARB-UI-001-customer-portal-react-prototype.md`](docs/i
 | `/orders/:orderId` | Order detail |
 | `/company` | Company profile |
 | `/profile` | User settings |
+
+The current application is the Customer Portal only. An internal Admin Console is a future product surface, not a hidden route or partially implemented feature in this prototype.

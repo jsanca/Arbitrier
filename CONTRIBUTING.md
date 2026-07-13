@@ -80,3 +80,28 @@ Scopes: `order-service`, `inventory-service`, `credit-service`, `orchestrator-se
 - Architecture Decisions → `docs/adr/ADR-XXXX-<slug>.md`
 - Test Cases → `docs/test-cases/TC-<UC-ID>-<slug>.md`
 - Update `docs/okf/index.md` when adding a new major document.
+
+## Engineering Workflow
+
+```text
+Idea → ADR → Task → Implementation → Deep Review → Fix → Done → Documentation
+```
+
+1. Capture the business or technical idea without inventing missing rules.
+2. Write or amend an ADR when the change establishes a cross-boundary architectural decision.
+3. Create a bounded task with acceptance criteria and explicit exclusions.
+4. Implement the slice with tests and an implementation report.
+5. Run an independent Deep review and preserve its report as historical evidence.
+6. Resolve material findings in a focused fix task.
+7. Mark roadmap status done only when implementation and required review/fixes are complete.
+8. Refresh current-state documentation; do not rewrite historical reports as if they described the latest repository.
+
+Project responsibilities:
+
+| Role | Responsibility |
+|---|---|
+| Clio | Backend/domain/application implementation and tests |
+| Deep | Independent architecture, correctness, test, and documentation review |
+| Brio | Customer Portal implementation and frontend tests |
+| Stitch | Visual exploration and mockups used as design inputs |
+| Elito | Infrastructure, documentation coherence, evaluation, and integration |
