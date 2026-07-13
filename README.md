@@ -1,130 +1,77 @@
 # Arbitrier
 
-Arbitrier is a B2B bulk-order orchestration reference system built with Java 25, Spring Boot 4.1, PostgreSQL, Kafka/Avro, Keycloak, and React. It makes inventory reservation, credit approval, compensation, retries, and customer-facing outcomes explicit across independently owned bounded contexts.
+Arbitrier is a Java 25 / Spring Boot 4.1 reference system for B2B bulk-order orchestration. It models order submission, global inventory allocation, credit reservation, compensation, persistence, and reliable outbound messaging across independently owned bounded contexts.
 
-The current repository contains a tested backend domain/application core, JPA persistence adapters, a mock-backed Customer Portal prototype, and a reproducible local infrastructure stack. Kafka runtime consumers, complete production messaging, database migrations, and deployed cloud infrastructure remain roadmap work.
+The repository currently contains the domain/application core, JPA/Flyway persistence, outbox/inbox foundation, local PostgreSQL/Kafka/Keycloak runtime stack, and a mock-backed React Customer Portal. Kafka runtime adapters remain planned; ARB-022.1 is an in-progress outbound message routing foundation, not a completed Kafka implementation.
 
-## UC-01: Corporate Bulk Order
+## Architecture at a glance
 
-The buyer first performs a non-binding global availability check. Inventory—not the buyer, Order, or Saga—chooses warehouses and may allocate one requested line across multiple locations. If availability is partial, the buyer resolves that choice before submission; the saga never waits indefinitely for a customer decision.
+The buyer performs advisory global availability negotiation before submission. Inventory owns warehouse selection and may allocate across locations. Once submitted, the Saga coordinates authoritative inventory and credit work; failures follow explicit compensation paths.
 
-```mermaid
-flowchart LR
-    Buyer["Buyer"] --> Precheck["Advisory availability check"]
-    Precheck --> Decision{"Buyer proceeds?"}
-    Decision -->|full or accepted partial quantities| Order["Order: PENDING"]
-    Decision -->|cancel| Stop["No order or saga"]
-    Order --> Inventory["Reserve inventory"]
-    Inventory -->|reserved| Credit["Reserve credit"]
-    Inventory -->|rejected or retry exhausted| Cancel["Compensate and cancel"]
-    Credit -->|approved| Confirm["Confirm order"]
-    Credit -->|rejected or retry exhausted| Release["Release stock"]
-    Release --> Cancel
-```
-
-The implemented saga terminal states are `COMPLETED`, `CANCELLED`, and `FAILED_COMPENSATION`. Customer-facing order outcomes are `CONFIRMED`, `PARTIALLY_CONFIRMED`, or `CANCELLED`. The retry policy decides `RETRY` versus `EXHAUST` from attempt counts; scheduling durations and Resilience4j runtime wiring are separate concerns.
-
-## Architecture
-
-Each business service uses hexagonal architecture. Domain models are immutable, pure Java, and independent of Spring/JPA/Kafka. Application services own transaction boundaries; repository adapters map aggregates to separate JPA entities and Spring Data repositories. Aggregate roots use optimistic locking.
-
-| Module | Ownership | Current implementation |
+| Module | Responsibility | Current state |
 |---|---|---|
-| `order-service` | Order lifecycle and authenticated saga entry | REST submission, JWT resource-server security, pre-saga negotiation, Order JPA adapter, conditional Kafka `OrderCreated` publisher foundation |
-| `inventory-service` | Global availability, warehouse allocation, reservations and release | Multi-warehouse allocation domain, application services, Stock Reservation JPA adapter; runtime inbound/Kafka adapters pending |
-| `credit-service` | Credit reservation and release | Domain/application services and Credit Reservation JPA adapter; external credit-limit and Kafka adapters pending |
-| `orchestrator-service` | UC-01 saga state and compensation | Explicit aggregate transitions, happy path, compensation, attempt-based retry decisions, Saga JPA adapter; runtime Kafka adapters/scheduler pending |
-| `contracts` | Shared Avro wire contracts | 26 schemas with generated Java types; production Schema Registry serializer integration pending |
-| `platform` | Cross-cutting, domain-neutral primitives | Validation, errors, correlation, W3C trace conventions, observability names, idempotency port, Spring web auto-configuration |
-| `client` | Customer Portal | React 19 prototype with typed mock-service boundary and localStorage; backend integration and E2E automation pending |
-
-PostgreSQL uses one database with service-owned schemas (`order_service`, `inventory_service`, `credit_service`, `orchestrator_service`) and no cross-context foreign keys. Keycloak uses a separate database. See [ADR-0003](docs/adr/ADR-0003-schema-per-service-postgres.md) and [ADR-0009](docs/adr/ADR-0009—GlobalInventoryAllocationOwnership.md).
-
-## Repository layout
-
-```text
-server/                 Maven modules: services, contracts, platform
-client/                 React/Vite Customer Portal prototype
-infra/docker/           Local PostgreSQL, Kafka, Schema Registry, Keycloak, Kafka UI
-docs/adr/               Architectural decisions
-docs/rf/ and docs/rnf/  Functional and non-functional requirements
-docs/tasks/             Task specifications
-docs/implementation/    Implementation and deep-review records
-docs/test-cases/        UC-01 behavioral specifications
-docs/ui/                Customer Portal UX and design documentation
-```
+| `order-service` | Order lifecycle and authenticated entry | REST, JPA/Flyway, transactional outbox integration |
+| `inventory-service` | Global availability and reservations | Multi-warehouse domain, JPA/Flyway, outbox integration |
+| `credit-service` | Credit reservation and release | JPA/Flyway and outbox integration; external credit source pending |
+| `orchestrator-service` | Saga transitions and compensation | JPA/Flyway, retry decisions, outbox integration; scheduler/runtime consumers pending |
+| `contracts` | Shared Avro contracts | Generated types and schemas; production serializer/runtime consumers pending |
+| `platform` | Cross-cutting primitives | Correlation, validation, errors, outbox/inbox model, Spring infrastructure |
+| `client` | Customer Portal | React 19 localStorage/mock prototype; real API and Keycloak integration pending |
 
 ## Quick start
 
 Prerequisites: Java 25, Maven, Node.js 20+, and Docker Compose v2.
 
 ```bash
-# Local infrastructure
 infra/docker/start.sh
 infra/docker/health.sh
 
-# Complete server quality gate
 mvn -B verify --no-transfer-progress
 
-# Customer Portal prototype (separate terminal)
 cd client
 npm ci
 npm run dev
 ```
 
-Open the Customer Portal at <http://localhost:5173>, Keycloak at <http://localhost:8180>, Kafka UI at <http://localhost:8088>, and Schema Registry at <http://localhost:8081>. Development-only identities, database credentials, environment variables, reset steps, and troubleshooting are in [infra/docker/README.md](infra/docker/README.md).
+Local service URLs, development credentials, reset steps, and environment variables are in [the local runtime guide](infra/docker/README.md). The Customer Portal runs at <http://localhost:5173> and uses mock services, so it does not require the backend stack.
 
-The client does not require the backend or local runtime: its services are currently mock implementations backed by browser `localStorage`. Use `brio@arbitrier.com` with any password.
+## Repository and documentation map
 
-## Development and testing
-
-`mvn -B verify --no-transfer-progress` is the server quality gate. Domain and application tests are hand-wired and do not require infrastructure. Persistence integration tests use PostgreSQL Testcontainers. Controller tests use a mock Spring context and JWT test support. Architecture tests enforce layering and package documentation.
-
-```bash
-# Active server modules
-mvn -B test --no-transfer-progress \
-  -pl server/contracts,server/platform,server/order-service,server/inventory-service
-
-# One service (contracts and platform must precede it)
-mvn -B test --no-transfer-progress \
-  -pl server/contracts,server/platform,server/order-service
-
-# Client unit tests and production build
-cd client
-npm test
-npm run build
+```text
+server/                  Maven services, contracts, and platform
+client/                  React Customer Portal prototype
+infra/docker/            Local runtime and SQL initialization
+docs/
+  agents/
+    tasks/               Execution instructions
+    reports/             Implementation and fix history
+    reviews/             Review and audit history
+    checkpoints/         Incomplete-task operational state
+    templates/           Reusable report templates
+  engineering/           Shared process, ownership, and curation rules
+  implementation/        Reserved canonical capability descriptions
+  adr/                   Architecture decisions
+  okf/, rf/, rnf/        Product, functional, and non-functional requirements
+  roadmap/               Planned and completed roadmap slices
+  test-cases/            UC-01 behavior specifications
+  ui/                    Customer Portal UX material
+ENGINEERING_LOG.md       Navigable index of durable delivery artifacts
 ```
 
-The Maven `-pl` order matters because services depend on local SNAPSHOT artifacts from `contracts` and `platform`. Full commands and test conventions are documented in [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
+`docs/implementation/` currently contains no active Markdown artifacts after the manual migration. Historical delivery evidence is under `docs/agents/`; current system behavior belongs in this README, service READMEs, ADRs, requirements, and runtime documentation.
+
+Start with the [OKF index](docs/okf/index.md), [roadmap](docs/roadmap/Arbitrier-Roadmap-v1.md), and [Engineering Log](ENGINEERING_LOG.md). For process and artifact ownership, see [documentation ownership](docs/engineering/documentation-ownership.md) and the [Knowledge Curator role](docs/engineering/knowledge-curator.md).
 
 ## Engineering workflow
 
 ```text
-Idea → ADR → Task → Implementation → Deep Review → Fix → Done → Documentation
+Idea → ADR → Task → Implementation → Review → Fix → Done → Documentation
 ```
 
-- **Clio** implements backend/domain/application slices and their tests.
-- **Deep** performs independent technical review and identifies required fixes or explicit debt.
-- **Brio** implements the Customer Portal and frontend test surface.
-- **Stitch** develops visual explorations and mockups; accepted concepts are translated into repository-native UI by Brio.
-- **Elito** owns infrastructure, documentation coherence, evaluation, and project-level integration.
+Tasks live in `docs/agents/tasks/`; implementation/fix reports in `docs/agents/reports/`; reviews/audits in `docs/agents/reviews/`; and incomplete work is captured in `docs/agents/checkpoints/`. The [engineering-reporting skill](.claude/skills/engineering-reporting/SKILL.md) defines required sections and evidence rules. The execution-timebox policy requires an OPEN checkpoint to be resolved or superseded before a task is reported DONE.
 
-An ADR settles architecture before implementation when a decision crosses boundaries. Tasks define scope and acceptance criteria. Implementation reports record what actually changed; Deep review reports are immutable review evidence. Fix tasks close material findings. Documentation is refreshed after the implementation truth is established. Unknown business rules remain `OPEN QUESTION`; agents do not invent them.
+Clio owns backend implementation, Deep independent review, Brio frontend delivery, Stitch visual exploration, and Elito infrastructure plus knowledge curation. The Knowledge Curator reconciles reports, reviews, fixes, and canonical documentation without inventing evidence or rewriting history.
 
-## Current status and roadmap
+## Status
 
-Completed foundations include the domain model, service application slices, explicit saga happy path and compensation, pre-saga availability negotiation, global inventory ownership, attempt-based retry policy, JPA persistence with application-owned transactions, Customer Portal prototype, and local runtime stack.
-
-The next planned runtime slices are database migrations/synthetic data, outbox/inbox, Kafka consumers and producers, Schema Registry serializer finalization, Resilience4j scheduling/runtime policies, dashboard APIs, production frontend integration, and delivery infrastructure. The authoritative sequence is [docs/roadmap/Arbitrier-Roadmap-v1.md](docs/roadmap/Arbitrier-Roadmap-v1.md).
-
-## Documentation map
-
-Start with [the OKF index](docs/okf/index.md), then use:
-
-- [UC-01 requirement](docs/rf/RF-UC-01-corporate-bulk-order.md) and [runtime constraints](docs/rnf/RNF-UC-01-saga-runtime.md)
-- [architecture decisions](docs/adr/)
-- [implementation reports](docs/implementation/)
-- [Customer Portal documentation](client/README.md) and [UX map](docs/ui/ux_strategy_navigation_map.md)
-- [local runtime guide](infra/docker/README.md)
-
-Historical task and review documents describe the state and decisions of their slice at the time they were written. Current-state summaries live in this README, module READMEs, accepted ADRs, and the roadmap.
+Completed roadmap foundations include JPA/Flyway persistence (ARB-019/020), the outbox/inbox foundation and cleanup (ARB-021), local runtime (ARB-027), and the Customer Portal prototype. Planned work includes Kafka runtime adapters, Schema Registry serializer finalization, runtime retry policies, dashboard APIs, production portal integration, and delivery infrastructure. See [ENGINEERING_LOG.md](ENGINEERING_LOG.md) for durable artifact status; do not infer completion from an unreviewed report.

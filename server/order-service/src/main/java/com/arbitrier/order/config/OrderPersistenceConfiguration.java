@@ -1,6 +1,7 @@
 package com.arbitrier.order.config;
 
 import com.arbitrier.order.adapter.outbound.persistence.JpaOrderRepositoryAdapter;
+import com.arbitrier.order.adapter.outbound.persistence.OrderEntity;
 import com.arbitrier.order.adapter.outbound.persistence.OrderPersistenceMapper;
 import com.arbitrier.order.adapter.outbound.persistence.SpringDataOrderRepository;
 import com.arbitrier.order.application.port.outbound.OrderRepository;
@@ -32,7 +33,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  */
 @Configuration
 @ConditionalOnMissingBean(OrderRepository.class)
-@EntityScan(basePackageClasses = {SpringDataOrderRepository.class, OutboxEventEntity.class, InboxEventEntity.class})
+@EntityScan(basePackageClasses = {OrderEntity.class, OutboxEventEntity.class, InboxEventEntity.class})
 @EnableJpaRepositories(basePackageClasses = {SpringDataOrderRepository.class, SpringDataOutboxRepository.class, SpringDataInboxRepository.class})
 public class OrderPersistenceConfiguration {
 

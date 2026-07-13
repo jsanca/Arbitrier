@@ -1,6 +1,7 @@
 package com.arbitrier.orchestrator.config;
 
 import com.arbitrier.orchestrator.adapter.outbound.persistence.JpaSagaRepositoryAdapter;
+import com.arbitrier.orchestrator.adapter.outbound.persistence.SagaEntity;
 import com.arbitrier.orchestrator.adapter.outbound.persistence.SagaPersistenceMapper;
 import com.arbitrier.orchestrator.adapter.outbound.persistence.SpringDataSagaRepository;
 import com.arbitrier.orchestrator.application.port.outbound.SagaRepository;
@@ -31,7 +32,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  */
 @Configuration
 @ConditionalOnMissingBean(SagaRepository.class)
-@EntityScan(basePackageClasses = {SpringDataSagaRepository.class, OutboxEventEntity.class, InboxEventEntity.class})
+@EntityScan(basePackageClasses = {SagaEntity.class, OutboxEventEntity.class, InboxEventEntity.class})
 @EnableJpaRepositories(basePackageClasses = {SpringDataSagaRepository.class, SpringDataOutboxRepository.class, SpringDataInboxRepository.class})
 public class OrchestratorPersistenceConfiguration {
 

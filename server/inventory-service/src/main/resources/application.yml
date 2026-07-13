@@ -12,10 +12,6 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
-    packages:
-      - com.arbitrier.inventory.adapter.outbound.persistence
-      - com.arbitrier.platform.messaging.outbox.adapter
-      - com.arbitrier.platform.messaging.inbox.adapter
     properties:
       hibernate:
         default_schema: inventory_service

@@ -2,6 +2,7 @@ package com.arbitrier.inventory.config;
 
 import com.arbitrier.inventory.adapter.outbound.persistence.JpaStockReservationRepositoryAdapter;
 import com.arbitrier.inventory.adapter.outbound.persistence.SpringDataStockReservationRepository;
+import com.arbitrier.inventory.adapter.outbound.persistence.StockReservationEntity;
 import com.arbitrier.inventory.adapter.outbound.persistence.StockReservationPersistenceMapper;
 import com.arbitrier.inventory.application.port.outbound.StockReservationRepository;
 import com.arbitrier.platform.messaging.inbox.InboxRepository;
@@ -32,7 +33,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  */
 @Configuration
 @ConditionalOnMissingBean(StockReservationRepository.class)
-@EntityScan(basePackageClasses = {SpringDataStockReservationRepository.class, OutboxEventEntity.class, InboxEventEntity.class})
+@EntityScan(basePackageClasses = {StockReservationEntity.class, OutboxEventEntity.class, InboxEventEntity.class})
 @EnableJpaRepositories(basePackageClasses = {SpringDataStockReservationRepository.class, SpringDataOutboxRepository.class, SpringDataInboxRepository.class})
 public class InventoryPersistenceConfiguration {
 

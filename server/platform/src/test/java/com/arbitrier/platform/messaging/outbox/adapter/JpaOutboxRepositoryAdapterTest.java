@@ -139,6 +139,18 @@ class JpaOutboxRepositoryAdapterTest {
         assertThat(adapter.findPending().getFirst().eventId()).isEqualTo(pending.eventId());
     }
 
+    @Test
+    @Transactional
+    void command_nature_survives_round_trip() {
+        OutboxEvent command = createPendingCommand();
+        adapter.save(command);
+
+        List<OutboxEvent> pending = adapter.findPending();
+        assertThat(pending).hasSize(1);
+        assertThat(pending.getFirst().eventId()).isEqualTo(command.eventId());
+        assertThat(pending.getFirst().messageNature()).isEqualTo(MessageNature.COMMAND);
+    }
+
     private OutboxEvent createPendingEvent() {
         return new OutboxEvent(
                 UUID.randomUUID(), "agg-" + UUID.randomUUID(),
@@ -146,5 +158,14 @@ class JpaOutboxRepositoryAdapterTest {
                 "{\"test\":true}", "JSON",
                 NOW, null, PublishStatus.PENDING, 0, null, null, null,
                 MessageNature.EVENT);
+    }
+
+    private OutboxEvent createPendingCommand() {
+        return new OutboxEvent(
+                UUID.randomUUID(), "saga-" + UUID.randomUUID(),
+                "Saga", "ReserveStockCommand",
+                "{\"test\":true}", "JSON",
+                NOW, null, PublishStatus.PENDING, 0, null, null, null,
+                MessageNature.COMMAND);
     }
 }

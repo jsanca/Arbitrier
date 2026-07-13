@@ -4,7 +4,7 @@
 
 The original outbox modelled only domain events. Every message stored was assumed to be a fact — something that had already happened — and named with an event-style class name (e.g. `OrderCreatedDomainEvent`).
 
-Future slices require the orchestrator to issue **commands** — directed instructions to specific services (e.g. `ReserveStockCommand`, `ReleaseCreditCommand`). Commands must be delivered reliably, exactly once, in the same transactional scope as the saga state change. The outbox is the correct mechanism.
+Future slices require the orchestrator to issue **commands** — directed instructions to specific services (e.g. `ReserveStockCommand`, `ReleaseCreditCommand`). Commands must be written to the outbox atomically with the saga state change, ensuring eventual at-least-once delivery; idempotent processing at the recipient guards against duplicates. The outbox is the correct mechanism.
 
 Rather than creating a separate `outbox_commands` table (which would duplicate all lifecycle columns), we extended the single `outbox_events` table to carry any outbound message, discriminated by nature.
 

@@ -10,8 +10,8 @@
 # All server modules
 mvn -B verify --no-transfer-progress
 
-# Fast feedback — all active modules
-mvn -B test --no-transfer-progress -pl server/contracts,server/platform,server/order-service,server/inventory-service,server/credit-service,server/orchestrator-service
+# Fast feedback — all active modules (skips slow Testcontainers ITs)
+mvn -B test --no-transfer-progress -pl server/contracts,server/platform,server/order-service,server/inventory-service,server/credit-service,server/orchestrator-service -Dtest='!*IT'
 
 # Single module — always include server/contracts,server/platform before any service
 mvn -B test --no-transfer-progress -pl server/contracts,server/platform,server/order-service -Dtest=ArchitectureTest
@@ -85,13 +85,16 @@ platform (library) → contracts (Avro codegen) → [order-service | inventory-s
 - **Avro serializer** is `ByteArraySerializer` (placeholder). Choose Confluent `KafkaAvroSerializer` before production.
 - **JPA is active** in all four services — `@Entity` classes exist with PostgreSQL schemas. When adding entities, register `RuntimeHintsRegistrar` for GraalVM native image.
 - **JWT auth only in order-service**. `submittedByUserId` derived from JWT `authentication.getName()`, never from request body.
-- **Spring Boot 4.1**: no `@WebMvcTest`, no bean override, no auto-configured `KafkaTemplate`.
+- **Spring Boot 4.1**: no `@WebMvcTest`, no `@DataJpaTest`, no bean override, no auto-configured `KafkaTemplate`. `@EntityScan` import moved to `org.springframework.boot.persistence.autoconfigure.EntityScan`.
 - **REJECTED release is a no-op** — releasing a rejected credit/stock reservation does nothing.
 - **Virtual threads** enabled in all services (`spring.threads.virtual.enabled: true`).
 - **W3C Trace Context** only — never B3 headers (`X-B3-TraceId`). `X-Correlation-Id` is business-level.
 - **Native Image** (ADR-0007): avoid `Class.forName`, dynamic proxies, runtime classpath scanning. Register `RuntimeHintsRegistrar` for `@Entity` or Avro types.
 - **Resilience4j** — no Hystrix or Spring Retry.
 - **IdempotencyStore** is port-only (interface in platform, no adapter yet).
+- **OutboxPublisher** is a placeholder interface (no Kafka drainer yet). Application services write to `OutboxRepository` directly.
+- **InboxRepository** is wired as a bean in all services but never injected — pre-built for future idempotent consumers.
+- **Entity scanning uses both** `@EntityScan(basePackageClasses = ...)` on `*PersistenceConfiguration` and `spring.jpa.packages` in `application.yml` — these duplicate each other. Only `@EntityScan` is needed for test contexts with inner `@SpringBootConfiguration`. Do not add a third mechanism.
 
 ## Naming Conventions
 
@@ -107,18 +110,9 @@ platform (library) → contracts (Avro codegen) → [order-service | inventory-s
 | Avro schema file | `<subject>-<past-tense>-event-v<N>.avsc` |
 | Kafka topic | `arbitrier.<domain>.<event>.v<N>` |
 
-## UC-01 Saga States (for context)
+## UC-01 Review Context
 
-```
-STARTED → CREDIT_RESERVATION_REQUESTED
-  → CREDIT_RESERVED → INVENTORY_RESERVATION_REQUESTED
-      → INVENTORY_FULLY_RESERVED                      → CONFIRMED
-      → INVENTORY_PARTIALLY_RESERVED → AWAITING_CUSTOMER_DECISION
-          → (accept) → PARTIALLY_CONFIRMED
-          → (reject) → CANCELLED [compensations]
-      → INVENTORY_RESERVATION_FAILED → CANCELLED
-  → CREDIT_RESERVATION_DENIED → CANCELLED
-```
+Availability negotiation and the buyer’s partial-quantity decision happen before an Order or Saga exists. Inventory owns warehouse allocation. Review active behavior against [RF-UC-01](docs/rf/RF-UC-01-corporate-bulk-order.md) and [ADR-0009](docs/adr/ADR-0009—GlobalInventoryAllocationOwnership.md), not historical task narratives.
 
 ## Execution Policy
 

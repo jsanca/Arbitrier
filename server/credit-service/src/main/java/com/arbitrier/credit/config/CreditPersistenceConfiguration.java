@@ -1,5 +1,6 @@
 package com.arbitrier.credit.config;
 
+import com.arbitrier.credit.adapter.outbound.persistence.CreditReservationEntity;
 import com.arbitrier.credit.adapter.outbound.persistence.CreditReservationPersistenceMapper;
 import com.arbitrier.credit.adapter.outbound.persistence.JpaCreditReservationRepositoryAdapter;
 import com.arbitrier.credit.adapter.outbound.persistence.SpringDataCreditReservationRepository;
@@ -31,7 +32,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  */
 @Configuration
 @ConditionalOnMissingBean(CreditReservationRepository.class)
-@EntityScan(basePackageClasses = {SpringDataCreditReservationRepository.class, OutboxEventEntity.class, InboxEventEntity.class})
+@EntityScan(basePackageClasses = {CreditReservationEntity.class, OutboxEventEntity.class, InboxEventEntity.class})
 @EnableJpaRepositories(basePackageClasses = {SpringDataCreditReservationRepository.class, SpringDataOutboxRepository.class, SpringDataInboxRepository.class})
 public class CreditPersistenceConfiguration {
 

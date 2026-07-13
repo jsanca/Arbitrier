@@ -8,7 +8,7 @@ Work documentation-first. Read the relevant OKF, RF, RNF, ADR, and test-case fil
 
 For non-trivial implementation tasks apply the execution-timebox skill: target 20–30 min, warn at 30 min, hard stop at 45 min with a recovery checkpoint. See [`.claude/skills/execution-timebox/SKILL.md`](.claude/skills/execution-timebox/SKILL.md).
 
-Every non-trivial implementation, review, recovery, architecture, security, or documentation task must also apply the [engineering reporting protocol](.claude/skills/engineering-reporting/SKILL.md). Use its canonical task/report/review/checkpoint locations and consult [documentation ownership](docs/engineering/documentation-ownership.md) rather than duplicating the system narrative here.
+Every non-trivial implementation, review, recovery, architecture, security, or documentation task must also apply the [engineering reporting protocol](.claude/skills/engineering-reporting/SKILL.md). Use its canonical task/report/review/checkpoint locations and consult [documentation ownership](docs/engineering/documentation-ownership.md) rather than duplicating the system narrative here. When a task completes, add a row to `ENGINEERING_LOG.md` linking task, report, review, and any fix artifacts.
 
 ---
 
@@ -62,6 +62,9 @@ server/
   platform/             Library jar — security, observability, exceptions
 client/                 React 19 / TypeScript portal
 docs/
+  agents/               Tasks, reports, reviews, checkpoints, templates (canonical — not docs/tasks/)
+  engineering/          Role-independent process rules and documentation ownership
+  implementation/       Capability description documents (architecture rationale, not task records)
   okf/                  Use-case narratives (UC-NN) and project index
   rf/                   Functional requirements (RF-UC-NN)
   rnf/                  Non-functional requirements
@@ -118,20 +121,9 @@ package com.arbitrier.<service>.<layer>;
 
 ---
 
-## UC-01 Saga States
+## UC-01 Context
 
-```
-STARTED → CREDIT_RESERVATION_REQUESTED
-  → CREDIT_RESERVED → INVENTORY_RESERVATION_REQUESTED
-      → INVENTORY_FULLY_RESERVED                              → CONFIRMED
-      → INVENTORY_PARTIALLY_RESERVED → AWAITING_CUSTOMER_DECISION
-            → (customer accepts)                              → PARTIALLY_CONFIRMED
-            → (customer rejects) [compensations run]         → CANCELLED
-      → INVENTORY_RESERVATION_FAILED [compensate credit]     → CANCELLED
-  → CREDIT_RESERVATION_DENIED                                 → CANCELLED
-```
-
-The waiting state is `AWAITING_CUSTOMER_DECISION` — not "human approver."
+Availability negotiation and a buyer’s partial-quantity decision occur before Order/Saga creation. Inventory owns warehouse selection. The active Saga coordinates authoritative inventory and credit work; see [RF-UC-01](docs/rf/RF-UC-01-corporate-bulk-order.md) and [ADR-0009](docs/adr/ADR-0009—GlobalInventoryAllocationOwnership.md) for current behavior.
 
 ---
 
@@ -299,7 +291,7 @@ In Spring Boot 4.1, `@EntityScan` lives in `org.springframework.boot.persistence
 ```java
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
 
-@EntityScan(basePackageClasses = {ServiceRepository.class, OutboxEventEntity.class, InboxEventEntity.class})
+@EntityScan(basePackageClasses = {ServiceEntity.class, OutboxEventEntity.class, InboxEventEntity.class})
 ```
 
 This matters in JPA adapter Testcontainer tests that boot an inner `@SpringBootConfiguration` — `spring.jpa.packages` in `application.yml` is not effective in those contexts; explicit `@EntityScan` on the persistence configuration class is required.

@@ -1,0 +1,439 @@
+TASK: ARB-022.1-REVIEW — Outbound Message Model & Routing Review
+DATE: 2026-07-12
+AGENT: clio
+
+SUMMARY
+-------
+Reviewed all 9 areas of ARB-022.1 across the actual code (not just the
+implementation report). Verified MessageNature, OutboundRoutingStrategy,
+OutboxEvent changes, mapper overloads, V3 migration, entity scanning state,
+and test coverage against the code on disk.
+
+Overall: PASS WITH WARNINGS. The architecture is correct and the foundation
+is durable. Three warnings (one documentation inaccuracy, one entity scanning
+duplication, one routing contract gap) and several minor observations are
+noted below. None block acceptance.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 1: DELIVERY GUARANTEES — PASS WITH WARNINGS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING G1 — [LOW] Implementation doc misstates "exactly once" for command delivery
+Category: Documentation
+Severity: LOW
+Evidence: docs/implementation/ARB-022-1-outbound-message-model.md line 7:
+  "Commands must be delivered reliably, exactly once, in the same
+   transactional scope as the saga state change."
+
+The outbox pattern provides:
+  - Atomic persistence: aggregate + outbox row in one transaction (exactly-once
+    write to the store)
+  - Eventual delivery: no guarantee of WHEN delivery happens
+  - At-least-once transport: Kafka publishers may redeliver on failure
+  - Idempotent processing: Inbox + consumer deduplication provide
+    effectively-once semantics end-to-end
+
+"Exactly once" is the correct description of the atomic write (the outbox row is
+created exactly once with the aggregate), but the sentence suggests the DELIVERY
+is exactly-once. Delivery across an at-least-once transport like Kafka is
+at-least-once. The end-to-end guarantee is "effectively once" through
+idempotent processing, not "exactly-once delivery."
+
+Impact: Misleading for future implementers who may assume Kafka provides
+exactly-once delivery semantics without idempotent consumption.
+
+Recommendation: Reword to "Commands must be persisted atomically with the saga
+state change and delivered reliably through eventual, idempotent-out
+processing." Or simply delete "exactly once" and say "Commands must be delivered
+reliably, in the same transactional scope..."
+Fix now or future slice: Fix now (documentation change only).
+Blocks roadmap: No.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 2: MESSAGENATURE — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING M1 — [POSITIVE] Semantically clear and durable as a persisted discriminator
+Category: Architecture
+Severity: INFO (positive)
+
+Verified against source:
+  MessageNature.java — 2 values: EVENT, COMMAND
+  Javadoc explains "nature" was chosen over "type" (collision with eventType)
+  and "kind" (informal). Stored as VARCHAR(20) with CHECK constraint
+  ('EVENT', 'COMMAND') mirroring enum values exactly. Column has NOT NULL +
+  DEFAULT 'EVENT' in migration.
+
+Assessment:
+  - Semantic clarity: EXCELLENT. "Nature" conveys protocol role without
+    confusing "type" overload.
+  - Durability: Correctly persisted as VARCHAR with DB-level CHECK constraint
+    as defense-in-depth.
+  - Sufficiency: EVENT + COMMAND are sufficient for current scope. The
+    orchestrator needs to issue commands; domain models produce events.
+  - QUERY exclusion: Correct. Queries are not outbound messages — they are
+    synchronous requests, not persisted in the outbox.
+
+No changes recommended.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 3: ROUTING INTENT — PASS (with architecture recommendation)
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING R1 — [INFO] Option A (derive later) is correct for current stage;
+  Option B (persist logicalDestination) is premature
+
+Two options were evaluated:
+
+  Option A (current): Destination derived at publish time from
+    messageNature + eventType via OutboundRoutingStrategy.
+
+  Option B (alternative): logicalDestination persisted as a column in
+    outbox_events at creation time.
+
+Option A is recommended for now:
+
+  - No DB migration needed if routing logic changes. The routing strategy
+    is code, not data. A strategy change can be deployed without altering
+    pending rows.
+  - The outbox model stays simpler. logicalDestination is a transport
+    concern, not a domain concern.
+  - Pending rows carry all information needed to route (messageNature,
+    eventType, aggregateType). Routing is deterministic from these fields.
+  - The task explicitly says "Kafka will consume this abstraction later."
+    Persisting a destination before knowing the transport format would
+    pre-commit to a premature decision.
+
+Option B becomes valuable when:
+  - Routing is non-deterministic from messageNature + eventType alone
+    (e.g., dynamic routing rules keyed on content)
+  - Operational recovery requires knowing the exact destination without
+    consulting the routing strategy code
+  - Different environments (staging/prod) route the same event to different
+    topics
+
+Recommendation: Stay with Option A. Revisit persisting logicalDestination
+when the Kafka publisher slice reaches a complexity threshold that makes
+Option B necessary. Do not add a column now.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 4: OUTBOUNDROUTINGSTRATEGY OWNERSHIP — PASS (with contract gap)
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING O1 — [POSITIVE] Correctly placed in platform as a runtime-neutral policy
+Category: Architecture
+Severity: INFO (positive)
+
+Verified against source:
+  OutboundRoutingStrategy.java — in com.arbitrier.platform.messaging.outbox
+  Returns String (logical destination, e.g. "order.created", "credit.commands")
+  Javadoc: "with no knowledge of Kafka topics, partitions, or transport details"
+  Zero Kafka imports in the interface or its package
+
+Assessment:
+  - Ownership: Correct. Platform defines the abstraction; Kafka adapter
+    (future slice) provides the implementation.
+  - Runtime neutrality: YES. No Kafka types, no topic names, no partition
+    references. The logical destination is a domain-level identifier.
+  - Is it a port, policy, or adapter? It is a strategy/policy interface —
+    the outbox domain uses it to resolve WHERE to send a message without
+    knowing HOW. The implementation (KafkaRoutingStrategy in a future
+    adapter) is the adapter.
+  - Placement in platform: CORRECT. This is an infrastructure abstraction
+    that all services can use. The platform module is the right home.
+
+FINDING O2 — [LOW] String return type creates contract ambiguity
+Category: Architecture
+Severity: LOW
+
+Evidence: resolveDestination returns String. The Javadoc says "non-null,
+non-blank" but the Java type system cannot enforce this. A misbehaving
+implementation could return null, empty string, or an arbitrary string
+with no format convention.
+
+Impact: Refactoring risk — a future implementation returns null and the
+caller fails at runtime with no compile-time guard. Format conventions
+are implicit rather than contract-enforced.
+
+Recommendation: When routing complexity warrants it, replace String with a
+typed LogicalDestination record (wrapping a non-blank String). Not needed
+now — the current usage is simple enough. Flag for ARB-022.2 design review.
+Fix now or future slice: Future slice (ARB-022.2).
+Blocks roadmap: No.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 5: COMMAND OUTBOX DIRECTION — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING C1 — [POSITIVE] Correctly prepares outbox for commands without wiring
+
+Verified: The implementation added:
+  - MessageNature.COMMAND
+  - mapper.map(message, aggregateId, aggregateType, MessageNature.COMMAND)
+  - No command publishers were modified — they remain unchanged
+
+Current dual-write risk in orchestrator (example: HandleOrderCreatedService):
+  Transaction {
+    sagaRepository.save(saga)                  // atomic with...
+    outboxRepository.save(mapper.map(event))   // ...this
+    // but NOT atomic with:
+    reserveStockCommandPublisher.publishReserveStock(command)  // separate call
+  }
+
+The outbox write and saga save are atomic. The command publisher call
+is a separate (potentially out-of-TX) operation. This is the known
+dual-write risk.
+
+ARB-022.1 correctly prepares the infrastructure for the fix but does NOT
+apply the fix. The fix would be: replace
+  reserveStockCommandPublisher.publishReserveStock(command)
+with
+  outboxRepository.save(mapper.map(command, sagaId, "Saga", MessageNature.COMMAND))
+
+This is explicitly out of scope per the task ("Do not yet implement command
+persistence. Prepare the abstraction only.").
+
+Assessment: The preparation is correct. The mapper now supports COMMAND
+nature. The OutboxEvent carries messageNature. The OutboxRepository doesn't
+discriminate. When ARB-022.2 wires command publishers to use the outbox,
+the infrastructure is ready.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 6: PERSISTENCE EVOLUTION — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING P1 — [POSITIVE] Migration is correct and compatible
+
+Verified against source:
+  V3__add_outbox_routing_metadata.sql (10 lines):
+    ALTER TABLE outbox_events ADD COLUMN message_nature VARCHAR(20)
+      NOT NULL DEFAULT 'EVENT';
+    ALTER TABLE outbox_events ADD CONSTRAINT outbox_message_nature_chk
+      CHECK (message_nature IN ('EVENT', 'COMMAND'));
+
+Assessment:
+  - Existing rows: Correctly become EVENT via DEFAULT. No data migration
+    needed. All historical outbox rows are domain events — correct default.
+  - CHECK constraint: Matches MessageNature enum values exactly. DB-level
+    defense-in-depth. Enum value changes require coordinated migration + code.
+  - JPA mapping consistency:
+    * OutboxEventEntity.messageNature: @Column(name = "message_nature",
+      nullable = false) — matches DB column
+    * JpaOutboxRepositoryAdapter.toEntity(): entity.setMessageNature(
+      event.messageNature().name()) — stores enum name as String
+    * JpaOutboxRepositoryAdapter.toRecord(): MessageNature.valueOf(
+      entity.getMessageNature()) — recovers enum from String
+    * OutboxEvent record: messageNature field (14th, last) with
+      Require.notNull guard
+  - Schema independence: Migration runs in every service schema via the
+    platform Flyway location. No cross-schema coupling.
+  - No unnecessary coupling: The migration only touches outbox_events.
+    inbox_events is unchanged (correct — inbox doesn't need message nature).
+
+No concerns. Migration is production-safe.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 7: ENTITY SCANNING CONFIGURATION — PASS WITH WARNINGS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING S1 — [MEDIUM] @EntityScan and spring.jpa.packages duplicate entity discovery
+
+Evidence (verified across all 4 services — identical pattern):
+
+  application.yml:
+    spring.jpa.packages:
+      - com.arbitrier.<service>.adapter.outbound.persistence
+      - com.arbitrier.platform.messaging.outbox.adapter
+      - com.arbitrier.platform.messaging.inbox.adapter
+
+  PersistenceConfiguration.java:
+    @EntityScan(basePackageClasses = {
+        SpringData<Service>Repository.class,   // repository, not entity
+        OutboxEventEntity.class,               // entity
+        InboxEventEntity.class                 // entity
+    })
+
+Both mechanisms now specify the same three packages. spring.jpa.packages
+explicitly lists them as package strings. @EntityScan uses marker classes:
+  - SpringData*Repository.class resolves to the service's persistence package
+    (same as spring.jpa.packages entry 1)
+  - OutboxEventEntity.class resolves to platform.messaging.outbox.adapter
+    (same as spring.jpa.packages entry 2)
+  - InboxEventEntity.class resolves to platform.messaging.inbox.adapter
+    (same as spring.jpa.packages entry 3)
+
+This is redundant. Both mechanisms achieve the same result. Having two
+sources of truth for entity scanning creates maintenance burden and
+potential for drift (e.g., adding a new entity in one but not the other).
+
+Why it matters: The implementation report states @EntityScan was added
+because "spring.jpa.packages in application.yml is not effective when a
+test boots an inner @SpringBootConfiguration." If that is the case, then
+@EntityScan IS the effective mechanism and spring.jpa.packages is vestigial.
+
+Impact: Duplicate configuration. If someone adds a new entity package to
+spring.jpa.packages but forgets to update @EntityScan, or vice versa,
+the system behavior depends on which mechanism actually takes effect in
+each context (main vs test vs @SpringBootTest inner config).
+
+Recommendation: Choose one mechanism as the single source of truth:
+  A. Keep @EntityScan, remove spring.jpa.packages — @EntityScan with
+     marker classes is more explicit and works in all contexts. Remove
+     the three spring.jpa.packages entries from all 4 application.yml files.
+  B. Keep spring.jpa.packages, fix the test context issue differently —
+     configure test properties to inherit spring.jpa.packages from the
+     main application context.
+
+Recommendation A is preferred since @EntityScan was added specifically to
+solve the test context issue. Keeping only @EntityScan eliminates the
+duplication and the test context remains fixed.
+
+Additionally: SpringData*Repository.class is not an @Entity class. Using a
+repository interface as an @EntityScan marker is semantically incorrect even
+though it works (it resolves the package). Consider using the actual entity
+class (e.g., OrderEntity.class) instead, or use OutboxEventEntity.class +
+InboxEventEntity.class as the only platform markers and rely on auto-scanning
+of the service package.
+
+Fix now or future slice: Fix now (cleanup task, low effort).
+Blocks roadmap: No.
+
+FINDING S2 — [INFO] @EntityScan uses correct Spring Boot 4.1 import
+Category: Architecture
+Severity: INFO (positive)
+
+Verified: import org.springframework.boot.persistence.autoconfigure.EntityScan
+This is the correct Spring Boot 4.1 package (moved from the 3.x location
+org.springframework.boot.autoconfigure.domain.EntityScan). The code compiles
+and works correctly at this import path.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 8: SCOPE AND PROCESS — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING P2 — [INFO] Entity scanning fix should have been a separate task
+Category: Architecture
+Severity: INFO
+
+The entity scanning configuration fix (@EntityScan re-introduction) is a
+regression fix for ARB-021-FIX-001's removal of @EntityScan. The root cause
+was that spring.jpa.packages did not work in all Spring context scenarios
+(main context vs inner @SpringBootConfiguration in tests).
+
+The implementation report classifies this as "necessary persistence
+propagation" and notes it was discovered during implementation. This is
+acceptable — it would have been impractical to split into a separate task
+since the message model changes required the tests to pass.
+
+Process observation for future task decomposition:
+  - Entity scanning changes should be isolated tasks with their own test
+    verification across all service modules.
+  - When a pre-existing bug is discovered during implementation, the
+    implementation report should note the fix as an incidental finding.
+
+No action needed. Informational only.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 9: TESTS — PASS WITH WARNINGS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING T1 — [POSITIVE] Core test coverage is strong
+
+Verified test classes:
+  MessageNatureTest (3 tests): values existence, valueOf roundtrip, inequality
+  OutboundRoutingStrategyTest (2 tests): resolves by eventType, discriminates
+    by nature
+  OutboxEventTest (14 tests, was 10): added creates_command_message,
+    null_messageNature_throws; all 13 constructors updated
+  DomainEventToOutboxMapperTest (11 tests, was 9): added three_arg_overload
+    _always_produces_event_nature, four_arg_overload_maps_command_nature,
+    four_arg_null_nature_throws
+  InMemoryOutboxRepositoryTest (8 tests): all updated with MessageNature.EVENT
+  JpaOutboxRepositoryAdapterTest (6 tests): all updated with MessageNature.EVENT
+
+Assessment: EVENT default behavior, COMMAND explicit behavior, null
+validation, and routing abstraction semantics are all well tested.
+
+FINDING T2 — [LOW] Missing JPA round-trip test for MessageNature.COMMAND
+Category: Architecture
+Severity: LOW
+
+The JpaOutboxRepositoryAdapterTest only tests MessageNature.EVENT. There is
+no test that saves an OutboxEvent with MessageNature.COMMAND, retrieves it,
+and verifies the messageNature round-trips correctly through the JPA adapter.
+
+Evidence: JpaOutboxRepositoryAdapterTest.createPendingEvent() hardcodes
+MessageNature.EVENT. No test method creates a COMMAND event.
+
+Impact: If the JPA adapter's toEntity/toRecord mapping mishandles
+MessageNature.COMMAND (e.g., stores wrong enum name, fails to parse),
+it would only be caught at runtime.
+
+Recommendation: Add a test in JpaOutboxRepositoryAdapterTest that creates
+a COMMAND event, saves it, finds it as pending, and asserts
+messageNature() == MessageNature.COMMAND.
+Fix now or future slice: Fix now (one test method).
+Blocks roadmap: No.
+
+FINDING T3 — [LOW] No migration compatibility test
+Category: Architecture
+Severity: LOW
+
+No test verifies that existing outbox_events rows (without message_nature
+column before V3 migration) have messageNature = 'EVENT' after the migration
+runs. The DEFAULT in the DDL guarantees this, but no test validates it.
+
+Impact: Low — the DEFAULT is reliable in PostgreSQL. A test would be
+defense-in-depth.
+
+Recommendation: Optional: add a Flyway migration compatibility test that
+inserts rows against the V2 schema, runs V3, and verifies message_nature
+is 'EVENT'.
+Fix now or future slice: Future slice (optional).
+Blocks roadmap: No.
+
+────────────────────────────────────────────────────────────────────────────────
+ANSWERS TO EXPLICIT QUESTIONS
+────────────────────────────────────────────────────────────────────────────────
+
+1. Can ARB-022.1 be marked DONE?
+   YES. All acceptance criteria are met. The three warnings (G1, S1, T2)
+   are minor and fixable in-place. No architectural redesign needed.
+
+2. Should logicalDestination be persisted or derived?
+   DERIVED. Stay with Option A (derive at publish time via
+   OutboundRoutingStrategy). Persisting logicalDestination is premature
+   until the Kafka publisher slice demonstrates a need for durable
+   routing intents. Revisit in ARB-022.2 or later.
+
+3. Are delivery guarantees documented correctly?
+   NO — minor inaccuracy. The implementation doc says "exactly once"
+   for command delivery. This should read "reliably" or "atomically
+   persisted" to avoid implying Kafka provides exactly-once delivery
+   semantics. See Finding G1.
+
+4. Is the final entity-scanning setup clean?
+   NO — @EntityScan and spring.jpa.packages duplicate entity discovery
+   across all four services. One should be removed. Recommend keeping
+   @EntityScan and removing spring.jpa.packages. See Finding S1.
+
+5. Is the architecture ready for ARB-022.2?
+   YES. The outbox now carries messageNature. The mapper supports COMMAND.
+   OutboundRoutingStrategy provides a routing abstraction. The foundation
+   is ready for wiring command publishers to the outbox and implementing
+   the Kafka publisher.
+
+────────────────────────────────────────────────────────────────────────────────
+VERDICT
+────────────────────────────────────────────────────────────────────────────────
+
+Overall: PASS WITH WARNINGS
+
+Findings summary:
+  [LOW]  G1 — Documentation misstates "exactly once" delivery guarantee
+  [MED]  S1 — @EntityScan and spring.jpa.packages duplicate entity discovery
+  [LOW]  O2 — String return type on OutboundRoutingStrategy is contract-weak
+  [LOW]  T2 — Missing JPA round-trip test for MessageNature.COMMAND
+  [LOW]  T3 — No migration compatibility test (optional)
+
+No FAIL findings. No blockers. The architecture is correct and durable.
