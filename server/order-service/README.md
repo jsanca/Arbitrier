@@ -54,7 +54,7 @@ Pure-Java types in `com.arbitrier.order.domain.model`:
 
 | Interface | Location | Status |
 |-----------|----------|--------|
-| `OrderRepository` | `application/port/outbound/` | In-memory only (no JPA yet) |
+| `OrderRepository` | `application/port/outbound/` | JPA production adapter; in-memory test adapter |
 | `OrderEventPublisher` | `application/port/outbound/` | `KafkaOrderEventPublisher` when `spring.kafka.bootstrap-servers` is set; `RecordingOrderEventPublisher` in tests |
 | `CustomerAccessPort` | `application/port/outbound/` | `AllowAllCustomerAccessAdapter` placeholder |
 | `InventoryAvailabilityPort` | `application/port/outbound/` | Synchronous global availability query; no `warehouseId` (ADR-0009); `StubInventoryAvailabilityPort` in tests; no production adapter yet |
@@ -79,6 +79,10 @@ In tests, `RecordingOrderEventPublisher` (from `OrderServiceTestConfiguration`, 
 `requestedTotal` in `OrderCreated` Avro is emitted as `MoneyAmount("0","USD")` — a documented placeholder until pricing source of truth is resolved (ARB-006 open question).
 
 The Avro value serializer must be configured for production (see `docs/implementation/ARB-011-contracts-messaging-foundation.md`).
+
+### Persistence (ARB-019)
+
+`JpaOrderRepositoryAdapter` maps the immutable aggregate through `OrderPersistenceMapper` to `OrderEntity`/`OrderLineEntity`. `OrderEntity` owns its lines and uses `@Version` optimistic locking. `SubmitCorporateBulkOrderService` owns the transaction boundary; the adapter does not expose entities or raw Spring Data repositories to the application layer.
 
 ### In-memory adapters (test tree)
 
@@ -114,4 +118,5 @@ reservation is authoritative; existing compensation paths handle reservation fai
 `ARB-017B` — `warehouseId` removed from `PrepareCorporateBulkOrderCommand` and `InventoryAvailabilityPort` (ADR-0009). 71 tests pass.
 `ARB-017` — `PrepareCorporateBulkOrderUseCase` implemented. `InventoryAvailabilityPort` defined; no production adapter yet.
 `ARB-011` — Kafka + Avro publishing foundation added. `KafkaOrderEventPublisher` maps `OrderCreatedDomainEvent` to `OrderCreated` Avro and publishes to `arbitrier.order.created.v1`. Avro serializer and Schema Registry deferred.
-`ARB-010` — JWT security wired. `submittedByUserId` removed from request body. `CustomerAccessPort` enforced. Persistence (JPA) pending.
+`ARB-019` — JPA persistence adapter and PostgreSQL integration tests implemented; application service owns the transaction.
+`ARB-010` — JWT security wired. `submittedByUserId` removed from request body. `CustomerAccessPort` enforced.

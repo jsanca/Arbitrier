@@ -5,7 +5,7 @@ The saga coordinator. Drives the UC-01 Corporate Bulk Order saga from start to t
 ## Responsibility
 
 - Listens for `OrderPlacedEvent` to start a new saga instance (Kafka consumer — deferred).
-- Orchestrates the sequence: inventory reservation → credit reservation → (optional) human decision.
+- Orchestrates the sequence after the buyer has completed pre-saga availability negotiation: inventory reservation → credit reservation → order confirmation.
 - Manages saga state machine transitions.
 - Issues compensation commands when a step fails or is rejected (ARB-016).
 - Notifies `order-service` of the final outcome (`CONFIRMED`, `PARTIALLY_CONFIRMED`, `CANCELLED`).
@@ -104,7 +104,7 @@ Pure-Java, zero-framework types in `com.arbitrier.orchestrator.domain.model` and
 | `SagaCompletedDomainEvent` | Saga reaches COMPLETED terminal state |
 | `InventoryTimedOutDomainEvent` | Inventory step timed out; retry scheduled |
 | `CreditTimedOutDomainEvent` | Credit step timed out; retry scheduled |
-| `SagaTimedOutDomainEvent` | All retry attempts exhausted; saga is TIMED_OUT |
+| `SagaCompensatedDomainEvent` | Attempt exhaustion or rejection enters compensation |
 
 ### Happy-path workflow (ARB-015 / ARB-018)
 
@@ -130,6 +130,10 @@ CreditApproved
   → SagaCompletedDomainEvent
   → ConfirmOrderSagaCommand
 ```
+
+### Persistence and transactions (ARB-019)
+
+`JpaSagaRepositoryAdapter` maps the aggregate to explicit `SagaEntity` columns; it does not serialize workflow blobs. `SagaEntity` uses `@Version` optimistic locking. Every mutating application service owns its transaction boundary, keeping load, transition, save, and outbound publication in one transaction while leaving adapter classes transaction-neutral.
 
 ### Test adapters (test tree)
 
@@ -172,6 +176,8 @@ mvn -B test --no-transfer-progress -pl server/contracts,server/platform,server/o
 Tests pass without Kafka, Postgres, Schema Registry, Keycloak, or Docker.
 
 ## Status
+
+`ARB-019` — Saga JPA persistence and optimistic locking implemented; transaction boundaries refined at application services.
 
 `ARB-018` — Timeout & retry policy implemented (incl. FIX-001). `WAITING_FOR_INVENTORY`,
 `WAITING_FOR_CREDIT` states added. Exhaustion triggers `COMPENSATING` + idempotent

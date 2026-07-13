@@ -4,6 +4,27 @@ spring:
   threads:
     virtual:
       enabled: true
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/arbitrier?currentSchema=orchestrator_service}
+    username: ${SPRING_DATASOURCE_USERNAME:orchestrator_service}
+    password: ${SPRING_DATASOURCE_PASSWORD:local-service-only}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    packages:
+      - com.arbitrier.orchestrator.adapter.outbound.persistence
+      - com.arbitrier.platform.messaging.outbox.adapter
+      - com.arbitrier.platform.messaging.inbox.adapter
+    properties:
+      hibernate:
+        default_schema: orchestrator_service
+  flyway:
+    locations: classpath:db/migration/platform,classpath:db/migration/orchestrator_service
+    default-schema: orchestrator_service
+    schemas: orchestrator_service
+    validate-on-migrate: true
+    clean-disabled: true
 
 management:
   endpoints:

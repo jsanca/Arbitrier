@@ -13,10 +13,9 @@ import com.arbitrier.orchestrator.application.port.inbound.HandleStockReleasedUs
 import com.arbitrier.orchestrator.application.port.inbound.HandleStockReservedUseCase;
 import com.arbitrier.orchestrator.application.port.inbound.StartSagaUseCase;
 import com.arbitrier.orchestrator.application.port.outbound.ConfirmOrderCommandPublisher;
+import com.arbitrier.orchestrator.application.port.outbound.ReleaseStockCommandPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.ReserveCreditCommandPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.ReserveStockCommandPublisher;
-import com.arbitrier.orchestrator.application.port.outbound.ReleaseStockCommandPublisher;
-import com.arbitrier.orchestrator.application.port.outbound.SagaEventPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.SagaRepository;
 import com.arbitrier.orchestrator.application.service.AdvanceSagaService;
 import com.arbitrier.orchestrator.application.service.CompensateSagaService;
@@ -31,6 +30,8 @@ import com.arbitrier.orchestrator.application.service.HandleStockReleasedService
 import com.arbitrier.orchestrator.application.service.HandleStockReservedService;
 import com.arbitrier.orchestrator.application.service.StartSagaService;
 import com.arbitrier.orchestrator.domain.model.CorporateBulkOrderSagaRetryPolicy;
+import com.arbitrier.platform.messaging.outbox.OutboxRepository;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -48,22 +49,25 @@ public class OrchestratorServiceConfiguration {
     @Bean
     public StartSagaUseCase startSagaService(
             SagaRepository sagaRepository,
-            SagaEventPublisher sagaEventPublisher) {
-        return new StartSagaService(sagaRepository, sagaEventPublisher);
+            OutboxRepository outboxRepository,
+            DomainEventToOutboxMapper outboxMapper) {
+        return new StartSagaService(sagaRepository, outboxRepository, outboxMapper);
     }
 
     @Bean
     public AdvanceSagaUseCase advanceSagaService(
             SagaRepository sagaRepository,
-            SagaEventPublisher sagaEventPublisher) {
-        return new AdvanceSagaService(sagaRepository, sagaEventPublisher);
+            OutboxRepository outboxRepository,
+            DomainEventToOutboxMapper outboxMapper) {
+        return new AdvanceSagaService(sagaRepository, outboxRepository, outboxMapper);
     }
 
     @Bean
     public CompensateSagaUseCase compensateSagaService(
             SagaRepository sagaRepository,
-            SagaEventPublisher sagaEventPublisher) {
-        return new CompensateSagaService(sagaRepository, sagaEventPublisher);
+            OutboxRepository outboxRepository,
+            DomainEventToOutboxMapper outboxMapper) {
+        return new CompensateSagaService(sagaRepository, outboxRepository, outboxMapper);
     }
 
     // ── ARB-015 happy path ────────────────────────────────────────────────────
@@ -71,27 +75,30 @@ public class OrchestratorServiceConfiguration {
     @Bean
     public HandleOrderCreatedUseCase handleOrderCreatedService(
             SagaRepository sagaRepository,
-            SagaEventPublisher sagaEventPublisher,
+            OutboxRepository outboxRepository,
+            DomainEventToOutboxMapper outboxMapper,
             ReserveStockCommandPublisher reserveStockCommandPublisher) {
-        return new HandleOrderCreatedService(sagaRepository, sagaEventPublisher,
+        return new HandleOrderCreatedService(sagaRepository, outboxRepository, outboxMapper,
                 reserveStockCommandPublisher);
     }
 
     @Bean
     public HandleStockReservedUseCase handleStockReservedService(
             SagaRepository sagaRepository,
-            SagaEventPublisher sagaEventPublisher,
+            OutboxRepository outboxRepository,
+            DomainEventToOutboxMapper outboxMapper,
             ReserveCreditCommandPublisher reserveCreditCommandPublisher) {
-        return new HandleStockReservedService(sagaRepository, sagaEventPublisher,
+        return new HandleStockReservedService(sagaRepository, outboxRepository, outboxMapper,
                 reserveCreditCommandPublisher);
     }
 
     @Bean
     public HandleCreditApprovedUseCase handleCreditApprovedService(
             SagaRepository sagaRepository,
-            SagaEventPublisher sagaEventPublisher,
+            OutboxRepository outboxRepository,
+            DomainEventToOutboxMapper outboxMapper,
             ConfirmOrderCommandPublisher confirmOrderCommandPublisher) {
-        return new HandleCreditApprovedService(sagaRepository, sagaEventPublisher,
+        return new HandleCreditApprovedService(sagaRepository, outboxRepository, outboxMapper,
                 confirmOrderCommandPublisher);
     }
 
@@ -100,31 +107,35 @@ public class OrchestratorServiceConfiguration {
     @Bean
     public HandleStockRejectedUseCase handleStockRejectedService(
             SagaRepository sagaRepository,
-            SagaEventPublisher sagaEventPublisher) {
-        return new HandleStockRejectedService(sagaRepository, sagaEventPublisher);
+            OutboxRepository outboxRepository,
+            DomainEventToOutboxMapper outboxMapper) {
+        return new HandleStockRejectedService(sagaRepository, outboxRepository, outboxMapper);
     }
 
     @Bean
     public HandleCreditRejectedUseCase handleCreditRejectedService(
             SagaRepository sagaRepository,
-            SagaEventPublisher sagaEventPublisher,
+            OutboxRepository outboxRepository,
+            DomainEventToOutboxMapper outboxMapper,
             ReleaseStockCommandPublisher releaseStockCommandPublisher) {
-        return new HandleCreditRejectedService(sagaRepository, sagaEventPublisher,
+        return new HandleCreditRejectedService(sagaRepository, outboxRepository, outboxMapper,
                 releaseStockCommandPublisher);
     }
 
     @Bean
     public HandleStockReleasedUseCase handleStockReleasedService(
             SagaRepository sagaRepository,
-            SagaEventPublisher sagaEventPublisher) {
-        return new HandleStockReleasedService(sagaRepository, sagaEventPublisher);
+            OutboxRepository outboxRepository,
+            DomainEventToOutboxMapper outboxMapper) {
+        return new HandleStockReleasedService(sagaRepository, outboxRepository, outboxMapper);
     }
 
     @Bean
     public HandleCompensationFailedUseCase handleCompensationFailedService(
             SagaRepository sagaRepository,
-            SagaEventPublisher sagaEventPublisher) {
-        return new HandleCompensationFailedService(sagaRepository, sagaEventPublisher);
+            OutboxRepository outboxRepository,
+            DomainEventToOutboxMapper outboxMapper) {
+        return new HandleCompensationFailedService(sagaRepository, outboxRepository, outboxMapper);
     }
 
     // ── ARB-018 timeout policy ────────────────────────────────────────────────
@@ -137,20 +148,22 @@ public class OrchestratorServiceConfiguration {
     @Bean
     public HandleInventoryTimeoutUseCase handleInventoryTimeoutService(
             SagaRepository sagaRepository,
-            SagaEventPublisher sagaEventPublisher,
+            OutboxRepository outboxRepository,
+            DomainEventToOutboxMapper outboxMapper,
             ReleaseStockCommandPublisher releaseStockCommandPublisher,
             CorporateBulkOrderSagaRetryPolicy retryPolicy) {
         return new HandleInventoryTimeoutService(
-                sagaRepository, sagaEventPublisher, releaseStockCommandPublisher, retryPolicy);
+                sagaRepository, outboxRepository, outboxMapper, releaseStockCommandPublisher, retryPolicy);
     }
 
     @Bean
     public HandleCreditTimeoutUseCase handleCreditTimeoutService(
             SagaRepository sagaRepository,
-            SagaEventPublisher sagaEventPublisher,
+            OutboxRepository outboxRepository,
+            DomainEventToOutboxMapper outboxMapper,
             ReleaseStockCommandPublisher releaseStockCommandPublisher,
             CorporateBulkOrderSagaRetryPolicy retryPolicy) {
         return new HandleCreditTimeoutService(
-                sagaRepository, sagaEventPublisher, releaseStockCommandPublisher, retryPolicy);
+                sagaRepository, outboxRepository, outboxMapper, releaseStockCommandPublisher, retryPolicy);
     }
 }

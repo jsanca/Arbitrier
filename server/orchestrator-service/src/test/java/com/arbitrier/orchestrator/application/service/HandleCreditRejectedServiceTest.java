@@ -2,15 +2,21 @@ package com.arbitrier.orchestrator.application.service;
 
 import com.arbitrier.orchestrator.adapter.outbound.InMemorySagaRepository;
 import com.arbitrier.orchestrator.adapter.outbound.RecordingReleaseStockCommandPublisher;
-import com.arbitrier.orchestrator.adapter.outbound.RecordingSagaEventPublisher;
 import com.arbitrier.orchestrator.application.port.inbound.HandleCreditRejectedCommand;
 import com.arbitrier.orchestrator.application.port.inbound.HandleCreditRejectedResult;
 import com.arbitrier.orchestrator.domain.model.Saga;
 import com.arbitrier.orchestrator.domain.model.SagaId;
 import com.arbitrier.orchestrator.domain.model.SagaStatus;
 import com.arbitrier.orchestrator.domain.model.SagaStep;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
+import com.arbitrier.platform.messaging.serialization.JacksonEventSerializer;
+import com.arbitrier.platform.messaging.test.InMemoryOutboxRepository;
+import com.arbitrier.platform.time.FixedTimeProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -29,16 +35,20 @@ class HandleCreditRejectedServiceTest {
     private static final SagaId SAGA_ID_VO = SagaId.of(SAGA_ID);
 
     private InMemorySagaRepository repository;
-    private RecordingSagaEventPublisher eventPublisher;
+    private InMemoryOutboxRepository outboxRepository;
+    private DomainEventToOutboxMapper outboxMapper;
     private RecordingReleaseStockCommandPublisher releaseStockPublisher;
     private HandleCreditRejectedService service;
 
     @BeforeEach
     void setUp() {
         repository = new InMemorySagaRepository();
-        eventPublisher = new RecordingSagaEventPublisher();
+        outboxRepository = new InMemoryOutboxRepository();
+        outboxMapper = new DomainEventToOutboxMapper(
+                new JacksonEventSerializer(new ObjectMapper()),
+                FixedTimeProvider.of(Instant.parse("2026-01-15T10:00:00Z")));
         releaseStockPublisher = new RecordingReleaseStockCommandPublisher();
-        service = new HandleCreditRejectedService(repository, eventPublisher, releaseStockPublisher);
+        service = new HandleCreditRejectedService(repository, outboxRepository, outboxMapper, releaseStockPublisher);
 
         repository.save(
                 Saga.start(SAGA_ID_VO, ORDER_ID, CUSTOMER_ID)
@@ -69,13 +79,14 @@ class HandleCreditRejectedServiceTest {
     }
 
     @Test
-    void handle_publishes_saga_compensated_event() {
+    void handle_writes_saga_compensated_event_to_outbox() {
         service.handle(command());
 
-        assertThat(eventPublisher.compensatedEvents()).hasSize(1);
-        var event = eventPublisher.compensatedEvents().get(0);
-        assertThat(event.sagaId()).isEqualTo(SAGA_ID_VO);
-        assertThat(event.orderId()).isEqualTo(ORDER_ID);
+        assertThat(outboxRepository.findAll()).hasSize(1);
+        var event = outboxRepository.findAll().get(0);
+        assertThat(event.eventType()).isEqualTo("SagaCompensatedDomainEvent");
+        assertThat(event.aggregateType()).isEqualTo("Saga");
+        assertThat(event.aggregateId()).isEqualTo(SAGA_ID);
     }
 
     @Test
@@ -90,23 +101,10 @@ class HandleCreditRejectedServiceTest {
     }
 
     @Test
-    void handle_does_not_publish_release_credit_command() {
+    void handle_writes_only_one_outbox_event() {
         service.handle(command());
 
-        assertThat(eventPublisher.cancelledEvents()).isEmpty();
-        assertThat(eventPublisher.completedEvents()).isEmpty();
-        assertThat(eventPublisher.totalEventCount()).isEqualTo(1);
-    }
-
-    @Test
-    void handle_publishes_only_compensated_event() {
-        service.handle(command());
-
-        assertThat(eventPublisher.compensatedEvents()).hasSize(1);
-        assertThat(eventPublisher.startedEvents()).isEmpty();
-        assertThat(eventPublisher.advancedEvents()).isEmpty();
-        assertThat(eventPublisher.cancelledEvents()).isEmpty();
-        assertThat(eventPublisher.completedEvents()).isEmpty();
+        assertThat(outboxRepository.findAll()).hasSize(1);
     }
 
     // ── Missing stock reservation guard ───────────────────────────────────────

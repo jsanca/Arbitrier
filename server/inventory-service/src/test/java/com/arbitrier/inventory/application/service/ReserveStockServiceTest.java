@@ -2,14 +2,19 @@ package com.arbitrier.inventory.application.service;
 
 import com.arbitrier.inventory.adapter.outbound.ConfigurableWarehouseAllocationPort;
 import com.arbitrier.inventory.adapter.outbound.InMemoryStockReservationRepository;
-import com.arbitrier.inventory.adapter.outbound.RecordingStockReservationEventPublisher;
 import com.arbitrier.inventory.application.port.inbound.ReserveStockCommand;
 import com.arbitrier.inventory.application.port.inbound.ReserveStockLineCommand;
 import com.arbitrier.inventory.application.port.inbound.ReserveStockResult;
 import com.arbitrier.inventory.domain.model.StockReservationStatus;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
+import com.arbitrier.platform.messaging.serialization.JacksonEventSerializer;
+import com.arbitrier.platform.messaging.test.InMemoryOutboxRepository;
+import com.arbitrier.platform.time.FixedTimeProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,15 +32,19 @@ class ReserveStockServiceTest {
 
     private ConfigurableWarehouseAllocationPort availability;
     private InMemoryStockReservationRepository repository;
-    private RecordingStockReservationEventPublisher publisher;
+    private InMemoryOutboxRepository outboxRepository;
+    private DomainEventToOutboxMapper outboxMapper;
     private ReserveStockService service;
 
     @BeforeEach
     void setUp() {
         availability = new ConfigurableWarehouseAllocationPort();
         repository = new InMemoryStockReservationRepository();
-        publisher = new RecordingStockReservationEventPublisher();
-        service = new ReserveStockService(availability, repository, publisher);
+        outboxRepository = new InMemoryOutboxRepository();
+        outboxMapper = new DomainEventToOutboxMapper(
+                new JacksonEventSerializer(new ObjectMapper()),
+                FixedTimeProvider.of(Instant.parse("2026-01-15T10:00:00Z")));
+        service = new ReserveStockService(availability, repository, outboxRepository, outboxMapper);
     }
 
     // ── Full reservation ──────────────────────────────────────────────────────
@@ -65,25 +74,16 @@ class ReserveStockServiceTest {
     }
 
     @Test
-    void full_reservation_publishes_stock_reserved_event() {
+    void full_reservation_writes_stock_reserved_event_to_outbox() {
         availability.setAvailable("SKU-A", 10);
 
         service.reserve(command(line("SKU-A", 10)));
 
-        assertThat(publisher.reservedEvents()).hasSize(1);
-        assertThat(publisher.partiallyReservedEvents()).isEmpty();
-        assertThat(publisher.rejectedEvents()).isEmpty();
-    }
-
-    @Test
-    void full_reservation_event_carries_correct_ids() {
-        availability.setAvailable("SKU-A", 10);
-
-        service.reserve(command(line("SKU-A", 10)));
-
-        var event = publisher.reservedEvents().get(0);
-        assertThat(event.reservationId().value()).isEqualTo(RESERVATION_ID);
-        assertThat(event.orderId()).isEqualTo(ORDER_ID);
+        assertThat(outboxRepository.findAll()).hasSize(1);
+        var event = outboxRepository.findAll().get(0);
+        assertThat(event.eventType()).isEqualTo("StockReservedDomainEvent");
+        assertThat(event.aggregateType()).isEqualTo("StockReservation");
+        assertThat(event.aggregateId()).isEqualTo(RESERVATION_ID);
     }
 
     @Test
@@ -127,14 +127,14 @@ class ReserveStockServiceTest {
     }
 
     @Test
-    void partial_reservation_publishes_partially_reserved_event() {
+    void partial_reservation_writes_partially_reserved_event_to_outbox() {
         availability.setAvailable("SKU-A", 3); // 3 of 10 requested
 
         service.reserve(command(line("SKU-A", 10)));
 
-        assertThat(publisher.partiallyReservedEvents()).hasSize(1);
-        assertThat(publisher.reservedEvents()).isEmpty();
-        assertThat(publisher.rejectedEvents()).isEmpty();
+        assertThat(outboxRepository.findAll()).hasSize(1);
+        assertThat(outboxRepository.findAll().get(0).eventType())
+                .isEqualTo("StockPartiallyReservedDomainEvent");
     }
 
     // ── Rejection ─────────────────────────────────────────────────────────────
@@ -158,12 +158,11 @@ class ReserveStockServiceTest {
     }
 
     @Test
-    void rejected_reservation_publishes_rejected_event() {
+    void rejected_reservation_writes_stock_rejected_event_to_outbox() {
         service.reserve(command(line("SKU-A", 10)));
 
-        assertThat(publisher.rejectedEvents()).hasSize(1);
-        assertThat(publisher.reservedEvents()).isEmpty();
-        assertThat(publisher.partiallyReservedEvents()).isEmpty();
+        assertThat(outboxRepository.findAll()).hasSize(1);
+        assertThat(outboxRepository.findAll().get(0).eventType()).isEqualTo("StockRejectedDomainEvent");
     }
 
     // ── Validation ────────────────────────────────────────────────────────────

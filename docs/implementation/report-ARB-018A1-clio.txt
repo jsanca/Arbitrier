@@ -1,0 +1,762 @@
+TASK: ARB-018A1 — Architecture Security Review
+DATE: 2026-07-11
+AGENT: clio
+
+SUMMARY
+-------
+Performed an architectural security review across all 12 review areas covering the
+entire Arbitrier codebase (order-service, inventory-service, credit-service,
+orchestrator-service, platform, contracts, client, infra). The review examined
+domain boundaries, authentication, authorization, saga/event security, persistence,
+REST surface, runtime infrastructure, logging, supply chain, Native Image readiness,
+and documentation coverage.
+
+Overall classification: PASS WITH WARNINGS — the architecture is fundamentally
+sound with good hexagonal boundaries, typed error codes, immutable domain models,
+and correct secret handling, but several gaps must be addressed before or during
+the integration phase (Kafka consumers, REST APIs for all services, Keycloak
+rollout). No findings block the architecture from proceeding. All warnings are
+actionable at current roadmap stages.
+
+FILES CHANGED
+-------------
++ agents-reports/report-ARB-018A1-clio.txt (this file)
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 1: DOMAIN BOUNDARIES — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+Finding D1 — [INFO] warehouseId leaks through Avro wire format
+Category: Domain
+Severity: INFO
+The domain model explicitly documents StockAllocation (including WarehouseId) as
+"Internal to the Inventory bounded context and must not be exposed to Order, Saga,
+or any external caller." However, warehouseId (as string) appears in both
+StockReserved.avsc and StockPartiallyReserved.avsc. This is at minimum a
+documentation inconsistency. Either the Avro schema should omit warehouseId, or
+the domain documentation should clarify why warehouse-level data crosses the
+wire boundary.
+Impact: No functional risk today (no Kafka consumers exist). Creates confusion
+about the inventory bounded context boundary.
+Mitigation: Remove warehouseId from those two Avro schemas, or add a documented
+rationale for why it must be exposed.
+Blocks roadmap: No
+
+Finding D2 — [LOW] Missing Require validation in credit domain events
+Category: Domain
+Severity: LOW
+CreditApprovedDomainEvent, CreditRejectedDomainEvent, and CreditReleasedDomainEvent
+have no Require validation in their constructors — unlike all other domain events
+across the other three services. This means null IDs or amounts could be present
+in domain events dispatched from the credit service.
+Impact: Could propagate invalid data through the event pipeline once Kafka
+consumers are wired.
+Mitigation: Add Require.notNull/notBlank checks to these three constructors,
+consistent with the rest of the codebase.
+Blocks roadmap: No
+
+Finding D3 — [INFO] Cross-aggregate references use raw String
+Category: Domain
+Severity: INFO
+All cross-aggregate foreign keys (orderId, customerId, stockReservationId,
+creditReservationId) in the orchestrator Saga aggregate are raw String with no
+type-safety. A StockReservationId value could be accidentally passed as
+creditReservationId and the compiler would not catch it.
+Impact: Low risk — Require validations reduce accidental misuse, and scope
+isolation prevents cross-service type confusion. Only affects the orchestrator
+internally.
+Mitigation: Consider introducing orchestrator-internal wrapper types
+(stockReservationId, CreditReservationId as records in orchestrator domain) that
+wrap the raw String IDs.
+Blocks roadmap: No
+
+Finding D4 — [POSITIVE] Pure hexagonal boundaries
+Category: Architecture
+Severity: INFO (positive)
+All aggregates are pure Java with zero Spring/JPA/Kafka imports. All 26 Avro
+schemas define explicit cross-service contracts. Zero internal DB primary keys
+appear on the wire. No domain types leak across Maven module boundaries. This is
+architecturally clean.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 2: AUTHENTICATION ARCHITECTURE — PASS WITH WARNINGS
+────────────────────────────────────────────────────────────────────────────────
+
+Finding A1 — [HIGH] No SecurityConfiguration in three of four services
+Category: Authentication
+Severity: HIGH
+credit-service, inventory-service, and orchestrator-service have
+spring-boot-starter-web on their classpath but ZERO Spring Security
+dependencies. They have no SecurityConfiguration.java, no JWT validation,
+no authentication of any kind. When these services expose REST endpoints
+(during the upcoming integration phase), they will be completely unprotected.
+Why it matters: Integration phase will add REST endpoints to these services.
+Without security configuration, those endpoints will accept unauthenticated
+requests.
+Impact: Unauthenticated access to saga state, inventory operations,
+and credit operations.
+Mitigation: Add spring-boot-starter-oauth2-resource-server to each service's
+pom.xml and provide a SecurityConfiguration (JWT resource-server, stateless,
+CSRF disabled). Gate with the same issuer-uri env var. Consider extracting a
+shared SecurityConfiguration base class into platform.
+Blocks roadmap: No — must be done before or during REST endpoint addition, which
+is the upcoming integration phase. Not needed before then.
+
+Finding A2 — [MEDIUM] No JwtAuthenticationConverter — realm roles not mapped
+Category: Authentication
+Severity: MEDIUM
+The Keycloak realm defines four roles (CUSTOMER_USER, CUSTOMER_ADMIN,
+OPERATIONS_USER, OPERATIONS_ADMIN) but no JwtAuthenticationConverter is
+configured. Spring Security's default converter only maps scope/scp claims
+to GrantedAuthority. The runtime security context has no role information,
+making @PreAuthorize and role-based checks impossible.
+Why it matters: Role-based authorization (Area 3) cannot be implemented
+until roles appear in the security context.
+Impact: Any valid JWT from the issuer grants full access.
+Mitigation: Add a JwtAuthenticationConverter that extracts Keycloak realm
+roles from the realm_access.roles claim and maps them to ROLE_* authorities.
+Blocks roadmap: No — needed when role-based authorization is implemented (Area 3).
+
+Finding A3 — [MEDIUM] No audience validation
+Category: Authentication
+Severity: MEDIUM
+No spring.security.oauth2.resourceserver.jwt.audiences property is set. The
+bearer-only Keycloak client arbitrier-api is configured but not enforced as a
+required audience. Any JWT issued by the realm (including tokens intended for
+other clients like the customer portal) is accepted.
+Why it matters: Tokens minted for the browser client should not be accepted
+by the API resource server.
+Impact: Token confusion between client types is possible.
+Mitigation: Set spring.security.oauth2.resourceserver.jwt.audiences to
+arbitrier-api in application.yml.
+Blocks roadmap: No
+
+Finding A4 — [INFO] No token lifetime configuration in Keycloak realm
+Category: Authentication
+Severity: INFO
+The arbitrier-realm.json does not explicitly configure access token or refresh
+token lifetimes. Keycloak defaults apply (typically 5 min access, 30 min refresh).
+Mitigation: Configure explicit token lifetimes in the realm JSON.
+Blocks roadmap: No
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 3: AUTHORIZATION MODEL — FAIL (placeholder gap)
+────────────────────────────────────────────────────────────────────────────────
+
+Finding Z1 — [HIGH] Tenant isolation is not enforced
+Category: Authorization
+Severity: HIGH
+The CustomerAccessPort is implemented by AllowAllCustomerAccessAdapter, which
+returns true for any user/customer combination. The companyId attribute on
+Keycloak users is never extracted or validated. Any authenticated user can
+submit orders for any customer company.
+Why it matters: Multi-tenant data isolation is a core security requirement.
+Without it, competitor companies could view or affect each other's orders.
+Impact: Cross-tenant data access and modification.
+Mitigation: Replace AllowAllCustomerAccessAdapter with a real implementation
+that validates the JWT subject's company membership (from Keycloak
+attributes or a membership DB) against the requested customerId. This is the
+highest-priority authorization finding.
+Blocks roadmap: No (roadmap explicitly defers this — AllowAllCustomerAccessAdapter
+is a documented placeholder). Must be resolved before any multi-tenant deployment.
+
+Finding Z2 — [MEDIUM] No method-level security or role enforcement
+Category: Authorization
+Severity: MEDIUM
+RNF-0001 defines four realm roles (CUSTOMER_USER, CUSTOMER_ADMIN,
+OPERATIONS_USER, OPERATIONS_ADMIN) but no code enforces them. There is no
+@EnableMethodSecurity, no @PreAuthorize, no @RolesAllowed anywhere.
+Why it matters: The authorization model exists on paper but not in code.
+Impact: All authenticated users have equivalent access.
+Mitigation: After implementing JwtAuthenticationConverter (Finding A2),
+add @EnableMethodSecurity and apply @PreAuthorize on sensitive operations.
+Blocks roadmap: No — deferred per current roadmap. Part of the authorization slice.
+
+Finding Z3 — [POSITIVE] Identity spoofing prevented by design
+Category: Authorization
+Severity: INFO (positive)
+CreateOrderRequest intentionally omits submittedByUserId. The controller
+derives user identity from authentication.getName() (JWT sub claim).
+A dedicated test verifies that extra JSON fields cannot spoof the identity.
+Pattern should be replicated in all future REST controllers.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 4: SAGA SECURITY — PASS WITH WARNINGS
+────────────────────────────────────────────────────────────────────────────────
+
+Finding S1 — [HIGH] failCompensation() has no terminality guard
+Category: Architecture
+Severity: HIGH
+Saga.failCompensation() (Saga.java line ~263) can be called on any saga state
+including COMPLETED, CANCELLED, or FAILED_COMPENSATION, overwriting the terminal
+status with FAILED_COMPENSATION. Unlike other transition methods, it has no
+Require.isTrue(!status.isTerminal()) guard.
+Why it matters: An attacker or bug could overwrite the final status of a
+completed saga, causing confusion in audit trails and potentially triggering
+false alerts.
+Impact: Terminal saga status is mutable, violating the saga lifecycle contract.
+Mitigation: Add Require.isTrue(!status.isTerminal()) to failCompensation(),
+matching the guard used by complete(), cancel(), and other transition methods.
+Blocks roadmap: No (low-priority fix, one line change).
+
+Finding S2 — [HIGH] CompensateSagaUseCase and AdvanceSagaUseCase are unauthenticated
+Category: Architecture
+Severity: HIGH
+Any caller with a valid sagaId can force any saga into COMPENSATING state or
+advance it to an arbitrary step (including COMPENSATE_INVENTORY without
+status change). There is no authentication, source verification, or authorization
+check on these use cases.
+Why it matters: Once exposed via REST or Kafka, these operations are open
+invitations for denial-of-service or state manipulation.
+Impact: Attacker could force compensation of legitimate orders, wasting
+resources and corrupting business state.
+Mitigation: Add authorization checks (e.g., only the orchestrator itself or
+admin roles can advance/compensate sagas). Gate through authenticated callers.
+Consider service-account-based Kafka authentication (see Area 5).
+Blocks roadmap: No (must be addressed before Kafka consumers for saga commands
+go live — ARB-015/ARB-016).
+
+Finding S3 — [MEDIUM] No duplicate event detection beyond OrderCreated
+Category: Events
+Severity: MEDIUM
+HandleOrderCreatedService has explicit duplicate detection (checks
+repository.findById(sagaId)), but HandleStockReservedService,
+HandleCreditApprovedService, HandleCreditRejectedService, and all timeout
+handlers have NO duplicate detection. A duplicate StockReserved event could
+overwrite the stockReservationId in the saga aggregate, and the JPA optimistic
+lock only prevents concurrent duplicates, not sequential ones.
+Why it matters: Kafka at-least-once delivery can produce duplicates. Without
+deduplication, state can be corrupted.
+Impact: stockReservationId or creditReservationId can be overwritten by
+duplicate events.
+Mitigation: Add duplicate detection to all saga event handlers — check
+whether the step has already been processed before applying the transition.
+Implement IdempotencyStore as a general solution.
+Blocks roadmap: Yes — should be implemented in ARB-016/ARB-017 (saga handler
+slices) as a prerequisite for production Kafka consumers.
+
+Finding S4 — [MEDIUM] Retry DoS vector: attemptNumber is caller-supplied
+Category: Architecture
+Severity: MEDIUM
+The saga retry mechanism relies on attemptNumber passed in by the caller
+(HandleInventoryTimeoutCommand, HandleCreditTimeoutCommand). The saga aggregate
+does NOT persist the current retry count. An attacker can send timeout events
+with attemptNumber=1 indefinitely, keeping the saga in a retry loop forever
+(1 < maxAttempts: 3, so RETRY is always returned).
+Why it matters: Without server-side attempt tracking, retry limits can be
+circumvented.
+Impact: Denial of service on saga orchestration. Saga stuck in retry loop.
+Mitigation: Store attemptNumber on the Saga aggregate (or SagaEntity) and
+increment it on each retry. Compare against stored value, not caller-provided
+value. Alternatively, make retry attempts monotonic and reject stale attempts.
+Blocks roadmap: No (fix during ARB-017 saga retry/timeout implementation).
+
+Finding S5 — [MEDIUM] No timeout scheduler — sagas can stall indefinitely
+Category: Architecture
+Severity: MEDIUM
+WAITING_FOR_INVENTORY and WAITING_FOR_CREDIT are transient states set by the
+saga, but no timeout scheduler exists. The HandleInventoryTimeoutService and
+HandleCreditTimeoutService only REACT to timeout events — they don't initiate
+them. If a downstream service never responds, the saga stalls forever.
+Why it matters: Without timeouts, sagas never fail gracefully on dead services.
+Impact: Saga lifecycle never terminates without external intervention.
+Mitigation: Implement a timeout scheduler (scheduled task or delayed Kafka
+message) that generates timeout events after a configurable duration.
+Blocks roadmap: No (deferred to ARB-017 timeout/retry slice).
+
+Finding S6 — [MEDIUM] stockRejected() can be called after credit flow starts
+Category: Architecture
+Severity: MEDIUM
+Saga.stockRejected() only checks !isTerminal() but does not verify the saga is
+in the inventory-reservation phase. It could be called after creditApproved(),
+creating an inconsistent saga state.
+Why it matters: Out-of-order events could produce inconsistent saga state
+transitions.
+Impact: State machine can accept events in wrong order if guard is too permissive.
+Mitigation: Add step-specific precondition: Require.isTrue(currentStep ==
+SagaStep.RESERVE_INVENTORY) or equivalent status check.
+Blocks roadmap: No
+
+Finding S7 — [LOW] No credit compensation path wired
+Category: Architecture
+Severity: LOW
+ReleaseCreditSagaCommand and ReleaseCreditCommandPublisher ports exist but
+are never issued. If credit is approved, inventory is reserved, then the order
+is cancelled, credit is not released (only inventory is compensated).
+Why it matters: Credit leaks on partial compensation scenarios.
+Impact: Credit reservations not released on cancellation after approval.
+Mitigation: Wire ReleaseCreditSagaCommand into the compensation flow for
+scenarios where credit was approved before cancellation.
+Blocks roadmap: No (known gap per code comments, tracked as OPEN QUESTION ARB-017).
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 5: EVENT ARCHITECTURE — PASS WITH WARNINGS
+────────────────────────────────────────────────────────────────────────────────
+
+Finding E1 — [HIGH] Kafka PLAINTEXT — no authentication or encryption
+Category: Events
+Severity: HIGH
+Kafka listeners use PLAINTEXT only (no SASL, no SSL/TLS, no mTLS).
+KAFKA_AUTO_CREATE_TOPICS_ENABLE is true. Schema Registry has no authentication
+on port 8081. Any process that can reach Kafka on localhost:9092 can produce
+to any topic or consume from any consumer group.
+Why it matters: The entire event-driven architecture trusts that Kafka is on a
+secure network. In production, this is insufficient.
+Impact: Any process on the network can publish fabricated events (see Area 4),
+consume sensitive data, or create arbitrary topics.
+Mitigation: For production, configure SASL/SCRAM or mTLS on Kafka brokers,
+enable ACLs for topic authorization, and add authentication to Schema Registry.
+Document these as production prerequisites in an ADR or deployment guide.
+Blocks roadmap: No — PLAINTEXT is expected for local dev (127.0.0.1 bound).
+Production hardening is a deployment concern, not an architecture concern.
+
+Finding E2 — [MEDIUM] No event source verification
+Category: Events
+Severity: MEDIUM
+Avro events carry no source identity field. When Kafka consumers are wired,
+services will accept events from any producer with no way to verify which
+service sent them. An attacker could publish a fabricated StockReserved event
+with a valid orderId and the orchestrator would accept it.
+Why it matters: Without source verification, Kafka is a trust-all bus.
+Impact: Cross-service event forgery is possible. Any compromised service
+or network-adjacent attacker can inject events.
+Mitigation: Add a sourceService field to MessageMetadata in the Avro
+contracts. Have consumers validate the expected source before processing.
+Alternatively, use Kafka ACLs to restrict topic write access per service.
+
+Finding E3 — [MEDIUM] No replay protection — no sequence numbers
+Category: Events
+Severity: MEDIUM
+Kafka messages have no monotonic sequence numbers, no per-aggregate version
+checks, no consumer-side TTL validation. If an attacker gains Kafka access
+(see Finding E1), they can replay old events, and consumers will process them.
+Why it matters: Replay attacks can corrupt saga state and trigger false
+compensations.
+Impact: Duplicate processing, state corruption, denial of service via
+replay flood.
+Mitigation: Add occurrence sequence numbers to domain events. Validate
+monotonic progression on the consuming side. Combine with idempotency
+store (Finding I1 below) for general deduplication.
+Blocks roadmap: No — addressed when IdempotencyStore is implemented.
+
+Finding E4 — [INFO] MessageMetadata.causationId is nullable and unvalidated
+Category: Events
+Severity: INFO
+The causationId field in MessageMetadata is nullable with default null.
+Even when set, no consumer validates that received events correspond to
+previously-issued commands. The causal chain between commands and events
+is not enforced.
+Impact: No ability to correlate events back to originating commands.
+Mitigation: Require causionId on all saga events. Validate that received
+events match an expected causationId on the consuming side.
+Blocks roadmap: No
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 6: PERSISTENCE — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+Finding P1 — [INFO] Schema-level REVOKE hardening opportunity
+Category: Persistence
+Severity: INFO
+init-db.sql creates per-service DB roles and schemas with AUTHORIZATION but
+does not explicitly REVOKE ALL ON SCHEMA credit_service FROM order_service
+(etc.) followed by per-role GRANTs. A compromised service role could
+potentially query other schemas via raw SQL if USAGE permissions are not
+restricted.
+Impact: Low — each service connects with its own role and uses JPA-qualified
+schemas. Risk requires credential compromise plus raw SQL access.
+Mitigation: Add explicit REVOKE ALL ON SCHEMA ... FROM PUBLIC / FROM <other_role>
+followed by GRANT USAGE ON SCHEMA <own_schema> TO <own_role>.
+Blocks roadmap: No
+
+Finding P2 — [POSITIVE] Optimistic locking on all root aggregates
+Category: Persistence
+Severity: INFO (positive)
+OrderEntity, CreditReservationEntity, StockReservationEntity, and SagaEntity
+all carry @Version Long version. All JPA adapters catch
+OptimisticLockingFailureException and translate to typed 409 responses.
+Concurrent update protection is correctly implemented.
+
+Finding P3 — [POSITIVE] Schema-per-service fully implemented
+Category: Persistence
+Severity: INFO (positive)
+ADR-0003 is fully realized: separate schemas, separate roles, separate Flyway
+migration locations, jdbc URL currentSchema enforcement, no shared tables.
+Cross-service data access through PostgreSQL is blocked at the role level.
+
+Finding P4 — [POSITIVE] Zero SQL injection surfaces
+Category: Persistence
+Severity: INFO (positive)
+All persistence goes through Spring Data JPA JpaRepository with zero custom
+@Query methods. No raw SQL strings exist in any Java code. Flyway migrations
+are static DDL with no dynamic input. Seed SQL uses parameterized inserts.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 7: REST SURFACE — PASS WITH WARNINGS
+────────────────────────────────────────────────────────────────────────────────
+
+Finding R1 — [HIGH] Permissive CustomerAccessPort placeholder risks
+Category: Authorization
+Severity: HIGH
+AllowAllCustomerAccessAdapter (documented placeholder) allows any authenticated
+user to submit orders for any customer. No ADR or RNF tracks this as a
+deployment-risk gap. Any valid JWT (even with CUSTOMER_USER role for a
+different company) can act on behalf of any customer company.
+(Also reported in Finding Z1.)
+Impact: Cross-tenant data access in order creation.
+Mitigation: (Same as Finding Z1) Must be replaced before multi-tenant deployment.
+Blocks roadmap: No (placeholder is by design).
+
+Finding R2 — [MEDIUM] No request size limits
+Category: Architecture
+Severity: MEDIUM
+No server.tomcat.max-http-form-post-size, no @RequestSizeLimit, no maximum
+order line count configured. A POST /api/orders with thousands of order
+lines could exhaust memory.
+Impact: Resource exhaustion / denial of service.
+Mitigation: Configure Tomcat max-post-size (e.g., 1MB for JSON). Add a
+@Size(max=...) or custom validator on CreateOrderRequest.lines.
+Blocks roadmap: No
+
+Finding R3 — [MEDIUM] No CORS configuration
+Category: Architecture
+Severity: MEDIUM
+No CORS configuration exists anywhere. The React client on port 5173 cannot
+call the backend on port 8080+ without a gateway or proxy. If CORS is the
+chosen approach, it must be configured.
+Impact: Browser-based client blocked by same-origin policy.
+Mitigation: Either configure CORS in SecurityConfiguration (for dev) or
+document that a gateway/proxy handles cross-origin in production.
+Blocks roadmap: No (client is mock-based; real integration deferred).
+
+Finding R4 — [MEDIUM] Actuator endpoints fully public with show-details: always
+Category: Runtime
+Severity: MEDIUM
+/actuator/** is permitAll() in order-service. All services expose health with
+show-details: always. Order-service also exposes /actuator/metrics (Prometheus).
+No authentication on health probes.
+Impact: Internal service health details, metrics, and status exposed to anyone
+who can reach the port. Metrics may leak business information (order counts,
+saga counts) to unauthenticated callers.
+Mitigation: Either move health to a separate management port, apply
+authentication to actuator, or restrict show-details to when-authorized.
+At minimum, restrict /actuator/metrics to authenticated admins.
+Blocks roadmap: No
+
+Finding R5 — [LOW] No input sanitization (XSS, HTML escaping)
+Category: Architecture
+Severity: LOW
+No XSS filter, no StrictHttpFirewall configuration, no HTML escaping.
+DTOs are records (immutable) so mass assignment is limited, and the single
+existing controller only accepts JSON, not form data. Risk is low for the
+current surface area.
+Impact: Minimal — no HTML rendering, no form endpoints, no reflected output.
+Mitigation: Add StrictHttpFirewall or input sanitization policy before
+endpoints that render user input in any UI.
+Blocks roadmap: No
+
+Finding R6 — [LOW] No idempotency at REST layer — duplicate POST creates duplicate orders
+Category: Architecture
+Severity: LOW
+POST /api/orders has no idempotency key support. Duplicate requests create
+duplicate orders. The IdempotencyStore port exists in platform but has no
+implementation.
+Impact: Accidental duplicate order creation from network retries.
+Mitigation: Read Idempotency-Key header in the controller, check via
+IdempotencyStore, skip processing if already processed.
+Blocks roadmap: No — tracked as IdempotencyStore implementation task.
+
+Finding R7 — [POSITIVE] Well-designed error handling
+Category: Architecture
+Severity: INFO (positive)
+No stack traces in error responses. Typed ProblemResponse with code/status/message.
+PlatformExceptionHandler maps all exception types cleanly. Identity spoofing
+protection verified by dedicated test. Consistent pattern across codebase.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 8: RUNTIME & INFRASTRUCTURE — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+Finding I1 — [POSITIVE] All ports bound to 127.0.0.1
+Category: Runtime
+Severity: INFO (positive)
+PostgreSQL (5432), Kafka (9092), Schema Registry (8081), Keycloak (8180),
+Kafka UI (8088) are all bound to 127.0.0.1 only. Nothing exposed externally.
+Correct for local development.
+
+Finding I2 — [POSITIVE] No hardcoded secrets
+Category: Runtime
+Severity: INFO (positive)
+All credentials use ${VAR:-fallback} pattern. Fallback values use
+local-*-only naming convention, clearly signaling dev-only. No secrets
+committed to the repository.
+
+Finding I3 — [INFO] Keycloak start-dev mode for local
+Category: Runtime
+Severity: INFO
+Keycloak uses start-dev --import-realm, which is explicitly development-only.
+No production assumptions leak. Single-node Kafka with replication=1 is also
+dev-appropriate.
+
+Finding I4 — [INFO] Shared service password in local dev
+Category: Runtime
+Severity: INFO
+All service DB roles (order_service, inventory_service, credit_service,
+orchestrator_service) share the same password (ARBITRIER_SERVICE_PASSWORD).
+Acceptable for local dev with schema-per-service isolation. Each role should
+get a unique password in staging/production.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 9: LOGGING & OBSERVABILITY — PASS WITH WARNINGS
+────────────────────────────────────────────────────────────────────────────────
+
+Finding L1 — [MEDIUM] SafeLoggable has zero implementations
+Category: Logging
+Severity: MEDIUM
+SafeLoggable and SafeRenderable interfaces exist in platform but have ZERO
+implementations in any domain model. Domain types like CustomerId, UserId,
+and AuthenticatedUser.userId rely on default toString() for log output,
+which may leak PII depending on ID format conventions (e.g., if customerId
+is an email address).
+Why it matters: Logs at INFO level include customerId and userId fields.
+If these identifiers contain PII, they leak to log aggregators.
+Impact: Potential PII exposure in centralized log systems.
+Mitigation: Implement SafeLoggable on CustomerId, UserId, and any other
+identifier types that may contain PII. Define a PII-free log representation
+(e.g., hash prefix or business-key format). Create a development convention
+that all domain identifiers implement SafeLoggable.
+Blocks roadmap: No — but should be addressed before any PII data enters the system.
+
+Finding L2 — [LOW] customerId logged at INFO level
+Category: Logging
+Severity: LOW
+customerId appears in INFO-level log statements across credit-service and
+inventory-service (e.g., "Credit reservation complete ... customerId={}").
+Whether this is PII depends on the customer ID format.
+Impact: If customerId is a tax ID or email, this is PII exposure.
+Mitigation: Either redact customerId in logs (implement SafeLoggable) or
+log at DEBUG level with a SafeLoggable-masked representation.
+Blocks roadmap: No
+
+Finding L3 — [INFO] No micrometer-tracing dependency
+Category: Logging
+Severity: INFO
+StructuredLogFields defines traceId and spanId as MDC keys but the
+micrometer-tracing-bridge-otel dependency is not on any classpath.
+Observability instrumentation is defined but not yet wired.
+Mitigation: Add micrometer-tracing dependency when observability is
+deployed (separate slice).
+Blocks roadmap: No
+
+Finding L4 — [POSITIVE] MDC cleanup in CorrelationFilter
+Category: Logging
+Severity: INFO (positive)
+CorrelationFilter cleans up MDC in a finally block, preventing MDC leaks
+across thread reuse. W3C Trace Context only (no B3). KafkaHeaders include
+traceparent/tracestate but no B3. Consistent with ADR-0008.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 10: SUPPLY CHAIN — PASS WITH WARNINGS
+────────────────────────────────────────────────────────────────────────────────
+
+Finding C1 — [MEDIUM] No vulnerability scanning in CI or build
+Category: Architecture
+Severity: MEDIUM
+No owasp-dependency-check-plugin, no Dependabot config, no Snyk, no
+Trivy, no version audit step in the CI workflow. Dependency vulnerabilities
+would go undetected until discovered in production.
+Impact: Vulnerable dependencies may be shipped without detection.
+Mitigation: Add owasp-dependency-check-plugin to the Maven verify phase.
+Configure Dependabot or Renovate in .github/ for automated PRs.
+Blocks roadmap: No — infrastructure hardening, not architecture.
+
+Finding C2 — [INFO] No static analysis beyond ArchUnit
+Category: Architecture
+Severity: INFO
+No SpotBugs, Checkstyle, PMD, or other static analysis tools configured.
+ArchUnit enforces hexagonal layering but does not detect security patterns
+(e.g., missing input validation, unsafe deserialization).
+Mitigation: Consider adding SpotBugs with the Find Security Bugs plugin
+for automated security pattern detection.
+Blocks roadmap: No
+
+Finding C3 — [POSITIVE] Dependency versions are current
+Category: Architecture
+Severity: INFO (positive)
+Spring Boot 4.1.0, Java 25, Hibernate 7 via Boot, Avro 1.11.3,
+PostgreSQL 18.2, Confluent 8.3.0, Keycloak 26.7.0, React 19.2.7.
+All dependencies are recent and actively maintained. No pinned-outdated
+versions observed.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 11: NATIVE IMAGE READINESS — PASS WITH WARNINGS
+────────────────────────────────────────────────────────────────────────────────
+
+Finding N1 — [MEDIUM] Zero RuntimeHintsRegistrar implementations
+Category: Future Evolution
+Severity: MEDIUM
+ADR-0007 requires RuntimeHintsRegistrar for @Entity classes, Avro-generated
+classes, Flyway resources, and Spring Security config. None exist yet
+(7 JPA entities, 26 Avro schemas, Flyway migrations, SecurityConfiguration).
+Why it matters: Native image will fail to compile or crash at runtime
+without reflection/config hints for Hibernate entities, Avro types, and
+Spring Security.
+Impact: Native image build not possible without significant hint work.
+Mitigation: When native image support is activated (dedicated task per
+ADR-0007), create RuntimeHintsRegistrar classes in each service for
+entities, Avro types, and resource files.
+Blocks roadmap: No — ADR-0007 explicitly defers native build to a dedicated task.
+
+Finding N2 — [LOW] Hibernate 7 lazy-loading proxies conflict with Native Image
+Category: Future Evolution
+Severity: LOW
+@ManyToOne relationships use FetchType.LAZY (OrderLineEntity.order,
+StockReservationLineEntity.reservation, StockAllocationEntity.line).
+Hibernate generates ByteBuddy proxies at runtime, which require
+reflection registration and proxy hints for Native Image. @OneToMany
+uses EAGER already — a partial mitigation.
+Impact: Additional hint configuration needed for lazy-loaded associations.
+Mitigation: Either register all entity classes with proxy hints, or
+switch remaining LAZY associations to EAGER if data volumes permit.
+Blocks roadmap: No
+
+Finding N3 — [INFO] OpenTelemetry SDK not yet wired
+Category: Future Evolution
+Severity: INFO
+ObservationNames, AttributeNames, and TraceContextHeaders are defined but
+no OpenTelemetry SDK dependency is present. Native Image requires OTLP HTTP
+exporter, not the Java agent.
+Mitigation: Use OpenTelemetry SDK (not agent) when instrumenting. Register
+OTLP exporter resources for native build.
+Blocks roadmap: No
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 12: DOCUMENTATION — PASS WITH WARNINGS
+────────────────────────────────────────────────────────────────────────────────
+
+Finding D5 — [MEDIUM] No API security ADR
+Category: Documentation
+Severity: MEDIUM
+There is no ADR covering REST API security: rate limiting, request size
+limits, idempotency key convention, CORS strategy, content security
+policy, or authorization granularity. These decisions are scattered across
+code comments and RNF-0001 but not consolidated.
+Impact: Integration phase developers lack a single source of truth for
+API security decisions.
+Mitigation: Create an ADR (e.g., ADR-0010 REST API Security) that covers
+rate limiting, idempotency, input validation policy, CORS, and actuator
+hardening for production.
+Blocks roadmap: No — should be created before REST APIs are added to
+all services.
+
+Finding D6 — [MEDIUM] No threat model or data flow security document
+Category: Documentation
+Severity: MEDIUM
+No threat model, no data flow diagram with trust boundaries, no STRIDE
+analysis, no attack surface enumeration. The architecture review is
+comprehensive but not captured in project documentation.
+Impact: Security assumptions are implicit. New team members or
+contributors lack context on trust boundaries.
+Mitigation: Create a docs/security/threat-model.md with data flow diagrams
+and trust boundary documentation. Capture findings from this review.
+Blocks roadmap: No
+
+Finding D7 — [MedIUM] CustomerAccessPort placeholder risk not in any ADR/RNF
+Category: Documentation
+Severity: MEDIUM
+The AllowAllCustomerAccessAdapter placeholder is documented in Javadoc
+but no ADR or RNF explicitly calls out that tenant isolation is missing
+and must be implemented before production.
+Impact: Risk of deploying without tenant isolation if the placeholder
+is forgotten during integration.
+Mitigation: Add an explicit "Before Production" checklist item in RNF-0001
+or a dedicated ADR. Track with a GitHub issue.
+Blocks roadmap: No
+
+Finding D8 — [LOW] No documented actuator hardening plan
+Category: Documentation
+Severity: LOW
+No documentation covers how actuator endpoints should be hardened for
+production (management port, authentication, show-details restriction).
+Impact: Production deployments may expose health/metrics without auth.
+Mitigation: Document actuator hardening strategy in the API security ADR.
+Blocks roadmap: No
+
+Finding D9 — [POSITIVE] ADRs cover key architectural decisions
+Category: Documentation
+Severity: INFO (positive)
+ADR-0002 (saga), ADR-0003 (schema-per-service), ADR-0004 (Avro), ADR-0005
+(outbox/idempotency), ADR-0007 (native image), ADR-0008 (trace context)
+cover the major architectural decisions with security implications
+explicitly noted.
+
+────────────────────────────────────────────────────────────────────────────────
+OVERALL CLASSIFICATION: PASS WITH WARNINGS
+────────────────────────────────────────────────────────────────────────────────
+
+Answer to the review goal question:
+"Can we confidently begin the Kafka/REST integration phase?"
+
+YES, with the following prerequisite understanding:
+
+1. The architecture is fundamentally sound: hexagonal boundaries are clean,
+   domain models are immutable, optimistic locking protects concurrency,
+   schema-per-service isolates data, and W3C trace context is correctly
+   enforced.
+
+2. Three HIGH-severity findings require action BEFORE or DURING the
+   integration phase:
+   a. Add SecurityConfiguration to inventory, credit, and orchestrator
+      services before they expose REST endpoints (Finding A1).
+   b. Guard Saga.failCompensation() against terminal sagas (Finding S1).
+   c. Add authorization checks to CompensateSagaUseCase and
+      AdvanceSagaUseCase before wiring their Kafka consumers (Finding S2).
+
+3. The following HIGH-severity findings are known-deferred placeholders:
+   a. Tenant isolation (CustomerAccessPort) — AllowAllCustomerAccessAdapter
+      is a documented placeholder; must be replaced before multi-tenant deployment.
+
+4. MEDIUM-severity prerequisites for integration phase:
+   a. Implement IdempotencyStore with an adapter before Kafka consumers go live
+      (Finding S3 — duplicate detection).
+   b. Add JwtAuthenticationConverter for realm role mapping before
+      implementing role-based authorization (Finding A2).
+   c. Create a REST API security ADR (Finding D5).
+
+5. The following can be deferred to later slices:
+   a. Kafka authentication/encryption (production concern).
+   b. Native image RuntimeHintsRegistrar (deferred per ADR-0007).
+   c. SafeLoggable implementations (before PII data is introduced).
+   d. Timeout scheduler, credit compensation path (ARB-017).
+
+No finding blocks the architecture. All warnings have clear mitigation paths
+at known roadmap stages. The architecture is ready to proceed.
+
+─── SUMMARY TABLE ────────────────────────────────────────────────────────────
+
+ Area                        Classification         Critical Findings
+ ─────────────────────────── ────────────────────── ──────────────────────────
+ 1. Domain Boundaries        PASS                   None (1 INFO leak)
+ 2. Authentication           PASS WITH WARNINGS     1 HIGH gap (missing config
+                                                     in 3 services)
+ 3. Authorization            FAIL (placeholder)     1 HIGH (tenant isolation
+                                                     placeholder)
+ 4. Saga Security            PASS WITH WARNINGS     3 HIGH (failCompensation,
+                                                     unauthenticated use cases,
+                                                     state guard gaps)
+ 5. Event Architecture       PASS WITH WARNINGS     1 HIGH (Kafka PLAINTEXT)
+ 6. Persistence              PASS                   None (schema hardening info)
+ 7. REST Surface             PASS WITH WARNINGS     1 HIGH (permissive
+                                                     CustomerAccessPort)
+ 8. Runtime & Infrastructure PASS                   None
+ 9. Logging & Observability  PASS WITH WARNINGS     0 HIGH (SafeLoggable gap)
+ 10. Supply Chain            PASS WITH WARNINGS     0 HIGH (no vuln scanning)
+ 11. Native Image            PASS WITH WARNINGS     0 HIGH (hints missing,
+                                                     deferred per ADR)
+ 12. Documentation           PASS WITH WARNINGS     0 HIGH (missing API
+                                                     security ADR)
+ ─────────────────────────── ─────────────────────────────────────────────────
+ TOTAL: 12 areas reviewed    11 PASS / PASS WITH    6 HIGH findings
+                             WARNINGS                0 CRITICAL findings
+                             1 FAIL (known           0 blockers
+                             placeholder)

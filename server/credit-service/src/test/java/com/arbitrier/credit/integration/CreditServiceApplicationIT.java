@@ -6,9 +6,9 @@ import org.springframework.context.annotation.Import;
 
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=" +
-        "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration," +
-        "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration," +
-        "org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration"
+        "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration," +
+        "org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration," +
+        "org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration"
 })
 @Import(CreditServiceTestConfiguration.class)
 class CreditServiceApplicationIT {

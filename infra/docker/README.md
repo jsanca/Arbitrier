@@ -32,6 +32,8 @@ Database `arbitrier` contains empty schemas `order_service`, `inventory_service`
 
 No cross-schema foreign keys, extensions, business tables, or business seed data are created. ARB-019 owns persistence adapters, and ARB-020 owns migrations and synthetic business data.
 
+`init-db.sql` is automatically verified by `InitDbSqlIT` in the platform module (schemas, roles, keycloak database, and absence of business tables). `seed/seed.sql` is automatically verified by `SeedCompatibilityIT` (migrations + seed idempotency + all four scenarios). Both run with `mvn verify` and require no local stack.
+
 For a host-run service, select its schema and username while retaining the shared database, for example `DB_SCHEMA=inventory_service` and `DB_USERNAME=inventory_service`.
 
 ## Keycloak development identities

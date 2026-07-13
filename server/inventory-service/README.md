@@ -36,7 +36,7 @@ Pure-Java, zero-framework types in `com.arbitrier.inventory.domain.model`:
 
 | Interface | Location | Status |
 |-----------|----------|--------|
-| `StockReservationRepository` | `application/port/outbound/` | In-memory only (no JPA yet) |
+| `StockReservationRepository` | `application/port/outbound/` | JPA production adapter; in-memory test adapter |
 | `WarehouseAllocationPort` | `application/port/outbound/` | Configurable test adapter; replaces `StockAvailabilityPort` (ADR-0009) |
 | `StockReservationEventPublisher` | `application/port/outbound/` | Recording only (no Kafka yet) |
 
@@ -68,6 +68,10 @@ the same result is returned without persisting or publishing an event.
 Releasing a REJECTED reservation is also a no-op (no stock was ever held — no event emitted).
 See `ReleaseStockService` Javadoc for the documented decision.
 
+### Persistence (ARB-019)
+
+`JpaStockReservationRepositoryAdapter` persists the full reservation → lines → allocations graph through separate JPA entities. Warehouse identifiers remain inside this bounded context. The aggregate root uses `@Version`; mutating application services own transactions so load, immutable transition, save, and event publication share one boundary.
+
 ### Test adapters (test tree)
 
 | Class | Purpose |
@@ -88,5 +92,6 @@ Tests pass without Kafka, Postgres, Schema Registry, Keycloak, or Docker.
 
 `ARB-017B` — Global multi-warehouse allocation: `WarehouseAllocationPort` replaces `StockAvailabilityPort`; `StockAllocation` added; `warehouseId` removed from all public contracts (ADR-0009). 57 tests pass.
 `ARB-017` — `CheckStockAvailabilityUseCase` added: read-only pre-saga availability check. No persistence, no events.
-`ARB-012` — Application slice implemented: `ReserveStockUseCase`, `ReleaseStockUseCase`, domain events, test adapters. No JPA, Kafka, or REST yet.
+`ARB-019` — JPA persistence for reservations, lines, and multi-warehouse allocations implemented with optimistic locking.
+`ARB-012` — Application slice implemented: `ReserveStockUseCase`, `ReleaseStockUseCase`, domain events, test adapters. Kafka and REST adapters remain pending.
 `ARB-005` — Domain model implemented.

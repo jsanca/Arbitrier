@@ -4,6 +4,27 @@ spring:
   threads:
     virtual:
       enabled: true
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/arbitrier?currentSchema=order_service}
+    username: ${SPRING_DATASOURCE_USERNAME:order_service}
+    password: ${SPRING_DATASOURCE_PASSWORD:local-service-only}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    packages:
+      - com.arbitrier.order.adapter.outbound.persistence
+      - com.arbitrier.platform.messaging.outbox.adapter
+      - com.arbitrier.platform.messaging.inbox.adapter
+    properties:
+      hibernate:
+        default_schema: order_service
+  flyway:
+    locations: classpath:db/migration/platform,classpath:db/migration/order_service
+    default-schema: order_service
+    schemas: order_service
+    validate-on-migrate: true
+    clean-disabled: true
   # Security — JWT issuer is configured via environment variable in deployment.
   # Set spring.security.oauth2.resourceserver.jwt.issuer-uri (e.g. Keycloak realm URL).
   # In tests, a mock JwtDecoder bean is provided by OrderServiceTestConfiguration.

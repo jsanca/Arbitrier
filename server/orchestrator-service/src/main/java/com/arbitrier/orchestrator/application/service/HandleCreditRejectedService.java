@@ -5,11 +5,13 @@ import com.arbitrier.orchestrator.application.port.inbound.HandleCreditRejectedR
 import com.arbitrier.orchestrator.application.port.inbound.HandleCreditRejectedUseCase;
 import com.arbitrier.orchestrator.application.port.outbound.ReleaseStockCommandPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.ReleaseStockSagaCommand;
-import com.arbitrier.orchestrator.application.port.outbound.SagaEventPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.SagaRepository;
 import com.arbitrier.orchestrator.domain.event.SagaCompensatedDomainEvent;
 import com.arbitrier.orchestrator.domain.model.Saga;
 import com.arbitrier.orchestrator.domain.model.SagaId;
+import com.arbitrier.platform.messaging.outbox.OutboxRepository;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
+import com.arbitrier.platform.validation.Require;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
  *       {@code COMPENSATING}, step {@code COMPENSATE_INVENTORY}. Requires a stored
  *       {@code stockReservationId}.</li>
  *   <li>Persist the compensating saga.</li>
- *   <li>Publish {@link SagaCompensatedDomainEvent}.</li>
+ *   <li>Write {@link SagaCompensatedDomainEvent} to the outbox.</li>
  *   <li>Issue a {@link ReleaseStockSagaCommand} to the inventory-service.</li>
  * </ol>
  *
@@ -36,18 +38,22 @@ import org.springframework.transaction.annotation.Transactional;
 public class HandleCreditRejectedService implements HandleCreditRejectedUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(HandleCreditRejectedService.class);
+    private static final String AGGREGATE_TYPE = "Saga";
 
     private final SagaRepository repository;
-    private final SagaEventPublisher eventPublisher;
+    private final OutboxRepository outboxRepository;
+    private final DomainEventToOutboxMapper outboxMapper;
     private final ReleaseStockCommandPublisher releaseStockCommandPublisher;
 
     public HandleCreditRejectedService(
             final SagaRepository repository,
-            final SagaEventPublisher eventPublisher,
+            final OutboxRepository outboxRepository,
+            final DomainEventToOutboxMapper outboxMapper,
             final ReleaseStockCommandPublisher releaseStockCommandPublisher) {
-        this.repository = repository;
-        this.eventPublisher = eventPublisher;
-        this.releaseStockCommandPublisher = releaseStockCommandPublisher;
+        this.repository = Require.notNull(repository, "repository");
+        this.outboxRepository = Require.notNull(outboxRepository, "outboxRepository");
+        this.outboxMapper = Require.notNull(outboxMapper, "outboxMapper");
+        this.releaseStockCommandPublisher = Require.notNull(releaseStockCommandPublisher, "releaseStockCommandPublisher");
     }
 
     @Override
@@ -75,8 +81,10 @@ public class HandleCreditRejectedService implements HandleCreditRejectedUseCase 
     }
 
     private void publishSagaCompensated(final Saga saga) {
-        eventPublisher.publishCompensated(
-                new SagaCompensatedDomainEvent(saga.id(), saga.orderId()));
+        outboxRepository.save(outboxMapper.map(
+                new SagaCompensatedDomainEvent(saga.id(), saga.orderId()),
+                saga.id().value(),
+                AGGREGATE_TYPE));
     }
 
     private void publishReleaseStock(final Saga saga) {

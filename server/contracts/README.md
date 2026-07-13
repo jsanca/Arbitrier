@@ -1,45 +1,26 @@
 # contracts
 
-Shared Avro schemas and OpenAPI specifications for all inter-service communication.
+Shared Avro wire contracts for UC-01 messaging. The module contains 26 `.avsc` schemas across common, order, inventory, credit, and orchestrator namespaces. The Avro Maven plugin generates Java sources during the build; generated sources are not committed.
 
-## Contents
+## Contract families
 
-```
-contracts/
-├── avro/
-│   ├── order/
-│   │   └── order-placed-v1.avsc              # Placeholder
-│   ├── credit/
-│   │   ├── credit-reservation-requested-v1.avsc  # Placeholder
-│   │   ├── credit-reserved-v1.avsc               # Placeholder
-│   │   └── credit-reservation-denied-v1.avsc     # Placeholder
-│   └── inventory/
-│       ├── inventory-reservation-requested-v1.avsc # Placeholder
-│       ├── inventory-reserved-v1.avsc              # Placeholder
-│       └── inventory-reservation-failed-v1.avsc    # Placeholder
-└── openapi/
-    ├── order-service-api-v1.yaml             # Placeholder
-    └── inventory-service-api-v1.yaml         # Placeholder
+| Namespace | Examples |
+|---|---|
+| `common` | `MessageMetadata`, `MoneyAmount`, `OrderLineContract`, `CancellationReason` |
+| `order` | `OrderCreated`, `OrderConfirmed`, `OrderPartiallyConfirmed`, `OrderCancelled` |
+| `inventory` | reserve/release requests and stock reserved/partial/rejected/released outcomes |
+| `credit` | reserve/release requests and credit approved/rejected/released outcomes |
+| `orchestrator` | saga completed/cancelled/compensation failed and customer-decision contracts retained for contract evolution |
+
+Schema files are versioned contracts even though the current v1 filenames omit a `-v1` suffix. Breaking evolution requires a new schema/subject version and coordinated consumers. The local Schema Registry defaults to `BACKWARD` compatibility and future producers should use `TopicNameStrategy` (`<topic>-value`).
+
+```bash
+mvn -B generate-sources --no-transfer-progress -pl server/contracts
+mvn -B test --no-transfer-progress -pl server/contracts
 ```
 
-## Schema Versioning Policy
+## Runtime boundary
 
-- Schema files are named `<subject>-v<N>.avsc`.
-- Breaking changes require a new version (`-v2.avsc`); the old version stays until all consumers migrate.
-- Schema compatibility mode: **BACKWARD** (consumers can read data produced with the previous schema version).
-- Generated Java Avro classes are produced at build time via the Avro Maven plugin; generated sources are **not committed**.
+ARB-011 established the order publisher foundation and canonical header conventions. Most Kafka producers/consumers, final topic provisioning, Confluent `KafkaAvroSerializer`, and live compatibility checks remain ARB-022/023 work. The schemas are implemented; complete production messaging is not.
 
-## Kafka Topic Naming Convention
-
-```
-<domain>.<event-name>.<version>
-```
-
-Examples:
-- `order.placed.v1`
-- `credit.reservation.requested.v1`
-- `inventory.reserved.v1`
-
-## Status
-
-`ARB-001` — Schema placeholders. No `.avsc` files yet; will be added in service implementation tasks.
+See [ADR-0004](../../docs/adr/ADR-0004-avro-contracts-and-schema-registry.md) and the [local runtime guide](../../infra/docker/README.md).

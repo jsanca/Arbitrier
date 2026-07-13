@@ -5,7 +5,6 @@ import com.arbitrier.inventory.application.port.inbound.ReserveStockResult;
 import com.arbitrier.inventory.application.port.inbound.ReserveStockUseCase;
 import com.arbitrier.inventory.application.port.outbound.AllocationPlan;
 import com.arbitrier.inventory.application.port.outbound.RequestedStockLine;
-import com.arbitrier.inventory.application.port.outbound.StockReservationEventPublisher;
 import com.arbitrier.inventory.application.port.outbound.StockReservationRepository;
 import com.arbitrier.inventory.application.port.outbound.WarehouseAllocationPort;
 import com.arbitrier.inventory.domain.event.StockPartiallyReservedDomainEvent;
@@ -14,6 +13,9 @@ import com.arbitrier.inventory.domain.event.StockReservedDomainEvent;
 import com.arbitrier.inventory.domain.model.StockReservation;
 import com.arbitrier.inventory.domain.model.StockReservationId;
 import com.arbitrier.inventory.domain.model.StockReservationLine;
+import com.arbitrier.platform.messaging.outbox.OutboxRepository;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
+import com.arbitrier.platform.validation.Require;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,18 +44,22 @@ import java.util.List;
 public class ReserveStockService implements ReserveStockUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(ReserveStockService.class);
+    private static final String AGGREGATE_TYPE = "StockReservation";
 
     private final WarehouseAllocationPort warehouseAllocationPort;
     private final StockReservationRepository repository;
-    private final StockReservationEventPublisher eventPublisher;
+    private final OutboxRepository outboxRepository;
+    private final DomainEventToOutboxMapper outboxMapper;
 
     public ReserveStockService(
             final WarehouseAllocationPort warehouseAllocationPort,
             final StockReservationRepository repository,
-            final StockReservationEventPublisher eventPublisher) {
-        this.warehouseAllocationPort = warehouseAllocationPort;
-        this.repository = repository;
-        this.eventPublisher = eventPublisher;
+            final OutboxRepository outboxRepository,
+            final DomainEventToOutboxMapper outboxMapper) {
+        this.warehouseAllocationPort = Require.notNull(warehouseAllocationPort, "warehouseAllocationPort");
+        this.repository = Require.notNull(repository, "repository");
+        this.outboxRepository = Require.notNull(outboxRepository, "outboxRepository");
+        this.outboxMapper = Require.notNull(outboxMapper, "outboxMapper");
     }
 
     @Override
@@ -99,14 +105,12 @@ public class ReserveStockService implements ReserveStockUseCase {
     private void publishEvent(final StockReservation reservation, final String orderId,
                                final List<StockReservationLine> lines) {
         final StockReservationId id = reservation.id();
-        switch (reservation.status()) {
-            case RESERVED -> eventPublisher.publishReserved(
-                    new StockReservedDomainEvent(id, orderId, lines));
-            case PARTIALLY_RESERVED -> eventPublisher.publishPartiallyReserved(
-                    new StockPartiallyReservedDomainEvent(id, orderId, lines));
-            case REJECTED -> eventPublisher.publishRejected(
-                    new StockRejectedDomainEvent(id, orderId));
+        final Object event = switch (reservation.status()) {
+            case RESERVED -> new StockReservedDomainEvent(id, orderId, lines);
+            case PARTIALLY_RESERVED -> new StockPartiallyReservedDomainEvent(id, orderId, lines);
+            case REJECTED -> new StockRejectedDomainEvent(id, orderId);
             default -> throw new IllegalStateException("Unexpected reservation status: " + reservation.status());
-        }
+        };
+        outboxRepository.save(outboxMapper.map(event, id.value(), AGGREGATE_TYPE));
     }
 }

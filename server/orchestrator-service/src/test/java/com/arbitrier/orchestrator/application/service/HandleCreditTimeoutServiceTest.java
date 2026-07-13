@@ -2,7 +2,6 @@ package com.arbitrier.orchestrator.application.service;
 
 import com.arbitrier.orchestrator.adapter.outbound.InMemorySagaRepository;
 import com.arbitrier.orchestrator.adapter.outbound.RecordingReleaseStockCommandPublisher;
-import com.arbitrier.orchestrator.adapter.outbound.RecordingSagaEventPublisher;
 import com.arbitrier.orchestrator.application.port.inbound.HandleCreditTimeoutCommand;
 import com.arbitrier.orchestrator.application.port.inbound.HandleCreditTimeoutResult;
 import com.arbitrier.orchestrator.domain.model.CorporateBulkOrderSagaRetryPolicy;
@@ -10,8 +9,15 @@ import com.arbitrier.orchestrator.domain.model.RetryDecision;
 import com.arbitrier.orchestrator.domain.model.Saga;
 import com.arbitrier.orchestrator.domain.model.SagaId;
 import com.arbitrier.orchestrator.domain.model.SagaStatus;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
+import com.arbitrier.platform.messaging.serialization.JacksonEventSerializer;
+import com.arbitrier.platform.messaging.test.InMemoryOutboxRepository;
+import com.arbitrier.platform.time.FixedTimeProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -35,17 +41,21 @@ class HandleCreditTimeoutServiceTest {
             new CorporateBulkOrderSagaRetryPolicy(MAX_ATTEMPTS, MAX_ATTEMPTS);
 
     private InMemorySagaRepository repository;
-    private RecordingSagaEventPublisher eventPublisher;
+    private InMemoryOutboxRepository outboxRepository;
+    private DomainEventToOutboxMapper outboxMapper;
     private RecordingReleaseStockCommandPublisher releaseStockPublisher;
     private HandleCreditTimeoutService service;
 
     @BeforeEach
     void setUp() {
         repository = new InMemorySagaRepository();
-        eventPublisher = new RecordingSagaEventPublisher();
+        outboxRepository = new InMemoryOutboxRepository();
+        outboxMapper = new DomainEventToOutboxMapper(
+                new JacksonEventSerializer(new ObjectMapper()),
+                FixedTimeProvider.of(Instant.parse("2026-01-15T10:00:00Z")));
         releaseStockPublisher = new RecordingReleaseStockCommandPublisher();
         service = new HandleCreditTimeoutService(
-                repository, eventPublisher, releaseStockPublisher, POLICY);
+                repository, outboxRepository, outboxMapper, releaseStockPublisher, POLICY);
 
         repository.save(Saga.start(SAGA_ID_VO, ORDER_ID, CUSTOMER_ID)
                 .awaitInventoryResponse()
@@ -70,14 +80,14 @@ class HandleCreditTimeoutServiceTest {
     }
 
     @Test
-    void credit_timeout_within_limit_publishes_credit_timed_out_event() {
+    void credit_timeout_within_limit_writes_credit_timed_out_event_to_outbox() {
         service.handle(command(1));
 
-        assertThat(eventPublisher.creditTimedOutEvents()).hasSize(1);
-        var event = eventPublisher.creditTimedOutEvents().get(0);
-        assertThat(event.sagaId()).isEqualTo(SAGA_ID_VO);
-        assertThat(event.orderId()).isEqualTo(ORDER_ID);
-        assertThat(event.attemptNumber()).isEqualTo(1);
+        assertThat(outboxRepository.findAll()).hasSize(1);
+        var event = outboxRepository.findAll().get(0);
+        assertThat(event.eventType()).isEqualTo("CreditTimedOutDomainEvent");
+        assertThat(event.aggregateType()).isEqualTo("Saga");
+        assertThat(event.aggregateId()).isEqualTo(SAGA_ID);
     }
 
     @Test
@@ -122,27 +132,26 @@ class HandleCreditTimeoutServiceTest {
     }
 
     @Test
-    void credit_timeout_exhaustion_publishes_saga_compensated_event() {
+    void credit_timeout_exhaustion_writes_saga_compensated_event_to_outbox() {
         service.handle(command(MAX_ATTEMPTS));
 
-        assertThat(eventPublisher.compensatedEvents()).hasSize(1);
-        var event = eventPublisher.compensatedEvents().get(0);
-        assertThat(event.sagaId()).isEqualTo(SAGA_ID_VO);
-        assertThat(event.orderId()).isEqualTo(ORDER_ID);
+        assertThat(outboxRepository.findAll())
+                .anyMatch(e -> e.eventType().equals("SagaCompensatedDomainEvent"));
     }
 
     @Test
-    void credit_timeout_exhaustion_does_not_publish_credit_timed_out_event() {
+    void credit_timeout_exhaustion_does_not_write_credit_timed_out_event() {
         service.handle(command(MAX_ATTEMPTS));
 
-        assertThat(eventPublisher.creditTimedOutEvents()).isEmpty();
+        assertThat(outboxRepository.findAll())
+                .noneMatch(e -> e.eventType().equals("CreditTimedOutDomainEvent"));
     }
 
     @Test
-    void credit_timeout_publishes_exactly_one_event() {
+    void credit_timeout_retry_writes_exactly_one_outbox_event() {
         service.handle(command(1));
 
-        assertThat(eventPublisher.totalEventCount()).isEqualTo(1);
+        assertThat(outboxRepository.findAll()).hasSize(1);
     }
 
     // ── Wrong state guards ────────────────────────────────────────────────────

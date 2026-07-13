@@ -170,6 +170,15 @@ class SagaTest {
                 .withMessageContaining("non-terminal");
     }
 
+    @Test
+    void stock_rejected_on_compensating_saga_throws() {
+        Saga compensating = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID).compensate();
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(compensating::stockRejected)
+                .withMessageContaining("COMPENSATING");
+    }
+
     // ── creditRejected ────────────────────────────────────────────────────────
 
     @Test
@@ -207,6 +216,17 @@ class SagaTest {
         assertThatIllegalArgumentException()
                 .isThrownBy(completed::creditRejected)
                 .withMessageContaining("non-terminal");
+    }
+
+    @Test
+    void credit_rejected_on_compensating_saga_throws() {
+        Saga compensating = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID)
+                .inventoryReserved(STOCK_RESERVATION_ID)
+                .compensate();
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(compensating::creditRejected)
+                .withMessageContaining("COMPENSATING");
     }
 
     // ── inventoryReleased ─────────────────────────────────────────────────────
@@ -282,9 +302,36 @@ class SagaTest {
 
     @Test
     void fail_compensation_transitions_to_failed_compensation() {
-        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID).failCompensation();
+        Saga saga = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID).compensate().failCompensation();
 
         assertThat(saga.status()).isEqualTo(SagaStatus.FAILED_COMPENSATION);
+    }
+
+    @Test
+    void fail_compensation_on_completed_saga_throws() {
+        Saga completed = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID).complete();
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(completed::failCompensation)
+                .withMessageContaining("non-terminal");
+    }
+
+    @Test
+    void fail_compensation_on_cancelled_saga_throws() {
+        Saga cancelled = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID).cancel();
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(cancelled::failCompensation)
+                .withMessageContaining("non-terminal");
+    }
+
+    @Test
+    void fail_compensation_on_failed_compensation_saga_throws() {
+        Saga failed = Saga.start(SAGA_ID, ORDER_ID, CUSTOMER_ID).compensate().failCompensation();
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(failed::failCompensation)
+                .withMessageContaining("non-terminal");
     }
 
     // ── advance ───────────────────────────────────────────────────────────────

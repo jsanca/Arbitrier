@@ -1,7 +1,6 @@
 package com.arbitrier.order.application.service;
 
 import com.arbitrier.order.adapter.outbound.InMemoryOrderRepository;
-import com.arbitrier.order.adapter.outbound.RecordingOrderEventPublisher;
 import com.arbitrier.order.application.OrderProblemCode;
 import com.arbitrier.order.application.port.inbound.SubmitCorporateBulkOrderCommand;
 import com.arbitrier.order.application.port.inbound.SubmitCorporateBulkOrderLineCommand;
@@ -9,9 +8,15 @@ import com.arbitrier.order.application.port.inbound.SubmitCorporateBulkOrderResu
 import com.arbitrier.order.application.port.outbound.CustomerAccessPort;
 import com.arbitrier.order.domain.model.OrderStatus;
 import com.arbitrier.platform.error.ApplicationProblemException;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
+import com.arbitrier.platform.messaging.serialization.JacksonEventSerializer;
+import com.arbitrier.platform.messaging.test.InMemoryOutboxRepository;
+import com.arbitrier.platform.time.FixedTimeProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
@@ -19,7 +24,8 @@ import static org.assertj.core.api.Assertions.*;
 class SubmitCorporateBulkOrderServiceTest {
 
     private InMemoryOrderRepository repository;
-    private RecordingOrderEventPublisher publisher;
+    private InMemoryOutboxRepository outboxRepository;
+    private DomainEventToOutboxMapper outboxMapper;
     private SubmitCorporateBulkOrderService service;
 
     /** Allow-all adapter: every user may submit for every customer. */
@@ -31,8 +37,11 @@ class SubmitCorporateBulkOrderServiceTest {
     @BeforeEach
     void setUp() {
         repository = new InMemoryOrderRepository();
-        publisher  = new RecordingOrderEventPublisher();
-        service    = new SubmitCorporateBulkOrderService(repository, publisher, ALLOW_ALL);
+        outboxRepository = new InMemoryOutboxRepository();
+        outboxMapper = new DomainEventToOutboxMapper(
+                new JacksonEventSerializer(new ObjectMapper()),
+                FixedTimeProvider.of(Instant.parse("2026-01-15T10:00:00Z")));
+        service = new SubmitCorporateBulkOrderService(repository, outboxRepository, outboxMapper, ALLOW_ALL);
     }
 
     // ── happy path ─────────────────────────────────────────────────────────────
@@ -63,27 +72,33 @@ class SubmitCorporateBulkOrderServiceTest {
     }
 
     @Test
-    void event_publisher_is_called_once() {
+    void outbox_event_is_saved_once() {
         service.execute(validCommand());
 
-        assertThat(publisher.hasEvents()).isTrue();
-        assertThat(publisher.events()).hasSize(1);
+        assertThat(outboxRepository.findAll()).hasSize(1);
     }
 
     @Test
-    void published_event_carries_correct_order_id() {
+    void outbox_event_carries_order_created_type() {
+        service.execute(validCommand());
+
+        assertThat(outboxRepository.findAll().get(0).eventType())
+                .isEqualTo("OrderCreatedDomainEvent");
+    }
+
+    @Test
+    void outbox_event_carries_correct_aggregate_id() {
         SubmitCorporateBulkOrderResult result = service.execute(validCommand());
 
-        assertThat(publisher.events().get(0).orderId().value()).isEqualTo(result.orderId());
+        assertThat(outboxRepository.findAll().get(0).aggregateId())
+                .isEqualTo(result.orderId());
     }
 
     @Test
-    void published_event_carries_correct_customer_and_user() {
+    void outbox_event_carries_order_aggregate_type() {
         service.execute(validCommand());
 
-        var event = publisher.events().get(0);
-        assertThat(event.customerId().value()).isEqualTo("CUST-001");
-        assertThat(event.submittedBy().value()).isEqualTo("USER-001");
+        assertThat(outboxRepository.findAll().get(0).aggregateType()).isEqualTo("Order");
     }
 
     // ── customer access control ────────────────────────────────────────────────
@@ -91,7 +106,7 @@ class SubmitCorporateBulkOrderServiceTest {
     @Test
     void denied_customer_access_throws_application_problem() {
         SubmitCorporateBulkOrderService deniedService =
-                new SubmitCorporateBulkOrderService(repository, publisher, DENY_ALL);
+                new SubmitCorporateBulkOrderService(repository, outboxRepository, outboxMapper, DENY_ALL);
 
         assertThatThrownBy(() -> deniedService.execute(validCommand()))
                 .isInstanceOf(ApplicationProblemException.class)
@@ -102,7 +117,7 @@ class SubmitCorporateBulkOrderServiceTest {
     @Test
     void denied_customer_access_maps_to_403() {
         SubmitCorporateBulkOrderService deniedService =
-                new SubmitCorporateBulkOrderService(repository, publisher, DENY_ALL);
+                new SubmitCorporateBulkOrderService(repository, outboxRepository, outboxMapper, DENY_ALL);
 
         assertThatThrownBy(() -> deniedService.execute(validCommand()))
                 .isInstanceOf(ApplicationProblemException.class)
@@ -113,13 +128,13 @@ class SubmitCorporateBulkOrderServiceTest {
     @Test
     void denied_customer_access_does_not_save_order() {
         SubmitCorporateBulkOrderService deniedService =
-                new SubmitCorporateBulkOrderService(repository, publisher, DENY_ALL);
+                new SubmitCorporateBulkOrderService(repository, outboxRepository, outboxMapper, DENY_ALL);
 
         assertThatThrownBy(() -> deniedService.execute(validCommand()))
                 .isInstanceOf(ApplicationProblemException.class);
 
         assertThat(repository.size()).isZero();
-        assertThat(publisher.hasEvents()).isFalse();
+        assertThat(outboxRepository.findAll()).isEmpty();
     }
 
     // ── command validation ─────────────────────────────────────────────────────

@@ -2,14 +2,20 @@ package com.arbitrier.orchestrator.application.service;
 
 import com.arbitrier.orchestrator.adapter.outbound.InMemorySagaRepository;
 import com.arbitrier.orchestrator.adapter.outbound.RecordingReserveCreditCommandPublisher;
-import com.arbitrier.orchestrator.adapter.outbound.RecordingSagaEventPublisher;
 import com.arbitrier.orchestrator.application.port.inbound.HandleStockReservedCommand;
 import com.arbitrier.orchestrator.application.port.inbound.HandleStockReservedResult;
 import com.arbitrier.orchestrator.domain.model.Saga;
 import com.arbitrier.orchestrator.domain.model.SagaId;
 import com.arbitrier.orchestrator.domain.model.SagaStep;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
+import com.arbitrier.platform.messaging.serialization.JacksonEventSerializer;
+import com.arbitrier.platform.messaging.test.InMemoryOutboxRepository;
+import com.arbitrier.platform.time.FixedTimeProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -28,16 +34,20 @@ class HandleStockReservedServiceTest {
     private static final SagaId SAGA_ID_VO = SagaId.of(SAGA_ID);
 
     private InMemorySagaRepository repository;
-    private RecordingSagaEventPublisher eventPublisher;
+    private InMemoryOutboxRepository outboxRepository;
+    private DomainEventToOutboxMapper outboxMapper;
     private RecordingReserveCreditCommandPublisher creditCommandPublisher;
     private HandleStockReservedService service;
 
     @BeforeEach
     void setUp() {
         repository = new InMemorySagaRepository();
-        eventPublisher = new RecordingSagaEventPublisher();
+        outboxRepository = new InMemoryOutboxRepository();
+        outboxMapper = new DomainEventToOutboxMapper(
+                new JacksonEventSerializer(new ObjectMapper()),
+                FixedTimeProvider.of(Instant.parse("2026-01-15T10:00:00Z")));
         creditCommandPublisher = new RecordingReserveCreditCommandPublisher();
-        service = new HandleStockReservedService(repository, eventPublisher, creditCommandPublisher);
+        service = new HandleStockReservedService(repository, outboxRepository, outboxMapper, creditCommandPublisher);
 
         repository.save(Saga.start(SAGA_ID_VO, ORDER_ID, CUSTOMER_ID).awaitInventoryResponse());
     }
@@ -73,14 +83,14 @@ class HandleStockReservedServiceTest {
     }
 
     @Test
-    void handle_publishes_saga_advanced_event() {
+    void handle_writes_saga_advanced_event_to_outbox() {
         service.handle(command());
 
-        assertThat(eventPublisher.advancedEvents()).hasSize(1);
-        var event = eventPublisher.advancedEvents().get(0);
-        assertThat(event.sagaId()).isEqualTo(SAGA_ID_VO);
-        assertThat(event.orderId()).isEqualTo(ORDER_ID);
-        assertThat(event.currentStep()).isEqualTo(SagaStep.VALIDATE_CREDIT);
+        assertThat(outboxRepository.findAll()).hasSize(1);
+        var event = outboxRepository.findAll().get(0);
+        assertThat(event.eventType()).isEqualTo("SagaAdvancedDomainEvent");
+        assertThat(event.aggregateType()).isEqualTo("Saga");
+        assertThat(event.aggregateId()).isEqualTo(SAGA_ID);
     }
 
     @Test
@@ -96,13 +106,10 @@ class HandleStockReservedServiceTest {
     }
 
     @Test
-    void handle_publishes_only_advanced_event_no_started_no_completed() {
+    void handle_writes_only_one_outbox_event() {
         service.handle(command());
 
-        assertThat(eventPublisher.advancedEvents()).hasSize(1);
-        assertThat(eventPublisher.startedEvents()).isEmpty();
-        assertThat(eventPublisher.completedEvents()).isEmpty();
-        assertThat(eventPublisher.compensatedEvents()).isEmpty();
+        assertThat(outboxRepository.findAll()).hasSize(1);
     }
 
     @Test

@@ -1,15 +1,21 @@
 package com.arbitrier.orchestrator.application.service;
 
 import com.arbitrier.orchestrator.adapter.outbound.InMemorySagaRepository;
-import com.arbitrier.orchestrator.adapter.outbound.RecordingSagaEventPublisher;
 import com.arbitrier.orchestrator.application.port.inbound.CompensateSagaCommand;
 import com.arbitrier.orchestrator.application.port.inbound.CompensateSagaResult;
 import com.arbitrier.orchestrator.domain.model.Saga;
 import com.arbitrier.orchestrator.domain.model.SagaId;
 import com.arbitrier.orchestrator.domain.model.SagaStatus;
 import com.arbitrier.orchestrator.domain.model.SagaStep;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
+import com.arbitrier.platform.messaging.serialization.JacksonEventSerializer;
+import com.arbitrier.platform.messaging.test.InMemoryOutboxRepository;
+import com.arbitrier.platform.time.FixedTimeProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -27,14 +33,18 @@ class CompensateSagaServiceTest {
     private static final SagaId SAGA_ID_VO = SagaId.of(SAGA_ID);
 
     private InMemorySagaRepository repository;
-    private RecordingSagaEventPublisher publisher;
+    private InMemoryOutboxRepository outboxRepository;
+    private DomainEventToOutboxMapper outboxMapper;
     private CompensateSagaService service;
 
     @BeforeEach
     void setUp() {
         repository = new InMemorySagaRepository();
-        publisher = new RecordingSagaEventPublisher();
-        service = new CompensateSagaService(repository, publisher);
+        outboxRepository = new InMemoryOutboxRepository();
+        outboxMapper = new DomainEventToOutboxMapper(
+                new JacksonEventSerializer(new ObjectMapper()),
+                FixedTimeProvider.of(Instant.parse("2026-01-15T10:00:00Z")));
+        service = new CompensateSagaService(repository, outboxRepository, outboxMapper);
     }
 
     // ── Happy path ────────────────────────────────────────────────────────────
@@ -68,25 +78,25 @@ class CompensateSagaServiceTest {
     }
 
     @Test
-    void compensate_publishes_compensated_event() {
+    void compensate_writes_saga_compensated_event_to_outbox() {
         saveStarted();
 
         service.compensate(new CompensateSagaCommand(SAGA_ID));
 
-        assertThat(publisher.compensatedEvents()).hasSize(1);
-        assertThat(publisher.compensatedEvents().get(0).sagaId()).isEqualTo(SAGA_ID_VO);
-        assertThat(publisher.compensatedEvents().get(0).orderId()).isEqualTo(ORDER_ID);
+        assertThat(outboxRepository.findAll()).hasSize(1);
+        var event = outboxRepository.findAll().get(0);
+        assertThat(event.eventType()).isEqualTo("SagaCompensatedDomainEvent");
+        assertThat(event.aggregateType()).isEqualTo("Saga");
+        assertThat(event.aggregateId()).isEqualTo(SAGA_ID);
     }
 
     @Test
-    void compensate_publishes_only_compensated_event() {
+    void compensate_writes_only_one_outbox_event() {
         saveStarted();
 
         service.compensate(new CompensateSagaCommand(SAGA_ID));
 
-        assertThat(publisher.compensatedEvents()).hasSize(1);
-        assertThat(publisher.startedEvents()).isEmpty();
-        assertThat(publisher.advancedEvents()).isEmpty();
+        assertThat(outboxRepository.findAll()).hasSize(1);
     }
 
     // ── Invalid transitions ───────────────────────────────────────────────────

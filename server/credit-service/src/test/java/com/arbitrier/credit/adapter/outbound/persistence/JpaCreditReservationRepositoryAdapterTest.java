@@ -11,6 +11,7 @@ import com.arbitrier.credit.domain.model.CreditReservationStatus;
 import com.arbitrier.credit.domain.model.Money;
 import com.arbitrier.platform.error.ApplicationProblemException;
 import com.arbitrier.platform.error.PersistenceProblemCode;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -37,7 +38,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         webEnvironment = SpringBootTest.WebEnvironment.MOCK,
         properties = {
                 "spring.jpa.hibernate.ddl-auto=create-drop",
-                "spring.jpa.open-in-view=false"
+                "spring.jpa.open-in-view=false",
+                "spring.flyway.enabled=false"
         }
 )
 @Testcontainers
@@ -68,7 +70,15 @@ class JpaCreditReservationRepositoryAdapterTest {
     @Autowired
     CreditReservationRepository creditReservationRepository;
 
+    @Autowired
+    SpringDataCreditReservationRepository springDataCreditReservationRepository;
+
     private static final CreditReservationId RES_ID = CreditReservationId.of("cr-tc-1");
+
+    @BeforeEach
+    void clean() {
+        springDataCreditReservationRepository.deleteById(RES_ID.value());
+    }
     private static final String ORDER_ID = "order-1";
     private static final Money AMOUNT = Money.of(new BigDecimal("2500.00"), "EUR");
 

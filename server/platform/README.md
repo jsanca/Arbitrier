@@ -5,7 +5,7 @@ Cross-cutting library jar shared by all server-side services.
 ## Rules
 
 - **No business domain knowledge.** Platform must not reference orders, credit, inventory, or sagas by name.
-- **No infrastructure implementations.** No JPA, Kafka, Spring Security, or database code yet.
+- **No business persistence implementations.** Service-specific JPA entities and adapters remain in their owning service; platform may expose domain-neutral Spring integration and ports.
 - **No circular dependencies.** Services depend on platform; platform depends on nothing within this repo.
 - **Pure Java where possible.** Avoid Spring annotations unless the abstraction genuinely requires a Spring contract.
 

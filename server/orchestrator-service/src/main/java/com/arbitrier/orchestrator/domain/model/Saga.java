@@ -111,10 +111,14 @@ public final class Saga {
      * <p>No inventory was reserved so no compensation command is needed.
      *
      * @throws IllegalArgumentException if the saga is already in a terminal state
+     * @throws IllegalArgumentException if the saga is in {@code COMPENSATING} status — stock
+     *                                  rejection cannot arrive while compensation is in progress
      */
     public Saga stockRejected() {
         Require.isTrue(!status.isTerminal(),
                 "stockRejected() requires non-terminal status, current: " + status);
+        Require.isTrue(status != SagaStatus.COMPENSATING,
+                "stockRejected() is not valid while COMPENSATING");
         return new Saga(id, orderId, customerId, SagaStatus.CANCELLED, currentStep,
                 customerDecision, stockReservationId, creditReservationId, version);
     }
@@ -127,11 +131,15 @@ public final class Saga {
      * non-null so that the application service can issue a ReleaseStock command.
      *
      * @throws IllegalArgumentException if the saga is already in a terminal state
+     * @throws IllegalArgumentException if the saga is in {@code COMPENSATING} status — credit
+     *                                  rejection cannot arrive while compensation is already running
      * @throws IllegalArgumentException if {@link #stockReservationId()} is null
      */
     public Saga creditRejected() {
         Require.isTrue(!status.isTerminal(),
                 "creditRejected() requires non-terminal status, current: " + status);
+        Require.isTrue(status != SagaStatus.COMPENSATING,
+                "creditRejected() is not valid while COMPENSATING");
         Require.isTrue(stockReservationId != null,
                 "creditRejected() requires a stock reservation to compensate, sagaId: " + id);
         return new Saga(id, orderId, customerId, SagaStatus.COMPENSATING,
@@ -259,8 +267,14 @@ public final class Saga {
                 customerDecision, stockReservationId, creditReservationId, version);
     }
 
-    /** Transitions the saga to {@code FAILED_COMPENSATION}. */
+    /**
+     * Transitions the saga to {@code FAILED_COMPENSATION}.
+     *
+     * @throws IllegalArgumentException if the saga is already in a terminal state
+     */
     public Saga failCompensation() {
+        Require.isTrue(!status.isTerminal(),
+                "failCompensation() requires non-terminal status, current: " + status);
         return new Saga(id, orderId, customerId, SagaStatus.FAILED_COMPENSATION, currentStep,
                 customerDecision, stockReservationId, creditReservationId, version);
     }

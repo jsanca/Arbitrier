@@ -1,17 +1,22 @@
 package com.arbitrier.credit.application.service;
 
 import com.arbitrier.credit.adapter.outbound.InMemoryCreditReservationRepository;
-import com.arbitrier.credit.adapter.outbound.RecordingCreditReservationEventPublisher;
 import com.arbitrier.credit.application.port.inbound.ReleaseCreditCommand;
 import com.arbitrier.credit.application.port.inbound.ReleaseCreditResult;
 import com.arbitrier.credit.domain.model.CreditReservation;
 import com.arbitrier.credit.domain.model.CreditReservationId;
 import com.arbitrier.credit.domain.model.CreditReservationStatus;
 import com.arbitrier.credit.domain.model.Money;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
+import com.arbitrier.platform.messaging.serialization.JacksonEventSerializer;
+import com.arbitrier.platform.messaging.test.InMemoryOutboxRepository;
+import com.arbitrier.platform.time.FixedTimeProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -25,20 +30,23 @@ class ReleaseCreditServiceTest {
 
     private static final String ORDER_ID = "order-release-001";
     private static final String RESERVATION_ID = "cr-release-001";
-    private static final String CUSTOMER_ID = "cust-001";
 
     private static final CreditReservationId RES_ID = CreditReservationId.of(RESERVATION_ID);
     private static final Money AMOUNT = Money.of(new BigDecimal("500.00"), "USD");
 
     private InMemoryCreditReservationRepository repository;
-    private RecordingCreditReservationEventPublisher publisher;
+    private InMemoryOutboxRepository outboxRepository;
+    private DomainEventToOutboxMapper outboxMapper;
     private ReleaseCreditService service;
 
     @BeforeEach
     void setUp() {
         repository = new InMemoryCreditReservationRepository();
-        publisher = new RecordingCreditReservationEventPublisher();
-        service = new ReleaseCreditService(repository, publisher);
+        outboxRepository = new InMemoryOutboxRepository();
+        outboxMapper = new DomainEventToOutboxMapper(
+                new JacksonEventSerializer(new ObjectMapper()),
+                FixedTimeProvider.of(Instant.parse("2026-01-15T10:00:00Z")));
+        service = new ReleaseCreditService(repository, outboxRepository, outboxMapper);
     }
 
     // ── Release APPROVED reservation ──────────────────────────────────────────
@@ -62,25 +70,16 @@ class ReleaseCreditServiceTest {
     }
 
     @Test
-    void release_approved_reservation_publishes_released_event() {
+    void release_approved_reservation_writes_credit_released_event_to_outbox() {
         saveApproved();
 
         service.release(new ReleaseCreditCommand(RESERVATION_ID));
 
-        assertThat(publisher.releasedEvents()).hasSize(1);
-        assertThat(publisher.releasedEvents().get(0).reservationId()).isEqualTo(RES_ID);
-        assertThat(publisher.releasedEvents().get(0).orderId()).isEqualTo(ORDER_ID);
-    }
-
-    @Test
-    void release_approved_publishes_only_released_event() {
-        saveApproved();
-
-        service.release(new ReleaseCreditCommand(RESERVATION_ID));
-
-        assertThat(publisher.releasedEvents()).hasSize(1);
-        assertThat(publisher.approvedEvents()).isEmpty();
-        assertThat(publisher.rejectedEvents()).isEmpty();
+        assertThat(outboxRepository.findAll()).hasSize(1);
+        var event = outboxRepository.findAll().get(0);
+        assertThat(event.eventType()).isEqualTo("CreditReleasedDomainEvent");
+        assertThat(event.aggregateType()).isEqualTo("CreditReservation");
+        assertThat(event.aggregateId()).isEqualTo(RESERVATION_ID);
     }
 
     // ── Idempotency ───────────────────────────────────────────────────────────
@@ -102,14 +101,14 @@ class ReleaseCreditServiceTest {
 
         service.release(new ReleaseCreditCommand(RESERVATION_ID)); // second: no-op
 
-        assertThat(publisher.releasedEvents()).hasSize(1); // only one event total
+        assertThat(outboxRepository.findAll()).hasSize(1); // only one event total
     }
 
     // ── Release REJECTED reservation ─────────────────────────────────────────
     //
     // Decision: REJECTED reservations never held credit, so releasing is a no-op.
     // The application service checks status before calling domain release() (which
-    // would throw for REJECTED) and returns without persisting or publishing an event.
+    // would throw for REJECTED) and returns without persisting or writing to the outbox.
     // Documented in ReleaseCreditService Javadoc.
 
     @Test
@@ -122,12 +121,12 @@ class ReleaseCreditServiceTest {
     }
 
     @Test
-    void release_rejected_reservation_does_not_publish_any_event() {
+    void release_rejected_reservation_does_not_write_any_outbox_event() {
         saveRejected();
 
         service.release(new ReleaseCreditCommand(RESERVATION_ID));
 
-        assertThat(publisher.totalEventCount()).isZero();
+        assertThat(outboxRepository.findAll()).isEmpty();
     }
 
     @Test

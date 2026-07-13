@@ -1,7 +1,6 @@
 package com.arbitrier.inventory.application.service;
 
 import com.arbitrier.inventory.adapter.outbound.InMemoryStockReservationRepository;
-import com.arbitrier.inventory.adapter.outbound.RecordingStockReservationEventPublisher;
 import com.arbitrier.inventory.application.port.inbound.ReleaseStockCommand;
 import com.arbitrier.inventory.application.port.inbound.ReleaseStockResult;
 import com.arbitrier.inventory.domain.model.StockAllocation;
@@ -10,9 +9,15 @@ import com.arbitrier.inventory.domain.model.StockReservationId;
 import com.arbitrier.inventory.domain.model.StockReservationLine;
 import com.arbitrier.inventory.domain.model.StockReservationStatus;
 import com.arbitrier.inventory.domain.model.WarehouseId;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
+import com.arbitrier.platform.messaging.serialization.JacksonEventSerializer;
+import com.arbitrier.platform.messaging.test.InMemoryOutboxRepository;
+import com.arbitrier.platform.time.FixedTimeProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,14 +37,18 @@ class ReleaseStockServiceTest {
     private static final StockReservationId RES_ID = StockReservationId.of(RESERVATION_ID);
 
     private InMemoryStockReservationRepository repository;
-    private RecordingStockReservationEventPublisher publisher;
+    private InMemoryOutboxRepository outboxRepository;
+    private DomainEventToOutboxMapper outboxMapper;
     private ReleaseStockService releaseService;
 
     @BeforeEach
     void setUp() {
         repository = new InMemoryStockReservationRepository();
-        publisher = new RecordingStockReservationEventPublisher();
-        releaseService = new ReleaseStockService(repository, publisher);
+        outboxRepository = new InMemoryOutboxRepository();
+        outboxMapper = new DomainEventToOutboxMapper(
+                new JacksonEventSerializer(new ObjectMapper()),
+                FixedTimeProvider.of(Instant.parse("2026-01-15T10:00:00Z")));
+        releaseService = new ReleaseStockService(repository, outboxRepository, outboxMapper);
     }
 
     // ── Release RESERVED reservation ──────────────────────────────────────────
@@ -63,14 +72,16 @@ class ReleaseStockServiceTest {
     }
 
     @Test
-    void release_reserved_reservation_publishes_released_event() {
+    void release_reserved_reservation_writes_stock_released_event_to_outbox() {
         saveReserved();
 
         releaseService.release(new ReleaseStockCommand(RESERVATION_ID));
 
-        assertThat(publisher.releasedEvents()).hasSize(1);
-        assertThat(publisher.releasedEvents().get(0).reservationId()).isEqualTo(RES_ID);
-        assertThat(publisher.releasedEvents().get(0).orderId()).isEqualTo(ORDER_ID);
+        assertThat(outboxRepository.findAll()).hasSize(1);
+        var event = outboxRepository.findAll().get(0);
+        assertThat(event.eventType()).isEqualTo("StockReleasedDomainEvent");
+        assertThat(event.aggregateType()).isEqualTo("StockReservation");
+        assertThat(event.aggregateId()).isEqualTo(RESERVATION_ID);
     }
 
     // ── Release PARTIALLY_RESERVED reservation ────────────────────────────────
@@ -85,12 +96,13 @@ class ReleaseStockServiceTest {
     }
 
     @Test
-    void release_partially_reserved_reservation_publishes_released_event() {
+    void release_partially_reserved_reservation_writes_stock_released_event_to_outbox() {
         savePartiallyReserved();
 
         releaseService.release(new ReleaseStockCommand(RESERVATION_ID));
 
-        assertThat(publisher.releasedEvents()).hasSize(1);
+        assertThat(outboxRepository.findAll()).hasSize(1);
+        assertThat(outboxRepository.findAll().get(0).eventType()).isEqualTo("StockReleasedDomainEvent");
     }
 
     // ── Idempotency ───────────────────────────────────────────────────────────
@@ -106,14 +118,13 @@ class ReleaseStockServiceTest {
     }
 
     @Test
-    void release_already_released_does_not_publish_duplicate_event() {
+    void release_already_released_does_not_write_duplicate_event() {
         saveReserved();
         releaseService.release(new ReleaseStockCommand(RESERVATION_ID)); // first: publishes
-        publisher.releasedEvents(); // confirm first event
 
         releaseService.release(new ReleaseStockCommand(RESERVATION_ID)); // second: no-op
 
-        assertThat(publisher.releasedEvents()).hasSize(1); // only one event total
+        assertThat(outboxRepository.findAll()).hasSize(1); // only one event total
     }
 
     // ── Release REJECTED reservation ─────────────────────────────────────────
@@ -130,12 +141,12 @@ class ReleaseStockServiceTest {
     }
 
     @Test
-    void release_rejected_reservation_does_not_publish_event() {
+    void release_rejected_reservation_does_not_write_event() {
         saveRejected();
 
         releaseService.release(new ReleaseStockCommand(RESERVATION_ID));
 
-        assertThat(publisher.totalEventCount()).isZero();
+        assertThat(outboxRepository.findAll()).isEmpty();
     }
 
     @Test

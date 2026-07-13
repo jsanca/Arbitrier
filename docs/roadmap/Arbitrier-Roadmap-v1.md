@@ -105,10 +105,10 @@ Security Hardening
 ARB-019 [DONE]
 Persistence Adapters — JPA, PostgreSQL Repositories, Optimistic Locking
 
-ARB-020 [PLANNED]
+ARB-020 [DONE]
 Database Migrations & Synthetic Data — Flyway/Liquibase, Init Data
 
-ARB-021 [PLANNED]
+ARB-021 [DONE]
 Outbox / Inbox Foundation
 
 ARB-022 [PLANNED]

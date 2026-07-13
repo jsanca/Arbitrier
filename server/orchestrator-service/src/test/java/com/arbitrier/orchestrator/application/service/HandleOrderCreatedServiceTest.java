@@ -2,16 +2,21 @@ package com.arbitrier.orchestrator.application.service;
 
 import com.arbitrier.orchestrator.adapter.outbound.InMemorySagaRepository;
 import com.arbitrier.orchestrator.adapter.outbound.RecordingReserveStockCommandPublisher;
-import com.arbitrier.orchestrator.adapter.outbound.RecordingSagaEventPublisher;
 import com.arbitrier.orchestrator.application.port.inbound.HandleOrderCreatedCommand;
 import com.arbitrier.orchestrator.application.port.inbound.HandleOrderCreatedResult;
 import com.arbitrier.orchestrator.domain.command.SagaOrderLine;
 import com.arbitrier.orchestrator.domain.model.SagaId;
 import com.arbitrier.orchestrator.domain.model.SagaStatus;
 import com.arbitrier.orchestrator.domain.model.SagaStep;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
+import com.arbitrier.platform.messaging.serialization.JacksonEventSerializer;
+import com.arbitrier.platform.messaging.test.InMemoryOutboxRepository;
+import com.arbitrier.platform.time.FixedTimeProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,16 +36,20 @@ class HandleOrderCreatedServiceTest {
     private static final SagaId SAGA_ID_VO = SagaId.of(SAGA_ID);
 
     private InMemorySagaRepository repository;
-    private RecordingSagaEventPublisher eventPublisher;
+    private InMemoryOutboxRepository outboxRepository;
+    private DomainEventToOutboxMapper outboxMapper;
     private RecordingReserveStockCommandPublisher stockCommandPublisher;
     private HandleOrderCreatedService service;
 
     @BeforeEach
     void setUp() {
         repository = new InMemorySagaRepository();
-        eventPublisher = new RecordingSagaEventPublisher();
+        outboxRepository = new InMemoryOutboxRepository();
+        outboxMapper = new DomainEventToOutboxMapper(
+                new JacksonEventSerializer(new ObjectMapper()),
+                FixedTimeProvider.of(Instant.parse("2026-01-15T10:00:00Z")));
         stockCommandPublisher = new RecordingReserveStockCommandPublisher();
-        service = new HandleOrderCreatedService(repository, eventPublisher, stockCommandPublisher);
+        service = new HandleOrderCreatedService(repository, outboxRepository, outboxMapper, stockCommandPublisher);
     }
 
     // ── Happy path ────────────────────────────────────────────────────────────
@@ -78,14 +87,14 @@ class HandleOrderCreatedServiceTest {
     }
 
     @Test
-    void handle_publishes_saga_started_event() {
+    void handle_writes_saga_started_event_to_outbox() {
         service.handle(command());
 
-        assertThat(eventPublisher.startedEvents()).hasSize(1);
-        var event = eventPublisher.startedEvents().get(0);
-        assertThat(event.sagaId()).isEqualTo(SAGA_ID_VO);
-        assertThat(event.orderId()).isEqualTo(ORDER_ID);
-        assertThat(event.customerId()).isEqualTo(CUSTOMER_ID);
+        assertThat(outboxRepository.findAll()).hasSize(1);
+        var event = outboxRepository.findAll().get(0);
+        assertThat(event.eventType()).isEqualTo("SagaStartedDomainEvent");
+        assertThat(event.aggregateType()).isEqualTo("Saga");
+        assertThat(event.aggregateId()).isEqualTo(SAGA_ID);
     }
 
     @Test
@@ -101,13 +110,10 @@ class HandleOrderCreatedServiceTest {
     }
 
     @Test
-    void handle_publishes_only_started_event_no_advance_no_completed() {
+    void handle_writes_only_one_outbox_event() {
         service.handle(command());
 
-        assertThat(eventPublisher.startedEvents()).hasSize(1);
-        assertThat(eventPublisher.advancedEvents()).isEmpty();
-        assertThat(eventPublisher.completedEvents()).isEmpty();
-        assertThat(eventPublisher.compensatedEvents()).isEmpty();
+        assertThat(outboxRepository.findAll()).hasSize(1);
     }
 
     @Test
@@ -141,11 +147,11 @@ class HandleOrderCreatedServiceTest {
     }
 
     @Test
-    void duplicate_order_created_does_not_publish_additional_events_or_commands() {
+    void duplicate_order_created_does_not_write_additional_outbox_events_or_commands() {
         service.handle(command());
         service.handle(command());
 
-        assertThat(eventPublisher.startedEvents()).hasSize(1);
+        assertThat(outboxRepository.findAll()).hasSize(1);
         assertThat(stockCommandPublisher.commands()).hasSize(1);
     }
 

@@ -4,6 +4,27 @@ spring:
   threads:
     virtual:
       enabled: true
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/arbitrier?currentSchema=credit_service}
+    username: ${SPRING_DATASOURCE_USERNAME:credit_service}
+    password: ${SPRING_DATASOURCE_PASSWORD:local-service-only}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    packages:
+      - com.arbitrier.credit.adapter.outbound.persistence
+      - com.arbitrier.platform.messaging.outbox.adapter
+      - com.arbitrier.platform.messaging.inbox.adapter
+    properties:
+      hibernate:
+        default_schema: credit_service
+  flyway:
+    locations: classpath:db/migration/platform,classpath:db/migration/credit_service
+    default-schema: credit_service
+    schemas: credit_service
+    validate-on-migrate: true
+    clean-disabled: true
 
 management:
   endpoints:

@@ -2,16 +2,21 @@ package com.arbitrier.credit.application.service;
 
 import com.arbitrier.credit.adapter.outbound.ConfigurableCreditLimitPort;
 import com.arbitrier.credit.adapter.outbound.InMemoryCreditReservationRepository;
-import com.arbitrier.credit.adapter.outbound.RecordingCreditReservationEventPublisher;
 import com.arbitrier.credit.application.port.inbound.ReserveCreditCommand;
 import com.arbitrier.credit.application.port.inbound.ReserveCreditResult;
 import com.arbitrier.credit.domain.model.CreditReservationId;
 import com.arbitrier.credit.domain.model.CreditReservationStatus;
 import com.arbitrier.credit.domain.model.Money;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
+import com.arbitrier.platform.messaging.serialization.JacksonEventSerializer;
+import com.arbitrier.platform.messaging.test.InMemoryOutboxRepository;
+import com.arbitrier.platform.time.FixedTimeProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -35,15 +40,19 @@ class ReserveCreditServiceTest {
 
     private ConfigurableCreditLimitPort creditLimitPort;
     private InMemoryCreditReservationRepository repository;
-    private RecordingCreditReservationEventPublisher publisher;
+    private InMemoryOutboxRepository outboxRepository;
+    private DomainEventToOutboxMapper outboxMapper;
     private ReserveCreditService service;
 
     @BeforeEach
     void setUp() {
         creditLimitPort = new ConfigurableCreditLimitPort();
         repository = new InMemoryCreditReservationRepository();
-        publisher = new RecordingCreditReservationEventPublisher();
-        service = new ReserveCreditService(creditLimitPort, repository, publisher);
+        outboxRepository = new InMemoryOutboxRepository();
+        outboxMapper = new DomainEventToOutboxMapper(
+                new JacksonEventSerializer(new ObjectMapper()),
+                FixedTimeProvider.of(Instant.parse("2026-01-15T10:00:00Z")));
+        service = new ReserveCreditService(creditLimitPort, repository, outboxRepository, outboxMapper);
     }
 
     // ── Approve happy path ────────────────────────────────────────────────────
@@ -68,16 +77,16 @@ class ReserveCreditServiceTest {
     }
 
     @Test
-    void reserve_when_sufficient_credit_publishes_approved_event() {
+    void reserve_when_sufficient_credit_writes_credit_approved_event_to_outbox() {
         creditLimitPort.setAvailableCredit(CUSTOMER_ID, ONE_THOUSAND_USD);
 
         service.reserve(command(ONE_THOUSAND_USD));
 
-        assertThat(publisher.approvedEvents()).hasSize(1);
-        assertThat(publisher.approvedEvents().get(0).reservationId()).isEqualTo(RES_ID);
-        assertThat(publisher.approvedEvents().get(0).orderId()).isEqualTo(ORDER_ID);
-        assertThat(publisher.approvedEvents().get(0).customerId()).isEqualTo(CUSTOMER_ID);
-        assertThat(publisher.approvedEvents().get(0).amount()).isEqualTo(ONE_THOUSAND_USD);
+        assertThat(outboxRepository.findAll()).hasSize(1);
+        var event = outboxRepository.findAll().get(0);
+        assertThat(event.eventType()).isEqualTo("CreditApprovedDomainEvent");
+        assertThat(event.aggregateType()).isEqualTo("CreditReservation");
+        assertThat(event.aggregateId()).isEqualTo(RESERVATION_ID);
     }
 
     @Test
@@ -120,16 +129,15 @@ class ReserveCreditServiceTest {
     }
 
     @Test
-    void reserve_when_insufficient_credit_publishes_rejected_event() {
+    void reserve_when_insufficient_credit_writes_credit_rejected_event_to_outbox() {
         creditLimitPort.setAvailableCredit(CUSTOMER_ID, FIVE_HUNDRED_USD);
 
         service.reserve(command(ONE_THOUSAND_USD));
 
-        assertThat(publisher.rejectedEvents()).hasSize(1);
-        assertThat(publisher.rejectedEvents().get(0).reservationId()).isEqualTo(RES_ID);
-        assertThat(publisher.rejectedEvents().get(0).orderId()).isEqualTo(ORDER_ID);
-        assertThat(publisher.rejectedEvents().get(0).customerId()).isEqualTo(CUSTOMER_ID);
-        assertThat(publisher.rejectedEvents().get(0).amount()).isEqualTo(ONE_THOUSAND_USD);
+        assertThat(outboxRepository.findAll()).hasSize(1);
+        var event = outboxRepository.findAll().get(0);
+        assertThat(event.eventType()).isEqualTo("CreditRejectedDomainEvent");
+        assertThat(event.aggregateId()).isEqualTo(RESERVATION_ID);
     }
 
     @Test
@@ -144,25 +152,23 @@ class ReserveCreditServiceTest {
     // ── Only one event published per call ─────────────────────────────────────
 
     @Test
-    void reserve_approved_publishes_only_approved_event() {
+    void reserve_approved_writes_only_one_outbox_event() {
         creditLimitPort.setAvailableCredit(CUSTOMER_ID, TWO_THOUSAND_USD);
 
         service.reserve(command(ONE_THOUSAND_USD));
 
-        assertThat(publisher.approvedEvents()).hasSize(1);
-        assertThat(publisher.rejectedEvents()).isEmpty();
-        assertThat(publisher.releasedEvents()).isEmpty();
+        assertThat(outboxRepository.findAll()).hasSize(1);
+        assertThat(outboxRepository.findAll().get(0).eventType()).isEqualTo("CreditApprovedDomainEvent");
     }
 
     @Test
-    void reserve_rejected_publishes_only_rejected_event() {
+    void reserve_rejected_writes_only_one_outbox_event() {
         // Zero credit by default
 
         service.reserve(command(ONE_THOUSAND_USD));
 
-        assertThat(publisher.rejectedEvents()).hasSize(1);
-        assertThat(publisher.approvedEvents()).isEmpty();
-        assertThat(publisher.releasedEvents()).isEmpty();
+        assertThat(outboxRepository.findAll()).hasSize(1);
+        assertThat(outboxRepository.findAll().get(0).eventType()).isEqualTo("CreditRejectedDomainEvent");
     }
 
     // ── Repository save ───────────────────────────────────────────────────────

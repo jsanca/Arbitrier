@@ -13,6 +13,7 @@ import com.arbitrier.inventory.domain.model.StockReservationStatus;
 import com.arbitrier.inventory.domain.model.WarehouseId;
 import com.arbitrier.platform.error.ApplicationProblemException;
 import com.arbitrier.platform.error.PersistenceProblemCode;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -40,7 +41,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         webEnvironment = SpringBootTest.WebEnvironment.MOCK,
         properties = {
                 "spring.jpa.hibernate.ddl-auto=create-drop",
-                "spring.jpa.open-in-view=false"
+                "spring.jpa.open-in-view=false",
+                "spring.flyway.enabled=false"
         }
 )
 @Testcontainers
@@ -71,7 +73,15 @@ class JpaStockReservationRepositoryAdapterTest {
     @Autowired
     StockReservationRepository stockReservationRepository;
 
+    @Autowired
+    SpringDataStockReservationRepository springDataStockReservationRepository;
+
     private static final StockReservationId RES_ID = StockReservationId.of("res-tc-1");
+
+    @BeforeEach
+    void clean() {
+        springDataStockReservationRepository.deleteById(RES_ID.value());
+    }
     private static final String ORDER_ID = "order-1";
 
     private static final StockAllocation ALLOC_WH1 =

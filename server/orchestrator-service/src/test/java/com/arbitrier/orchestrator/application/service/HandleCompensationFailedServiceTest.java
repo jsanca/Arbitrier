@@ -1,14 +1,20 @@
 package com.arbitrier.orchestrator.application.service;
 
 import com.arbitrier.orchestrator.adapter.outbound.InMemorySagaRepository;
-import com.arbitrier.orchestrator.adapter.outbound.RecordingSagaEventPublisher;
 import com.arbitrier.orchestrator.application.port.inbound.HandleCompensationFailedCommand;
 import com.arbitrier.orchestrator.application.port.inbound.HandleCompensationFailedResult;
 import com.arbitrier.orchestrator.domain.model.Saga;
 import com.arbitrier.orchestrator.domain.model.SagaId;
 import com.arbitrier.orchestrator.domain.model.SagaStatus;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
+import com.arbitrier.platform.messaging.serialization.JacksonEventSerializer;
+import com.arbitrier.platform.messaging.test.InMemoryOutboxRepository;
+import com.arbitrier.platform.time.FixedTimeProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -27,14 +33,18 @@ class HandleCompensationFailedServiceTest {
     private static final SagaId SAGA_ID_VO = SagaId.of(SAGA_ID);
 
     private InMemorySagaRepository repository;
-    private RecordingSagaEventPublisher eventPublisher;
+    private InMemoryOutboxRepository outboxRepository;
+    private DomainEventToOutboxMapper outboxMapper;
     private HandleCompensationFailedService service;
 
     @BeforeEach
     void setUp() {
         repository = new InMemorySagaRepository();
-        eventPublisher = new RecordingSagaEventPublisher();
-        service = new HandleCompensationFailedService(repository, eventPublisher);
+        outboxRepository = new InMemoryOutboxRepository();
+        outboxMapper = new DomainEventToOutboxMapper(
+                new JacksonEventSerializer(new ObjectMapper()),
+                FixedTimeProvider.of(Instant.parse("2026-01-15T10:00:00Z")));
+        service = new HandleCompensationFailedService(repository, outboxRepository, outboxMapper);
 
         repository.save(
                 Saga.start(SAGA_ID_VO, ORDER_ID, CUSTOMER_ID)
@@ -59,25 +69,21 @@ class HandleCompensationFailedServiceTest {
     }
 
     @Test
-    void handle_publishes_compensation_failed_event() {
+    void handle_writes_compensation_failed_event_to_outbox() {
         service.handle(command());
 
-        assertThat(eventPublisher.compensationFailedEvents()).hasSize(1);
-        var event = eventPublisher.compensationFailedEvents().get(0);
-        assertThat(event.sagaId()).isEqualTo(SAGA_ID_VO);
-        assertThat(event.orderId()).isEqualTo(ORDER_ID);
+        assertThat(outboxRepository.findAll()).hasSize(1);
+        var event = outboxRepository.findAll().get(0);
+        assertThat(event.eventType()).isEqualTo("SagaCompensationFailedDomainEvent");
+        assertThat(event.aggregateType()).isEqualTo("Saga");
+        assertThat(event.aggregateId()).isEqualTo(SAGA_ID);
     }
 
     @Test
-    void handle_publishes_only_compensation_failed_event() {
+    void handle_writes_only_one_outbox_event() {
         service.handle(command());
 
-        assertThat(eventPublisher.compensationFailedEvents()).hasSize(1);
-        assertThat(eventPublisher.startedEvents()).isEmpty();
-        assertThat(eventPublisher.advancedEvents()).isEmpty();
-        assertThat(eventPublisher.completedEvents()).isEmpty();
-        assertThat(eventPublisher.cancelledEvents()).isEmpty();
-        assertThat(eventPublisher.compensatedEvents()).isEmpty();
+        assertThat(outboxRepository.findAll()).hasSize(1);
     }
 
     // ── Saga not found ────────────────────────────────────────────────────────

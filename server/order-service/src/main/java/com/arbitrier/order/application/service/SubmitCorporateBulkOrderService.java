@@ -5,7 +5,6 @@ import com.arbitrier.order.application.port.inbound.SubmitCorporateBulkOrderComm
 import com.arbitrier.order.application.port.inbound.SubmitCorporateBulkOrderResult;
 import com.arbitrier.order.application.port.inbound.SubmitCorporateBulkOrderUseCase;
 import com.arbitrier.order.application.port.outbound.CustomerAccessPort;
-import com.arbitrier.order.application.port.outbound.OrderEventPublisher;
 import com.arbitrier.order.application.port.outbound.OrderRepository;
 import com.arbitrier.order.domain.event.OrderCreatedDomainEvent;
 import com.arbitrier.order.domain.model.CustomerId;
@@ -16,6 +15,8 @@ import com.arbitrier.order.domain.model.Quantity;
 import com.arbitrier.order.domain.model.Sku;
 import com.arbitrier.order.domain.model.UserId;
 import com.arbitrier.platform.error.ApplicationProblemException;
+import com.arbitrier.platform.messaging.outbox.OutboxRepository;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
 import com.arbitrier.platform.validation.Require;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,8 +30,8 @@ import java.util.UUID;
  *
  * <p>Validates the command, checks customer access via {@link CustomerAccessPort},
  * constructs an {@link Order} in {@code PENDING} state, persists it through
- * {@link OrderRepository}, and publishes an {@link OrderCreatedDomainEvent} through
- * {@link OrderEventPublisher}.
+ * {@link OrderRepository}, and writes an {@link OrderCreatedDomainEvent} to the
+ * transactional outbox for downstream publication.
  *
  * <p>Layer: application/service
  * <p>Module: order-service
@@ -39,15 +40,20 @@ public class SubmitCorporateBulkOrderService implements SubmitCorporateBulkOrder
 
     private static final Logger log = LoggerFactory.getLogger(SubmitCorporateBulkOrderService.class);
 
+    private static final String AGGREGATE_TYPE = "Order";
+
     private final OrderRepository orderRepository;
-    private final OrderEventPublisher eventPublisher;
+    private final OutboxRepository outboxRepository;
+    private final DomainEventToOutboxMapper outboxMapper;
     private final CustomerAccessPort customerAccessPort;
 
     public SubmitCorporateBulkOrderService(OrderRepository orderRepository,
-                                           OrderEventPublisher eventPublisher,
+                                           OutboxRepository outboxRepository,
+                                           DomainEventToOutboxMapper outboxMapper,
                                            CustomerAccessPort customerAccessPort) {
         this.orderRepository = Require.notNull(orderRepository, "orderRepository");
-        this.eventPublisher = Require.notNull(eventPublisher, "eventPublisher");
+        this.outboxRepository = Require.notNull(outboxRepository, "outboxRepository");
+        this.outboxMapper = Require.notNull(outboxMapper, "outboxMapper");
         this.customerAccessPort = Require.notNull(customerAccessPort, "customerAccessPort");
     }
 
@@ -87,7 +93,7 @@ public class SubmitCorporateBulkOrderService implements SubmitCorporateBulkOrder
                 order.submittedBy(),
                 order.lines());
 
-        eventPublisher.publish(event);
+        outboxRepository.save(outboxMapper.map(event, orderId.value(), AGGREGATE_TYPE));
 
         return new SubmitCorporateBulkOrderResult(orderId.value(), order.status().name());
     }

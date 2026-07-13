@@ -50,8 +50,8 @@ com.arbitrier.<service>/
 # From repo root — build and test all server modules
 mvn -B verify --no-transfer-progress
 
-# Single module
-mvn -B verify --no-transfer-progress -pl server/order-service
+# Single service (local SNAPSHOT dependencies must come first)
+mvn -B test --no-transfer-progress -pl server/contracts,server/platform,server/order-service
 
 # Single test
 mvn -B test -pl server/order-service -Dtest=ArchitectureTest
@@ -79,4 +79,4 @@ Native Image is a supported variant. All new `@Entity`, Avro-generated class, an
 
 ## Status
 
-`ARB-004B` — Platform foundation and Native Image variant documented. No business logic. No domain models. No JPA entities. No Kafka consumers/producers.
+The domain/application core is implemented across all four services. ARB-019 added separate JPA entities, mappers, Spring Data repositories, optimistic locking, and integration tests. Kafka runtime consumers and most producers remain pending; the order-service has the conditional `OrderCreated` publisher foundation from ARB-011. Native Image remains a supported variant that has not yet been validated as a complete application build.

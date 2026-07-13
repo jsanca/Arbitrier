@@ -16,6 +16,7 @@ import com.arbitrier.order.domain.model.Sku;
 import com.arbitrier.order.domain.model.UserId;
 import com.arbitrier.platform.error.ApplicationProblemException;
 import com.arbitrier.platform.error.PersistenceProblemCode;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -46,7 +47,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         webEnvironment = SpringBootTest.WebEnvironment.MOCK,
         properties = {
                 "spring.jpa.hibernate.ddl-auto=create-drop",
-                "spring.jpa.open-in-view=false"
+                "spring.jpa.open-in-view=false",
+                "spring.flyway.enabled=false"
         }
 )
 @Testcontainers
@@ -87,7 +89,15 @@ class JpaOrderRepositoryAdapterTest {
     @Autowired
     OrderRepository orderRepository;
 
+    @Autowired
+    SpringDataOrderRepository springDataOrderRepository;
+
     private static final OrderId ORDER_ID = OrderId.of("order-tc-1");
+
+    @BeforeEach
+    void clean() {
+        springDataOrderRepository.deleteById(ORDER_ID.value());
+    }
     private static final CustomerId CUSTOMER_ID = CustomerId.of("cust-1");
     private static final UserId USER_ID = UserId.of("user-1");
     private static final List<OrderLine> LINES = List.of(

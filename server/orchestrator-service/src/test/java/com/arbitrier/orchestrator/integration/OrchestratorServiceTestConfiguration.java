@@ -6,14 +6,16 @@ import com.arbitrier.orchestrator.adapter.outbound.RecordingReleaseCreditCommand
 import com.arbitrier.orchestrator.adapter.outbound.RecordingReleaseStockCommandPublisher;
 import com.arbitrier.orchestrator.adapter.outbound.RecordingReserveCreditCommandPublisher;
 import com.arbitrier.orchestrator.adapter.outbound.RecordingReserveStockCommandPublisher;
-import com.arbitrier.orchestrator.adapter.outbound.RecordingSagaEventPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.ConfirmOrderCommandPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.ReleaseCreditCommandPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.ReleaseStockCommandPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.ReserveCreditCommandPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.ReserveStockCommandPublisher;
-import com.arbitrier.orchestrator.application.port.outbound.SagaEventPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.SagaRepository;
+import com.arbitrier.platform.messaging.inbox.InboxRepository;
+import com.arbitrier.platform.messaging.outbox.OutboxRepository;
+import com.arbitrier.platform.messaging.test.InMemoryInboxRepository;
+import com.arbitrier.platform.messaging.test.InMemoryOutboxRepository;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -35,8 +37,14 @@ public class OrchestratorServiceTestConfiguration {
 
     @Bean
     @Primary
-    public SagaEventPublisher sagaEventPublisher() {
-        return new RecordingSagaEventPublisher();
+    public OutboxRepository outboxRepository() {
+        return new InMemoryOutboxRepository();
+    }
+
+    @Bean
+    @Primary
+    public InboxRepository inboxRepository() {
+        return new InMemoryInboxRepository();
     }
 
     @Bean

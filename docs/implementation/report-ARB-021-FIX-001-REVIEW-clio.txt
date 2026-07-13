@@ -1,0 +1,283 @@
+TASK: ARB-021-FIX-001-REVIEW — Architecture Cleanup Review
+DATE: 2026-07-11
+AGENT: clio
+
+SUMMARY
+-------
+Reviewed the 4 changes introduced by ARB-021-FIX-001: (1) broad scanning
+replacement, (2) canonical serializer abstraction, (3) ObjectMapper confinement,
+(4) architecture test additions.
+
+Overall: PASS WITH WARNINGS. The cleanup improves the architecture and introduces
+no regressions. Three minor warnings are noted below; none block acceptance.
+
+────────────────────────────────────────────────────────────────────────────────
+REVIEW AREA 1: ENTITY SCANNING — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING E1 — [POSITIVE] Broad scanning successfully replaced with marker-class approach
+Category: Architecture
+Severity: INFO (positive)
+
+Verified across all four services:
+- @EntityScan: ZERO occurrences anywhere in server/. Fully removed.
+- @EnableJpaRepositories: All four PersistenceConfiguration classes use
+  basePackageClasses = {ServiceSpecificRepo.class, SpringDataOutboxRepository.class,
+  SpringDataInboxRepository.class}. Each service scans exactly 3 marker classes —
+  its own + platform outbox + platform inbox. No more scanning com.arbitrier.
+- spring.jpa.packages: All four application.yml files list exactly 3 packages:
+  <service>.adapter.outbound.persistence, platform.messaging.outbox.adapter,
+  platform.messaging.inbox.adapter.
+- Test configurations: Use @ConditionalOnMissingBean with in-memory beans,
+  so the production PersistenceConfiguration (and its @EnableJpaRepositories)
+  is never activated in tests. Clean.
+
+Assessment: Each service now explicitly declares exactly what it needs. No
+accidental entity/repository discovery from other bounded contexts is possible.
+
+FINDING E2 — [INFO] Implementation doc incorrectly claims @EntityScan was removed by Spring Boot
+Category: Documentation
+Severity: INFO
+
+The implementation doc states: "Spring Boot 4.x removed this annotation; entity
+scanning is now handled via spring.jpa.packages property." This is incorrect —
+@EntityScan still exists in Spring Boot 4.1. It was not removed (unlike
+@WebMvcTest and @DataJpaTest which were).
+
+The choice to use spring.jpa.packages + basePackageClasses is valid — arguably
+cleaner than @EntityScan(basePackages = "com.arbitrier"). But the justification
+is inaccurate. The rationale should be: these explicit declarations are preferred
+over broad scanning because they prevent accidental entity discovery across
+bounded contexts.
+
+Recommendation: Correct the implementation doc to reflect the actual rationale.
+No code change needed.
+Blocks roadmap: No
+
+────────────────────────────────────────────────────────────────────────────────
+REVIEW AREA 2: SERIALIZATION BOUNDARY — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING S1 — [POSITIVE] ObjectMapper confined to two platform files
+Category: Architecture
+Severity: INFO (positive)
+
+Verified:
+- EventSerializer interface: Zero Jackson imports. Pure JDK types.
+- JacksonEventSerializer: The ONLY class that imports JsonProcessingException or
+  ObjectMapper. Constructor-injects ObjectMapper; does not create its own. Catches
+  JsonProcessingException internally, wraps into IllegalArgumentException.
+- DomainEventToOutboxMapper: Depends only on EventSerializer interface. Zero
+  Jackson imports.
+- Production code in all four services: ZERO Jackson imports in src/main.
+- JsonNode: ZERO imports across entire codebase.
+
+Assessment: ObjectMapper is confined to PlatformAutoConfiguration (the DI wiring
+point) and JacksonEventSerializer (the sole implementation). The EventSerializer
+interface is a clean abstraction with 0 Jackson leakage.
+
+FINDING S2 — [POSITIVE] messagingObjectMapper bean provides centralized configuration
+Category: Architecture
+Severity: INFO (positive)
+
+PlatformAutoConfiguration now creates a named messagingObjectMapper bean (gated
+by @ConditionalOnMissingBean, @ConditionalOnClass for JPA). Services can override
+it with a custom-configured ObjectMapper (e.g., with JavaTimeModule). The
+eventSerializer() method receives this bean via name-based parameter injection.
+Previous code created new ObjectMapper() inline in eventSerializer() — no
+centralized configuration point existed.
+
+Assessment: This is the correct pattern. A dedicated named bean allows
+configuration in one place without exposing ObjectMapper through the
+EventSerializer contract.
+
+FINDING S3 — [LOW] Test ObjectMapper instances diverge from auto-configured bean
+Category: Architecture
+Severity: LOW
+
+21 test files create new ObjectMapper() directly:
+  new JacksonEventSerializer(new ObjectMapper())
+
+If the auto-configured messagingObjectMapper bean is later customized (e.g.,
+JavaTimeModule added), tests using bare new ObjectMapper() will silently diverge
+from production behavior. The test serializers won't match the runtime serializer.
+
+Impact: Subtle test/production mismatch if Jackson configuration evolves.
+Mitigation: Application service tests that hand-wire their own DomainEventToOutboxMapper
+should either accept an externally-configured ObjectMapper or document that
+new ObjectMapper() is the minimal default.
+Blocks roadmap: No
+
+────────────────────────────────────────────────────────────────────────────────
+REVIEW AREA 3: PLATFORM OWNERSHIP — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING P1 — [POSITIVE] Platform continues to own only infrastructure
+Category: Architecture
+Severity: INFO (positive)
+
+Platform module contains: serialization (EventSerializer, JacksonEventSerializer),
+outbox (OutboxEvent, OutboxRepository, OutboxPublisher, JPA adapter, mapper),
+inbox (InboxEvent, InboxRepository, JPA adapter), test doubles, auto-configuration,
+error codes, validation, correlation, time abstraction, web filters.
+
+No business domain types exist in platform. The existing ArchUnit rule
+(platform_must_not_reference_business_domain_packages) enforces this. The cleanup
+added no new business logic — all changes are infrastructure-level (scanning
+config, ObjectMapper bean).
+
+Assessment: Clean. No business responsibility migrated into Platform.
+
+────────────────────────────────────────────────────────────────────────────────
+REVIEW AREA 4: ARCHITECTURE TESTS — PASS WITH WARNINGS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING A1 — [POSITIVE] Two new well-targeted ArchUnit rules added
+Category: Architecture
+Severity: INFO (positive)
+
+PlatformArchitectureTest gained:
+  Rule 4 (objectMapper_confined_to_jackson_infrastructure):
+    Only classes in ..jackson.., ..serialization.., or ..spring.. may depend on
+    com.fasterxml.jackson.databind. Prevents Jackson leakage into domain/adapters.
+
+  Rule 5 (messaging_public_api_exposes_only_eventSerializer):
+    Classes in messaging.outbox and messaging.inbox must not depend on Jackson.
+    Forces them through the EventSerializer abstraction.
+
+Both rules use allowEmptyShould(true) and are correctly scoped. They enforce the
+architectural intent described in the task.
+
+FINDING A2 — [MEDIUM] Service-level ArchitectureTests lack analogous messaging rules
+Category: Architecture
+Severity: MEDIUM
+
+All four service ArchitectureTest files have 8 hexagonal-layering rules (domain
+purity, adapter isolation, JPA entity location) but NONE test for ObjectMapper
+or Jackson boundaries. The platform-level rules (A1 above) are necessary but
+insufficient — they only catch Jackson imports IF the import is in
+com.arbitrier.platform.. packages. If a service accidentally imports
+com.fasterxml.jackson.databind.ObjectMapper in its domain or application layer,
+no ArchUnit rule catches it.
+
+Why it matters: The task explicitly asks "Identify any missing architectural rule
+worth enforcing." Preventing Jackson leakage at the service level is worth enforcing.
+
+Impact: A developer could import ObjectMapper in a service's application service
+or domain model, and no test would fail. This undermines the serialization
+abstraction boundary.
+
+Recommendation: Add two rules to each service ArchitectureTest:
+  1. Domain and application packages must not depend on Jackson
+  2. Domain and application packages must depend only on EventSerializer
+     (not JacksonEventSerializer)
+Blocks roadmap: No — informational improvement for future test coverage.
+
+FINDING A3 — [POSITIVE] Existing hex rules remain intact
+Category: Architecture
+Severity: INFO (positive)
+All 4 service ArchitectureTest files retain their 8 existing rules. No rules
+were removed or weakened. Total platform rules grew from 3 to 5 (adding rules
+4 and 5).
+
+────────────────────────────────────────────────────────────────────────────────
+REVIEW AREA 5: REGRESSION RISK — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING R1 — [POSITIVE] No @EntityScan regression
+Category: Architecture
+Severity: INFO (positive)
+
+@EntityScan verified absent from entire server/ source tree. Entity discovery
+is handled by:
+  - spring.jpa.packages (Hibernate entity scanning)
+  - @EnableJpaRepositories(basePackageClasses = ...) (Spring Data repository scanning)
+
+Both are explicit and service-scoped. No broad com.arbitrier scanning remains.
+
+FINDING R2 — [POSITIVE] Repository discovery confirmed
+Category: Architecture
+Severity: INFO (positive)
+
+Each service's @EnableJpaRepositories(basePackageClasses = {...}) lists:
+  1. Service-specific SpringData*Repository (e.g., SpringDataOrderRepository)
+  2. SpringDataOutboxRepository (platform)
+  3. SpringDataInboxRepository (platform)
+
+These three marker classes cover all JPA repositories needed by each service.
+The platform's SpringData*Repository interfaces are discovered because
+basePackageClasses scans the package of each marker class — and the platform
+repos are in com.arbitrier.platform.messaging.*.adapter, which is on the
+classpath via the arbitrier-platform Maven dependency.
+
+FINDING R3 — [POSITIVE] Serialization remains functional
+Category: Architecture
+Severity: INFO (positive)
+
+JacksonEventSerializer still receives ObjectMapper via constructor injection.
+The only change is WHERE the ObjectMapper is created — now in a dedicated
+messagingObjectMapper() bean method rather than inline in eventSerializer().
+The EventSerializer contract is unchanged. DomainEventToOutboxMapper is
+unchanged. All test suites pass.
+
+FINDING R4 — [POSITIVE] Existing tests pass
+Category: Architecture
+Severity: INFO (positive)
+
+Verified: Platform architecture tests (5 rules, all pass), order-service
+(ArchitectureTest + SubmitCorporateBulkOrderServiceTest all pass),
+inventory-service, credit-service, orchestrator-service core tests pass.
+No test regressions introduced.
+
+────────────────────────────────────────────────────────────────────────────────
+SECONDARY EVALUATION: IMPLEMENTATION ASSESSMENT
+────────────────────────────────────────────────────────────────────────────────
+
+Scope Discipline: EXCELLENT
+  The implementation stayed within the timebox and scope boundaries defined in
+  the task. No Kafka, no Avro, no command outbox, no drainer/polling, no
+  correlation/causation wiring, no Flyway redesign, no platform module split.
+  Four focused changes, all architectural infrastructure.
+
+Architectural Judgment: STRONG
+  The move from broad com.arbitrier scanning to explicit marker classes per
+  service is the right call — it prevents accidental entity/repository
+  discovery across bounded contexts. The named messagingObjectMapper bean
+  is the correct pattern for centralized Jackson configuration without
+  exposing ObjectMapper through the EventSerializer contract. Both changes
+  improve modularity without adding complexity.
+
+Simplicity: GOOD
+  Each service's application.yml gained exactly 3 spring.jpa.packages entries.
+  Each PersistenceConfiguration gained exactly 3 basePackageClasses entries.
+  PlatformAutoConfiguration gained exactly 1 bean method. The changes are
+  minimal and follow existing conventions.
+
+Code Consistency: EXCELLENT
+  All four services follow identical patterns. The implementation is symmetrical
+  across order, inventory, credit, and orchestrator services with no drift.
+
+Minor Concern:
+  The implementation doc contains an inaccurate claim about @EntityScan being
+  removed from Spring Boot 4.x (see Finding E2). The code is correct; the
+  documentation rationale is the only issue.
+
+Overall Implementation Quality: HIGH
+  The cleanup is well-scoped, architecturally sound, and consistently applied.
+  No regressions. The three warnings identified in this review are all minor
+  and informational — none block acceptance.
+
+────────────────────────────────────────────────────────────────────────────────
+VERDICT
+────────────────────────────────────────────────────────────────────────────────
+
+ARB-021-FIX-001 CAN BE ACCEPTED as the architectural cleanup of ARB-021.
+
+Overall classification: PASS WITH WARNINGS
+
+Warnings:
+  1. [MEDIUM] Service ArchitectureTests lack Jackson/messaging boundary rules (A2)
+  2. [LOW]   Test ObjectMapper instances may diverge from auto-configured bean (S3)
+  3. [INFO]  Implementation doc misstates @EntityScan removal rationale (E2)
+
+No FAIL findings. No blockers. The cleanup achieves its stated goals.

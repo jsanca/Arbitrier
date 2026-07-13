@@ -5,10 +5,11 @@ import com.arbitrier.order.application.port.inbound.PrepareCorporateBulkOrderUse
 import com.arbitrier.order.application.port.inbound.SubmitCorporateBulkOrderUseCase;
 import com.arbitrier.order.application.port.outbound.CustomerAccessPort;
 import com.arbitrier.order.application.port.outbound.InventoryAvailabilityPort;
-import com.arbitrier.order.application.port.outbound.OrderEventPublisher;
 import com.arbitrier.order.application.port.outbound.OrderRepository;
 import com.arbitrier.order.application.service.PrepareCorporateBulkOrderService;
 import com.arbitrier.order.application.service.SubmitCorporateBulkOrderService;
+import com.arbitrier.platform.messaging.outbox.OutboxRepository;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -24,9 +25,11 @@ public class OrderServiceConfiguration {
     @Bean
     SubmitCorporateBulkOrderUseCase submitCorporateBulkOrderUseCase(
             OrderRepository orderRepository,
-            OrderEventPublisher eventPublisher,
+            OutboxRepository outboxRepository,
+            DomainEventToOutboxMapper outboxMapper,
             CustomerAccessPort customerAccessPort) {
-        return new SubmitCorporateBulkOrderService(orderRepository, eventPublisher, customerAccessPort);
+        return new SubmitCorporateBulkOrderService(orderRepository, outboxRepository, outboxMapper,
+                customerAccessPort);
     }
 
     /**

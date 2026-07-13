@@ -5,11 +5,13 @@ import com.arbitrier.orchestrator.application.port.inbound.HandleCreditApprovedR
 import com.arbitrier.orchestrator.application.port.inbound.HandleCreditApprovedUseCase;
 import com.arbitrier.orchestrator.application.port.outbound.ConfirmOrderCommandPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.ConfirmOrderSagaCommand;
-import com.arbitrier.orchestrator.application.port.outbound.SagaEventPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.SagaRepository;
 import com.arbitrier.orchestrator.domain.event.SagaCompletedDomainEvent;
 import com.arbitrier.orchestrator.domain.model.Saga;
 import com.arbitrier.orchestrator.domain.model.SagaId;
+import com.arbitrier.platform.messaging.outbox.OutboxRepository;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
+import com.arbitrier.platform.validation.Require;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>Record the credit approval via {@link Saga#creditApproved(String)}.</li>
  *   <li>Finalise via {@link Saga#complete()} (transitions to {@code COMPLETED}).</li>
  *   <li>Persist the completed saga.</li>
- *   <li>Publish {@link SagaCompletedDomainEvent}.</li>
+ *   <li>Write {@link SagaCompletedDomainEvent} to the outbox.</li>
  *   <li>Issue a {@link ConfirmOrderSagaCommand} to the order-service.</li>
  * </ol>
  *
@@ -33,18 +35,22 @@ import org.springframework.transaction.annotation.Transactional;
 public class HandleCreditApprovedService implements HandleCreditApprovedUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(HandleCreditApprovedService.class);
+    private static final String AGGREGATE_TYPE = "Saga";
 
     private final SagaRepository repository;
-    private final SagaEventPublisher eventPublisher;
+    private final OutboxRepository outboxRepository;
+    private final DomainEventToOutboxMapper outboxMapper;
     private final ConfirmOrderCommandPublisher confirmOrderCommandPublisher;
 
     public HandleCreditApprovedService(
             final SagaRepository repository,
-            final SagaEventPublisher eventPublisher,
+            final OutboxRepository outboxRepository,
+            final DomainEventToOutboxMapper outboxMapper,
             final ConfirmOrderCommandPublisher confirmOrderCommandPublisher) {
-        this.repository = repository;
-        this.eventPublisher = eventPublisher;
-        this.confirmOrderCommandPublisher = confirmOrderCommandPublisher;
+        this.repository = Require.notNull(repository, "repository");
+        this.outboxRepository = Require.notNull(outboxRepository, "outboxRepository");
+        this.outboxMapper = Require.notNull(outboxMapper, "outboxMapper");
+        this.confirmOrderCommandPublisher = Require.notNull(confirmOrderCommandPublisher, "confirmOrderCommandPublisher");
     }
 
     @Override
@@ -81,8 +87,10 @@ public class HandleCreditApprovedService implements HandleCreditApprovedUseCase 
     }
 
     private void publishSagaCompleted(final Saga saga) {
-        eventPublisher.publishCompleted(
-                new SagaCompletedDomainEvent(saga.id(), saga.orderId()));
+        outboxRepository.save(outboxMapper.map(
+                new SagaCompletedDomainEvent(saga.id(), saga.orderId()),
+                saga.id().value(),
+                AGGREGATE_TYPE));
     }
 
     private void publishConfirmOrder(final Saga saga) {

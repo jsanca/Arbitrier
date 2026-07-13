@@ -20,6 +20,7 @@ import com.arbitrier.orchestrator.domain.model.SagaStatus;
 import com.arbitrier.orchestrator.domain.model.SagaStep;
 import com.arbitrier.platform.error.ApplicationProblemException;
 import com.arbitrier.platform.error.PersistenceProblemCode;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -46,7 +47,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         webEnvironment = SpringBootTest.WebEnvironment.MOCK,
         properties = {
                 "spring.jpa.hibernate.ddl-auto=create-drop",
-                "spring.jpa.open-in-view=false"
+                "spring.jpa.open-in-view=false",
+                "spring.flyway.enabled=false"
         }
 )
 @Testcontainers
@@ -101,7 +103,15 @@ class JpaSagaRepositoryAdapterTest {
     @Autowired
     SagaRepository sagaRepository;
 
+    @Autowired
+    SpringDataSagaRepository springDataSagaRepository;
+
     private static final SagaId SAGA_ID = SagaId.of("saga-tc-1");
+
+    @BeforeEach
+    void clean() {
+        springDataSagaRepository.deleteById(SAGA_ID.value());
+    }
     private static final String ORDER_ID = "order-1";
     private static final String CUSTOMER_ID = "cust-1";
 

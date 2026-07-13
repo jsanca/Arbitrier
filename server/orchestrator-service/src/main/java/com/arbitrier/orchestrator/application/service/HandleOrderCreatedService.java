@@ -5,12 +5,14 @@ import com.arbitrier.orchestrator.application.port.inbound.HandleOrderCreatedRes
 import com.arbitrier.orchestrator.application.port.inbound.HandleOrderCreatedUseCase;
 import com.arbitrier.orchestrator.application.port.outbound.ReserveStockCommandPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.ReserveStockSagaCommand;
-import com.arbitrier.orchestrator.application.port.outbound.SagaEventPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.SagaRepository;
 import com.arbitrier.orchestrator.domain.command.SagaOrderLine;
 import com.arbitrier.orchestrator.domain.event.SagaStartedDomainEvent;
 import com.arbitrier.orchestrator.domain.model.Saga;
 import com.arbitrier.orchestrator.domain.model.SagaId;
+import com.arbitrier.platform.messaging.outbox.OutboxRepository;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
+import com.arbitrier.platform.validation.Require;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,7 +28,7 @@ import java.util.UUID;
  *   <li>If a saga with the same {@code sagaId} already exists, return early (idempotent).</li>
  *   <li>Create a new {@link Saga} at step {@code ORDER_CREATED}.</li>
  *   <li>Persist the saga.</li>
- *   <li>Publish {@link SagaStartedDomainEvent}.</li>
+ *   <li>Write {@link SagaStartedDomainEvent} to the outbox.</li>
  *   <li>Issue a {@link ReserveStockSagaCommand} carrying the order lines to the
  *       inventory-service.</li>
  * </ol>
@@ -37,18 +39,22 @@ import java.util.UUID;
 public class HandleOrderCreatedService implements HandleOrderCreatedUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(HandleOrderCreatedService.class);
+    private static final String AGGREGATE_TYPE = "Saga";
 
     private final SagaRepository repository;
-    private final SagaEventPublisher eventPublisher;
+    private final OutboxRepository outboxRepository;
+    private final DomainEventToOutboxMapper outboxMapper;
     private final ReserveStockCommandPublisher reserveStockCommandPublisher;
 
     public HandleOrderCreatedService(
             final SagaRepository repository,
-            final SagaEventPublisher eventPublisher,
+            final OutboxRepository outboxRepository,
+            final DomainEventToOutboxMapper outboxMapper,
             final ReserveStockCommandPublisher reserveStockCommandPublisher) {
-        this.repository = repository;
-        this.eventPublisher = eventPublisher;
-        this.reserveStockCommandPublisher = reserveStockCommandPublisher;
+        this.repository = Require.notNull(repository, "repository");
+        this.outboxRepository = Require.notNull(outboxRepository, "outboxRepository");
+        this.outboxMapper = Require.notNull(outboxMapper, "outboxMapper");
+        this.reserveStockCommandPublisher = Require.notNull(reserveStockCommandPublisher, "reserveStockCommandPublisher");
     }
 
     @Override
@@ -77,8 +83,10 @@ public class HandleOrderCreatedService implements HandleOrderCreatedUseCase {
     }
 
     private void publishSagaStarted(final Saga saga) {
-        eventPublisher.publishStarted(
-                new SagaStartedDomainEvent(saga.id(), saga.orderId(), saga.customerId()));
+        outboxRepository.save(outboxMapper.map(
+                new SagaStartedDomainEvent(saga.id(), saga.orderId(), saga.customerId()),
+                saga.id().value(),
+                AGGREGATE_TYPE));
     }
 
     private void publishReserveStock(final Saga saga, final String stockReservationId,

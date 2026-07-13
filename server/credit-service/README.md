@@ -33,7 +33,7 @@ Pure-Java, zero-framework types in `com.arbitrier.credit.domain.model`:
 
 | Interface | Location | Status |
 |-----------|----------|--------|
-| `CreditReservationRepository` | `application/port/outbound/` | In-memory only (no JPA yet) |
+| `CreditReservationRepository` | `application/port/outbound/` | JPA production adapter; in-memory test adapter |
 | `CreditLimitPort` | `application/port/outbound/` | Configurable test adapter (no real store yet) |
 | `CreditReservationEventPublisher` | `application/port/outbound/` | Recording only (no Kafka yet) |
 
@@ -62,6 +62,10 @@ Releasing a REJECTED reservation is also a no-op (no credit was ever held — no
 See `ReleaseCreditService` Javadoc and `docs/implementation/ARB-013-credit-service.md` for
 the documented decision.
 
+### Persistence (ARB-019)
+
+`JpaCreditReservationRepositoryAdapter` maps through a dedicated persistence mapper and entity. `CreditReservationEntity` uses `@Version` optimistic locking. Reserve/release application services own transaction boundaries; the external `CreditLimitPort` remains an integration port and is not modeled as JPA.
+
 ### Test adapters (test tree)
 
 | Class | Purpose |
@@ -80,5 +84,6 @@ Tests pass without Kafka, Postgres, Schema Registry, Keycloak, or Docker.
 
 ## Status
 
-`ARB-013` — Application slice implemented: `ReserveCreditUseCase`, `ReleaseCreditUseCase`, domain events, test adapters. No JPA, Kafka, or REST yet.
+`ARB-019` — JPA Credit Reservation persistence implemented with optimistic locking and integration tests.
+`ARB-013` — Application slice implemented: `ReserveCreditUseCase`, `ReleaseCreditUseCase`, domain events, test adapters. Kafka and REST adapters remain pending.
 `ARB-005` — Domain model implemented.

@@ -1,15 +1,21 @@
 package com.arbitrier.orchestrator.application.service;
 
 import com.arbitrier.orchestrator.adapter.outbound.InMemorySagaRepository;
-import com.arbitrier.orchestrator.adapter.outbound.RecordingSagaEventPublisher;
 import com.arbitrier.orchestrator.application.port.inbound.AdvanceSagaCommand;
 import com.arbitrier.orchestrator.application.port.inbound.AdvanceSagaResult;
 import com.arbitrier.orchestrator.domain.model.Saga;
 import com.arbitrier.orchestrator.domain.model.SagaId;
 import com.arbitrier.orchestrator.domain.model.SagaStatus;
 import com.arbitrier.orchestrator.domain.model.SagaStep;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
+import com.arbitrier.platform.messaging.serialization.JacksonEventSerializer;
+import com.arbitrier.platform.messaging.test.InMemoryOutboxRepository;
+import com.arbitrier.platform.time.FixedTimeProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -28,14 +34,18 @@ class AdvanceSagaServiceTest {
     private static final SagaId SAGA_ID_VO = SagaId.of(SAGA_ID);
 
     private InMemorySagaRepository repository;
-    private RecordingSagaEventPublisher publisher;
+    private InMemoryOutboxRepository outboxRepository;
+    private DomainEventToOutboxMapper outboxMapper;
     private AdvanceSagaService service;
 
     @BeforeEach
     void setUp() {
         repository = new InMemorySagaRepository();
-        publisher = new RecordingSagaEventPublisher();
-        service = new AdvanceSagaService(repository, publisher);
+        outboxRepository = new InMemoryOutboxRepository();
+        outboxMapper = new DomainEventToOutboxMapper(
+                new JacksonEventSerializer(new ObjectMapper()),
+                FixedTimeProvider.of(Instant.parse("2026-01-15T10:00:00Z")));
+        service = new AdvanceSagaService(repository, outboxRepository, outboxMapper);
     }
 
     // ── Happy path ────────────────────────────────────────────────────────────
@@ -69,26 +79,25 @@ class AdvanceSagaServiceTest {
     }
 
     @Test
-    void advance_publishes_advanced_event_with_correct_fields() {
+    void advance_writes_saga_advanced_event_to_outbox() {
         saveStarted();
 
         service.advance(command(SagaStep.VALIDATE_CREDIT));
 
-        assertThat(publisher.advancedEvents()).hasSize(1);
-        assertThat(publisher.advancedEvents().get(0).sagaId()).isEqualTo(SAGA_ID_VO);
-        assertThat(publisher.advancedEvents().get(0).orderId()).isEqualTo(ORDER_ID);
-        assertThat(publisher.advancedEvents().get(0).currentStep()).isEqualTo(SagaStep.VALIDATE_CREDIT);
+        assertThat(outboxRepository.findAll()).hasSize(1);
+        var event = outboxRepository.findAll().get(0);
+        assertThat(event.eventType()).isEqualTo("SagaAdvancedDomainEvent");
+        assertThat(event.aggregateType()).isEqualTo("Saga");
+        assertThat(event.aggregateId()).isEqualTo(SAGA_ID);
     }
 
     @Test
-    void advance_publishes_only_advanced_event() {
+    void advance_writes_only_one_outbox_event() {
         saveStarted();
 
         service.advance(command(SagaStep.RESERVE_INVENTORY));
 
-        assertThat(publisher.advancedEvents()).hasSize(1);
-        assertThat(publisher.startedEvents()).isEmpty();
-        assertThat(publisher.compensatedEvents()).isEmpty();
+        assertThat(outboxRepository.findAll()).hasSize(1);
     }
 
     // ── Invalid transitions ───────────────────────────────────────────────────

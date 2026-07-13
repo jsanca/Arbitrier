@@ -1,6 +1,7 @@
 package com.arbitrier.credit.domain.event;
 
 import com.arbitrier.credit.domain.model.CreditReservationId;
+import com.arbitrier.platform.validation.Require;
 
 /**
  * Emitted when a previously approved credit reservation is released back to the credit line.
@@ -13,4 +14,9 @@ import com.arbitrier.credit.domain.model.CreditReservationId;
 public record CreditReleasedDomainEvent(
         CreditReservationId reservationId,
         String orderId) {
+
+    public CreditReleasedDomainEvent {
+        Require.notNull(reservationId, "CreditReleasedDomainEvent.reservationId");
+        Require.notBlank(orderId, "CreditReleasedDomainEvent.orderId");
+    }
 }

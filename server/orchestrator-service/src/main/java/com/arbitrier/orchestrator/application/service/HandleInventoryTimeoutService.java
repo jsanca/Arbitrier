@@ -5,7 +5,6 @@ import com.arbitrier.orchestrator.application.port.inbound.HandleInventoryTimeou
 import com.arbitrier.orchestrator.application.port.inbound.HandleInventoryTimeoutUseCase;
 import com.arbitrier.orchestrator.application.port.outbound.ReleaseStockCommandPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.ReleaseStockSagaCommand;
-import com.arbitrier.orchestrator.application.port.outbound.SagaEventPublisher;
 import com.arbitrier.orchestrator.application.port.outbound.SagaRepository;
 import com.arbitrier.orchestrator.domain.event.InventoryTimedOutDomainEvent;
 import com.arbitrier.orchestrator.domain.event.SagaCompensatedDomainEvent;
@@ -13,6 +12,9 @@ import com.arbitrier.orchestrator.domain.model.CorporateBulkOrderSagaRetryPolicy
 import com.arbitrier.orchestrator.domain.model.RetryDecision;
 import com.arbitrier.orchestrator.domain.model.Saga;
 import com.arbitrier.orchestrator.domain.model.SagaId;
+import com.arbitrier.platform.messaging.outbox.OutboxRepository;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
+import com.arbitrier.platform.validation.Require;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,17 +27,12 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>Load the existing saga (must be in {@code WAITING_FOR_INVENTORY}).</li>
  *   <li>Execute {@link Saga#inventoryTimedOut()} — validates the saga is awaiting inventory.</li>
  *   <li>Evaluate the retry policy via {@link CorporateBulkOrderSagaRetryPolicy#evaluateInventory(int)}.</li>
- *   <li>If {@link RetryDecision#RETRY}: call {@link Saga#retryInventory()}, persist, publish
- *       {@link InventoryTimedOutDomainEvent}.</li>
- *   <li>If {@link RetryDecision#EXHAUST}: call {@link Saga#compensate()}, persist, publish
- *       {@link SagaCompensatedDomainEvent}, issue {@link ReleaseStockSagaCommand} using the
- *       reservation ID from the command. The release is idempotent — if inventory-service
- *       never processed the reservation, the release is a safe no-op.</li>
+ *   <li>If {@link RetryDecision#RETRY}: call {@link Saga#retryInventory()}, persist, write
+ *       {@link InventoryTimedOutDomainEvent} to the outbox.</li>
+ *   <li>If {@link RetryDecision#EXHAUST}: call {@link Saga#compensate()}, persist, write
+ *       {@link SagaCompensatedDomainEvent} to the outbox, and issue
+ *       {@link ReleaseStockSagaCommand} using the reservation ID from the command.</li>
  * </ol>
- *
- * <p>No scheduler, sleep, or retry execution is performed here. On retry, the runtime
- * infrastructure (a future slice) will re-issue the ReserveStock command on receipt of
- * {@link InventoryTimedOutDomainEvent}.
  *
  * <p>Layer: application/service
  * <p>Module: orchestrator-service
@@ -43,21 +40,25 @@ import org.springframework.transaction.annotation.Transactional;
 public class HandleInventoryTimeoutService implements HandleInventoryTimeoutUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(HandleInventoryTimeoutService.class);
+    private static final String AGGREGATE_TYPE = "Saga";
 
     private final SagaRepository repository;
-    private final SagaEventPublisher eventPublisher;
+    private final OutboxRepository outboxRepository;
+    private final DomainEventToOutboxMapper outboxMapper;
     private final ReleaseStockCommandPublisher releaseStockCommandPublisher;
     private final CorporateBulkOrderSagaRetryPolicy retryPolicy;
 
     public HandleInventoryTimeoutService(
             final SagaRepository repository,
-            final SagaEventPublisher eventPublisher,
+            final OutboxRepository outboxRepository,
+            final DomainEventToOutboxMapper outboxMapper,
             final ReleaseStockCommandPublisher releaseStockCommandPublisher,
             final CorporateBulkOrderSagaRetryPolicy retryPolicy) {
-        this.repository = repository;
-        this.eventPublisher = eventPublisher;
-        this.releaseStockCommandPublisher = releaseStockCommandPublisher;
-        this.retryPolicy = retryPolicy;
+        this.repository = Require.notNull(repository, "repository");
+        this.outboxRepository = Require.notNull(outboxRepository, "outboxRepository");
+        this.outboxMapper = Require.notNull(outboxMapper, "outboxMapper");
+        this.releaseStockCommandPublisher = Require.notNull(releaseStockCommandPublisher, "releaseStockCommandPublisher");
+        this.retryPolicy = Require.notNull(retryPolicy, "retryPolicy");
     }
 
     @Override
@@ -93,13 +94,17 @@ public class HandleInventoryTimeoutService implements HandleInventoryTimeoutUseC
     }
 
     private void publishInventoryTimedOut(final Saga saga, final int attemptNumber) {
-        eventPublisher.publishInventoryTimedOut(
-                new InventoryTimedOutDomainEvent(saga.id(), saga.orderId(), attemptNumber));
+        outboxRepository.save(outboxMapper.map(
+                new InventoryTimedOutDomainEvent(saga.id(), saga.orderId(), attemptNumber),
+                saga.id().value(),
+                AGGREGATE_TYPE));
     }
 
     private void publishCompensated(final Saga saga) {
-        eventPublisher.publishCompensated(
-                new SagaCompensatedDomainEvent(saga.id(), saga.orderId()));
+        outboxRepository.save(outboxMapper.map(
+                new SagaCompensatedDomainEvent(saga.id(), saga.orderId()),
+                saga.id().value(),
+                AGGREGATE_TYPE));
     }
 
     private void publishReleaseStock(final Saga saga, final String stockReservationId) {

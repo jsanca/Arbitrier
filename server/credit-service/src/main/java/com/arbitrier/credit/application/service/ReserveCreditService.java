@@ -4,14 +4,15 @@ import com.arbitrier.credit.application.port.inbound.ReserveCreditCommand;
 import com.arbitrier.credit.application.port.inbound.ReserveCreditResult;
 import com.arbitrier.credit.application.port.inbound.ReserveCreditUseCase;
 import com.arbitrier.credit.application.port.outbound.CreditLimitPort;
-import com.arbitrier.credit.application.port.outbound.CreditReservationEventPublisher;
 import com.arbitrier.credit.application.port.outbound.CreditReservationRepository;
 import com.arbitrier.credit.domain.event.CreditApprovedDomainEvent;
 import com.arbitrier.credit.domain.event.CreditRejectedDomainEvent;
 import com.arbitrier.credit.domain.model.CreditReservation;
 import com.arbitrier.credit.domain.model.CreditReservationId;
-import com.arbitrier.credit.domain.model.CreditReservationStatus;
 import com.arbitrier.credit.domain.model.Money;
+import com.arbitrier.platform.messaging.outbox.OutboxRepository;
+import com.arbitrier.platform.messaging.outbox.mapper.DomainEventToOutboxMapper;
+import com.arbitrier.platform.validation.Require;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,18 +41,22 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReserveCreditService implements ReserveCreditUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(ReserveCreditService.class);
+    private static final String AGGREGATE_TYPE = "CreditReservation";
 
     private final CreditLimitPort creditLimitPort;
     private final CreditReservationRepository repository;
-    private final CreditReservationEventPublisher eventPublisher;
+    private final OutboxRepository outboxRepository;
+    private final DomainEventToOutboxMapper outboxMapper;
 
     public ReserveCreditService(
             final CreditLimitPort creditLimitPort,
             final CreditReservationRepository repository,
-            final CreditReservationEventPublisher eventPublisher) {
-        this.creditLimitPort = creditLimitPort;
-        this.repository = repository;
-        this.eventPublisher = eventPublisher;
+            final OutboxRepository outboxRepository,
+            final DomainEventToOutboxMapper outboxMapper) {
+        this.creditLimitPort = Require.notNull(creditLimitPort, "creditLimitPort");
+        this.repository = Require.notNull(repository, "repository");
+        this.outboxRepository = Require.notNull(outboxRepository, "outboxRepository");
+        this.outboxMapper = Require.notNull(outboxMapper, "outboxMapper");
     }
 
     @Override
@@ -87,12 +92,11 @@ public class ReserveCreditService implements ReserveCreditUseCase {
 
     private void publishEvent(final CreditReservation reservation, final ReserveCreditCommand command) {
         final CreditReservationId id = reservation.id();
-        switch (reservation.status()) {
-            case APPROVED -> eventPublisher.publishApproved(
-                    new CreditApprovedDomainEvent(id, command.orderId(), command.customerId(), command.amount()));
-            case REJECTED -> eventPublisher.publishRejected(
-                    new CreditRejectedDomainEvent(id, command.orderId(), command.customerId(), command.amount()));
+        final Object event = switch (reservation.status()) {
+            case APPROVED -> new CreditApprovedDomainEvent(id, command.orderId(), command.customerId(), command.amount());
+            case REJECTED -> new CreditRejectedDomainEvent(id, command.orderId(), command.customerId(), command.amount());
             default -> throw new IllegalStateException("Unexpected credit reservation status: " + reservation.status());
-        }
+        };
+        outboxRepository.save(outboxMapper.map(event, id.value(), AGGREGATE_TYPE));
     }
 }
