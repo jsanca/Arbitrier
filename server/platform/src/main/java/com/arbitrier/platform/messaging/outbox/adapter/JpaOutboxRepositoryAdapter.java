@@ -6,6 +6,7 @@ import com.arbitrier.platform.messaging.outbox.OutboxRepository;
 import com.arbitrier.platform.messaging.outbox.PublishStatus;
 import com.arbitrier.platform.time.TimeProvider;
 import com.arbitrier.platform.validation.Require;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 import java.util.UUID;
@@ -39,6 +40,21 @@ public final class JpaOutboxRepositoryAdapter implements OutboxRepository {
     @Override
     public List<OutboxEvent> findPending() {
         return repository.findByPublishStatus(PublishStatus.PENDING.name()).stream()
+                .map(JpaOutboxRepositoryAdapter::toRecord)
+                .toList();
+    }
+
+    @Override
+    public List<OutboxEvent> findPending(final int limit) {
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit must not be negative: " + limit);
+        }
+        if (limit == 0) {
+            return List.of();
+        }
+        return repository.findByPublishStatusOrderByOccurredAtAsc(
+                        PublishStatus.PENDING.name(), PageRequest.of(0, limit))
+                .stream()
                 .map(JpaOutboxRepositoryAdapter::toRecord)
                 .toList();
     }

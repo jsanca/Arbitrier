@@ -137,7 +137,7 @@ Outbound Dispatch Foundation
 
 ## Runtime
 
-ARB-022.3 [PLANNED]
+ARB-022.3 [Done]
 Pending Message Polling
 
 - findPending()

@@ -151,12 +151,94 @@ class JpaOutboxRepositoryAdapterTest {
         assertThat(pending.getFirst().messageNature()).isEqualTo(MessageNature.COMMAND);
     }
 
+    @Test
+    @Transactional
+    void findPending_with_limit_returns_empty_when_no_pending_events() {
+        assertThat(adapter.findPending(10)).isEmpty();
+    }
+
+    @Test
+    @Transactional
+    void findPending_with_limit_returns_single_pending_event() {
+        adapter.save(createPendingEvent(NOW));
+
+        List<OutboxEvent> result = adapter.findPending(10);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().publishStatus()).isEqualTo(PublishStatus.PENDING);
+    }
+
+    @Test
+    @Transactional
+    void findPending_with_limit_1_returns_oldest_first() {
+        OutboxEvent oldest = createPendingEvent(NOW);
+        OutboxEvent newest = createPendingEvent(NOW.plusSeconds(2));
+        OutboxEvent middle = createPendingEvent(NOW.plusSeconds(1));
+        adapter.save(newest);
+        adapter.save(oldest);
+        adapter.save(middle);
+
+        List<OutboxEvent> result = adapter.findPending(2);
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).eventId()).isEqualTo(oldest.eventId());
+        assertThat(result.get(1).eventId()).isEqualTo(middle.eventId());
+    }
+
+    @Test
+    @Transactional
+    void findPending_with_limit_larger_than_available_returns_all() {
+        adapter.save(createPendingEvent(NOW));
+        adapter.save(createPendingEvent(NOW.plusSeconds(1)));
+
+        assertThat(adapter.findPending(100)).hasSize(2);
+    }
+
+    @Test
+    @Transactional
+    void findPending_with_limit_0_returns_empty() {
+        adapter.save(createPendingEvent(NOW));
+
+        assertThat(adapter.findPending(0)).isEmpty();
+    }
+
+    @Test
+    void findPending_with_negative_limit_throws() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> adapter.findPending(-1))
+                .withMessageContaining("negative");
+    }
+
+    @Test
+    @Transactional
+    void findPending_with_limit_excludes_published_and_failed() {
+        OutboxEvent pending = createPendingEvent(NOW);
+        adapter.save(pending);
+
+        OutboxEvent published = createPendingEvent(NOW.plusSeconds(1));
+        adapter.save(published);
+        adapter.markPublished(published.eventId());
+
+        OutboxEvent failed = createPendingEvent(NOW.plusSeconds(2));
+        adapter.save(failed);
+        adapter.markFailed(failed.eventId());
+
+        List<OutboxEvent> result = adapter.findPending(10);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().eventId()).isEqualTo(pending.eventId());
+    }
+
     private OutboxEvent createPendingEvent() {
+        return createPendingEvent(NOW);
+    }
+
+    private OutboxEvent createPendingEvent(Instant occurredAt) {
         return new OutboxEvent(
                 UUID.randomUUID(), "agg-" + UUID.randomUUID(),
                 "Order", "OrderCreatedDomainEvent",
                 "{\"test\":true}", "JSON",
-                NOW, null, PublishStatus.PENDING, 0, null, null, null,
+                occurredAt, null, PublishStatus.PENDING, 0, null, null, null,
                 MessageNature.EVENT);
     }
 

@@ -108,12 +108,78 @@ class InMemoryOutboxRepositoryTest {
         assertThat(snapshot).hasSize(1);
     }
 
+    @Test
+    void findPending_with_limit_returns_empty_when_no_pending() {
+        repository.save(createEvent(PublishStatus.PUBLISHED));
+
+        assertThat(repository.findPending(10)).isEmpty();
+    }
+
+    @Test
+    void findPending_with_limit_returns_oldest_first() {
+        OutboxEvent newest = pendingAt(NOW.plusSeconds(2));
+        OutboxEvent oldest = pendingAt(NOW);
+        OutboxEvent middle = pendingAt(NOW.plusSeconds(1));
+        repository.save(newest);
+        repository.save(oldest);
+        repository.save(middle);
+
+        List<OutboxEvent> result = repository.findPending(2);
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).eventId()).isEqualTo(oldest.eventId());
+        assertThat(result.get(1).eventId()).isEqualTo(middle.eventId());
+    }
+
+    @Test
+    void findPending_with_limit_larger_than_available_returns_all() {
+        repository.save(pendingAt(NOW));
+        repository.save(pendingAt(NOW.plusSeconds(1)));
+
+        assertThat(repository.findPending(100)).hasSize(2);
+    }
+
+    @Test
+    void findPending_with_limit_0_returns_empty() {
+        repository.save(createEvent(PublishStatus.PENDING));
+
+        assertThat(repository.findPending(0)).isEmpty();
+    }
+
+    @Test
+    void findPending_with_negative_limit_throws() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> repository.findPending(-1))
+                .withMessageContaining("negative");
+    }
+
+    @Test
+    void findPending_with_limit_excludes_non_pending() {
+        repository.save(pendingAt(NOW));
+        OutboxEvent published = pendingAt(NOW.plusSeconds(1));
+        repository.save(published);
+        repository.markPublished(published.eventId());
+        OutboxEvent failed = pendingAt(NOW.plusSeconds(2));
+        repository.save(failed);
+        repository.markFailed(failed.eventId());
+
+        assertThat(repository.findPending(10)).hasSize(1);
+    }
+
     private OutboxEvent createEvent(PublishStatus status) {
         return new OutboxEvent(
                 UUID.randomUUID(), "agg-" + System.identityHashCode(new Object()),
                 "Order", "OrderCreatedDomainEvent", "{}", "JSON",
                 NOW, status == PublishStatus.PUBLISHED ? NOW : null,
                 status, 0, null, null, null,
+                MessageNature.EVENT);
+    }
+
+    private OutboxEvent pendingAt(Instant occurredAt) {
+        return new OutboxEvent(
+                UUID.randomUUID(), "agg-" + UUID.randomUUID(),
+                "Order", "OrderCreatedDomainEvent", "{}", "JSON",
+                occurredAt, null, PublishStatus.PENDING, 0, null, null, null,
                 MessageNature.EVENT);
     }
 }

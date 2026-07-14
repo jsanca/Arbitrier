@@ -16,8 +16,9 @@ import com.arbitrier.platform.validation.Require;
 public class SagaPersistenceMapper {
 
     /** Creates a new entity from the domain aggregate. */
-    public SagaEntity toEntity(Saga saga) {
-        SagaEntity entity = new SagaEntity();
+    public SagaEntity toEntity(final Saga saga) {
+
+        final SagaEntity entity = new SagaEntity();
         entity.setId(saga.id().value());
         entity.setOrderId(saga.orderId());
         entity.setCustomerId(saga.customerId());
@@ -32,7 +33,8 @@ public class SagaPersistenceMapper {
     }
 
     /** Updates an existing managed entity with state from the domain aggregate. */
-    public SagaEntity updateEntity(SagaEntity existing, Saga saga) {
+    public SagaEntity updateEntity(final SagaEntity existing, final Saga saga) {
+
         existing.setOrderId(saga.orderId());
         existing.setCustomerId(saga.customerId());
         existing.setStatus(saga.status().name());
@@ -45,12 +47,13 @@ public class SagaPersistenceMapper {
     }
 
     /** Reconstructs a domain {@link Saga} from a {@link SagaEntity}. */
-    public Saga toDomain(SagaEntity entity) {
+    public Saga toDomain(final SagaEntity entity) {
+
         Require.notNull(entity, "SagaEntity");
 
-        SagaStatus status = parseStatus(entity.getStatus());
-        SagaStep step = parseStep(entity.getCurrentStep());
-        CustomerDecision decision = parseCustomerDecision(entity.getCustomerDecision());
+        final SagaStatus status = parseStatus(entity.getStatus());
+        final SagaStep step = parseStep(entity.getCurrentStep());
+        final CustomerDecision decision = parseCustomerDecision(entity.getCustomerDecision());
 
         return Saga.reconstruct(
                 SagaId.of(entity.getId()),
@@ -64,7 +67,7 @@ public class SagaPersistenceMapper {
                 entity.getVersion());
     }
 
-    private static SagaStatus parseStatus(String value) {
+    private static SagaStatus parseStatus(final String value) {
         try {
             return SagaStatus.valueOf(Require.notBlank(value, "SagaEntity.status"));
         } catch (IllegalArgumentException e) {
@@ -73,7 +76,7 @@ public class SagaPersistenceMapper {
         }
     }
 
-    private static SagaStep parseStep(String value) {
+    private static SagaStep parseStep(final String value) {
         try {
             return SagaStep.valueOf(Require.notBlank(value, "SagaEntity.currentStep"));
         } catch (IllegalArgumentException e) {
@@ -82,7 +85,7 @@ public class SagaPersistenceMapper {
         }
     }
 
-    private static CustomerDecision parseCustomerDecision(String value) {
+    private static CustomerDecision parseCustomerDecision(final String value) {
         if (value == null) {
             return null;
         }

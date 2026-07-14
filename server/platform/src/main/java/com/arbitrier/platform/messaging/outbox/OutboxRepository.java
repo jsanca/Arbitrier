@@ -30,6 +30,23 @@ public interface OutboxRepository {
     List<OutboxEvent> findPending();
 
     /**
+     * Return at most {@code limit} events in the {@link PublishStatus#PENDING} state,
+     * ordered by {@link OutboxEvent#occurredAt()} ascending (oldest first).
+     *
+     * <p>Events with any other status ({@code PUBLISHED}, {@code FAILED}) are excluded.
+     * Ordering is deterministic: events with the same {@code occurredAt} value may
+     * appear in any stable order for that timestamp.
+     *
+     * <p>A limit of zero returns an empty list immediately without querying the store.
+     * A limit larger than the number of available pending events returns all of them.
+     *
+     * @param limit maximum number of events to return; must not be negative
+     * @return at most {@code limit} pending events, oldest first; never null
+     * @throws IllegalArgumentException if {@code limit} is negative
+     */
+    List<OutboxEvent> findPending(int limit);
+
+    /**
      * Mark the event with the given identifier as {@link PublishStatus#PUBLISHED}.
      *
      * @param eventId the event identifier; must not be null

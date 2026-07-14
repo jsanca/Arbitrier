@@ -7,6 +7,7 @@ import com.arbitrier.platform.validation.Require;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,6 +34,18 @@ public final class InMemoryOutboxRepository implements OutboxRepository {
     public List<OutboxEvent> findPending() {
         return events.stream()
                 .filter(e -> e.publishStatus() == PublishStatus.PENDING)
+                .toList();
+    }
+
+    @Override
+    public List<OutboxEvent> findPending(final int limit) {
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit must not be negative: " + limit);
+        }
+        return events.stream()
+                .filter(e -> e.publishStatus() == PublishStatus.PENDING)
+                .sorted(Comparator.comparing(OutboxEvent::occurredAt))
+                .limit(limit)
                 .toList();
     }
 

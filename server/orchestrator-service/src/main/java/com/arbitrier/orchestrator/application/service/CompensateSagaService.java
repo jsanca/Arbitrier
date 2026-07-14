@@ -35,9 +35,10 @@ public class CompensateSagaService implements CompensateSagaUseCase {
     private final OutboxRepository outboxRepository;
     private final DomainEventToOutboxMapper outboxMapper;
 
-    public CompensateSagaService(SagaRepository repository,
-                                  OutboxRepository outboxRepository,
-                                  DomainEventToOutboxMapper outboxMapper) {
+    public CompensateSagaService(final SagaRepository repository,
+                                 final OutboxRepository outboxRepository,
+                                 final DomainEventToOutboxMapper outboxMapper) {
+
         this.repository = Require.notNull(repository, "repository");
         this.outboxRepository = Require.notNull(outboxRepository, "outboxRepository");
         this.outboxMapper = Require.notNull(outboxMapper, "outboxMapper");

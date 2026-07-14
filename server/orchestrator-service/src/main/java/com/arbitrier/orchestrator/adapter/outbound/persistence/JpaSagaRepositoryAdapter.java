@@ -32,14 +32,16 @@ public class JpaSagaRepositoryAdapter implements SagaRepository {
     private final SpringDataSagaRepository repository;
     private final SagaPersistenceMapper mapper;
 
-    public JpaSagaRepositoryAdapter(SpringDataSagaRepository repository,
-                                    SagaPersistenceMapper mapper) {
+    public JpaSagaRepositoryAdapter(final SpringDataSagaRepository repository,
+                                    final SagaPersistenceMapper mapper) {
+
         this.repository = repository;
         this.mapper = mapper;
     }
 
     @Override
-    public void save(Saga saga) {
+    public void save(final Saga saga) {
+
         try {
             repository.save(mapper.toEntity(saga));
         } catch (OptimisticLockingFailureException e) {
@@ -57,7 +59,7 @@ public class JpaSagaRepositoryAdapter implements SagaRepository {
     }
 
     @Override
-    public Optional<Saga> findById(SagaId id) {
+    public Optional<Saga> findById(final SagaId id) {
         try {
             return repository.findById(id.value()).map(mapper::toDomain);
         } catch (Exception e) {

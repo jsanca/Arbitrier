@@ -40,9 +40,10 @@ public class ReleaseStockService implements ReleaseStockUseCase {
     private final DomainEventToOutboxMapper outboxMapper;
 
     public ReleaseStockService(
-            StockReservationRepository repository,
-            OutboxRepository outboxRepository,
-            DomainEventToOutboxMapper outboxMapper) {
+            final StockReservationRepository repository,
+            final OutboxRepository outboxRepository,
+            final DomainEventToOutboxMapper outboxMapper) {
+
         this.repository = Require.notNull(repository, "repository");
         this.outboxRepository = Require.notNull(outboxRepository, "outboxRepository");
         this.outboxMapper = Require.notNull(outboxMapper, "outboxMapper");
@@ -50,10 +51,11 @@ public class ReleaseStockService implements ReleaseStockUseCase {
 
     @Override
     @Transactional
-    public ReleaseStockResult release(ReleaseStockCommand command) {
-        StockReservationId reservationId = StockReservationId.of(command.reservationId());
+    public ReleaseStockResult release(final ReleaseStockCommand command) {
 
-        StockReservation reservation = repository.findById(reservationId)
+        final StockReservationId reservationId = StockReservationId.of(command.reservationId());
+
+        final StockReservation reservation = repository.findById(reservationId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "No stock reservation found with id: " + reservationId));
 
@@ -71,7 +73,7 @@ public class ReleaseStockService implements ReleaseStockUseCase {
             return new ReleaseStockResult(reservationId);
         }
 
-        StockReservation released = reservation.release();
+        final StockReservation released = reservation.release();
         repository.save(released);
         outboxRepository.save(outboxMapper.map(
                 new StockReleasedDomainEvent(reservationId, reservation.orderId()),

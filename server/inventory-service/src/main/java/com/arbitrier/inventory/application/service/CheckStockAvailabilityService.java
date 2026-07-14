@@ -46,6 +46,7 @@ public class CheckStockAvailabilityService implements CheckStockAvailabilityUseC
 
     @Override
     public CheckStockAvailabilityResult check(final CheckStockAvailabilityCommand command) {
+
         Require.notNull(command, "command");
 
         final List<RequestedStockLine> requestedLines = command.lines().stream()
