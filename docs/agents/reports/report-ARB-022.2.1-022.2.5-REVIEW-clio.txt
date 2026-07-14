@@ -1,0 +1,496 @@
+TASK: ARB-022.2.1-022.2.5-REVIEW — Outbound Dispatch Architecture Review
+DATE: 2026-07-13
+AGENT: clio
+
+SUMMARY
+-------
+Reviewed the complete outbound dispatch architecture formed by ARB-022.2.1
+through 022.2.5 as one coherent unit. Verified every class, every port, every
+composition path, every test, and the auto-configuration against source on disk.
+
+Overall: PASS WITH WARNINGS. The architecture is correct, composable, and
+well-isolated. Three warnings (no PENDING guard, markPublished-after-publish
+ordering gap, Avro String type tension) and several informational observations
+are noted below. None block acceptance.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 1: RESPONSIBILITY BOUNDARIES — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING B1 — [POSITIVE] Seven components, seven distinct responsibilities
+
+Verified component inventory and dependency direction:
+
+  DispatchOutboxMessageService  (application coordination)
+    ├── OutboundMessagePublisher  (port: transport dispatch)
+    │     └── KafkaOutboundMessagePublisher  (adapter: Kafka)
+    │           ├── OutboundPayloadSerializer  (port: payload serialization)
+    │           │     └── JsonOutboundPayloadSerializer  (impl: JSON passthrough)
+    │           └── OutboundRoutingStrategy  (port: destination resolution)
+    └── OutboxRepository  (port: status persistence)
+
+All dependencies flow inward: adapter → port → coordination service.
+No class owns more than one lifecycle concern:
+  - Serialization is separate from publishing
+  - Routing is separate from serialization
+  - Kafka is confined to KafkaOutboundMessagePublisher (zero Kafka types in
+    OutboundMessagePublisher, OutboundRoutingStrategy, OutboundPayloadSerializer,
+    DispatchOutboxMessageService, OutboxRepository)
+
+FINDING B2 — [INFO] DispatchOutboxMessageService uses CompletableFuture but stays transport-neutral
+Category: Architecture
+Severity: INFO
+
+The service imports java.util.concurrent.CompletableFuture and CompletionStage.
+These are JDK types — not Kafka or transport-specific. No violation of the
+transport-neutral boundary. The OutboundMessagePublisher port also uses
+CompletionStage<Void>, which is correct per JDK standard async conventions.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 2: DISPATCH COMPOSITION — PASS (with observation)
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING C1 — [POSITIVE] Composition is semantically correct
+
+Verified the flow in DispatchOutboxMessageService.dispatch() line 83-97:
+
+  try {
+      published = publisher.publish(message);
+  } catch (RuntimeException immediate) {
+      callMarkFailed(message, immediate);   // marks failed in DB
+      throw immediate;                       // rethrows to caller
+  }
+  return published
+      .exceptionallyCompose(pubEx -> {       // fires only on async failure
+          callMarkFailed(message, pubEx);    // marks failed; suppressed on markFailed error
+          return CompletableFuture.failedFuture(pubEx);  // preserves original exception
+      })
+      .thenRun(() -> outboxRepository.markPublished(message.eventId()));  // fires only on success
+
+Guarantees verified:
+  - markPublished only after successful publication: YES. exceptionallyCompose
+    returns a failed future on failure → thenRun is skipped.
+  - markFailed only after publication failure: YES. exceptionallyCompose fires
+    only when the stage completes exceptionally.
+  - markPublished is skipped after failure: YES. thenRun is chained on the
+    exceptionallyCompose result. If exceptionallyCompose returns a failed
+    future, thenRun does not execute.
+  - Original publication failures remain primary: YES. pubEx is re-wrapped
+    in CompletableFuture.failedFuture(pubEx), which becomes the stage's cause.
+  - No error is swallowed: YES. Both immediate and async paths propagate the
+    original exception.
+  - No blocking occurs: YES. No get(), join(), or blocking calls. The entire
+    method returns a CompletionStage without waiting.
+
+FINDING C2 — [LOW] markPublished in .thenRun() wraps DB failures in CompletionException
+Category: Architecture
+Severity: LOW
+
+Evidence: When .thenRun(() -> outboxRepository.markPublished(...)) throws, the
+exception is wrapped in a java.util.concurrent.CompletionException by the
+CompletableFuture composition machinery. The original DB exception is the cause
+of the CompletionException.
+
+Impact: Callers inspecting the failed stage see a CompletionException, not the
+original PersistenceProblemCode. This is standard CompletableFuture behavior —
+the consumer must unwrap via Throwable.getCause().
+
+Recommendation: Accept as-is. This is standard JDK CompletableFuture behavior.
+Adding an explicit try-catch inside .thenRun() to re-wrap would add complexity
+without benefit. Document this in the service Javadoc if operators need to know
+the exception unwrapping pattern.
+Fix now or future slice: Accept (informational only).
+Blocks roadmap: No.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 3: IMMEDIATE VS ASYNCHRONOUS FAILURES — PASS (with recommendation)
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING F1 — [POSITIVE] Immediate/async split is correct for single-message dispatch
+
+Current semantics are verified:
+  Immediate failures (throw before returning a CompletionStage):
+    - null message validation (Require.notNull)
+    - routing strategy failure (OutboundRoutingStrategy throws)
+    - serialization failure (OutboundPayloadSerializer throws)
+    These all call markFailed() then rethrow to the caller.
+
+  Asynchronous failures (complete the returned stage exceptionally):
+    - broker rejection, timeout, send completion failure
+    These are handled by exceptionallyCompose → markFailed → re-fail the stage.
+
+FINDING F2 — [INFO] Keep immediate/async split; do not normalize into CompletionStage
+Category: Architecture
+Severity: INFO
+
+Recommendation against normalizing immediate failures into a failed CompletionStage:
+  - Immediate failures indicate bugs (null args, missing routing config) —
+    throwing immediately gives the clearest stack trace and failure signal.
+  - Normalizing them into a failed CompletionStage hides the failure behind
+    async composition, making debugging harder.
+  - The caller already must handle BOTH cases (try-catch for synchronous +
+    exceptionally() on the returned stage). Normalizing would add a try-catch
+    inside dispatch() just to wrap and re-wrap exceptions — zero benefit.
+  - For future batch dispatch: the polling loop should wrap each dispatch()
+    call in a try-catch to prevent one bad event from aborting the entire
+    batch. The polling loop owns batch error handling, not the single-message
+    service.
+
+Recommendation: Keep the current split. Do not normalize.
+Fix now or future slice: N/A (keep as-is).
+Blocks roadmap: No.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 4: OUTBOX STATE INTEGRITY — PASS WITH WARNINGS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING S1 — [MEDIUM] No PENDING guard — dispatch() does not check current status
+Category: Architecture
+Severity: MEDIUM
+
+Evidence: dispatch() receives an OutboxEvent and calls publish() immediately.
+It does NOT check whether the event is in PENDING status. If an already-published
+or already-failed event is passed to dispatch(), it will be published again
+(duplicate Kafka message) and then markPublished()/markFailed() will be called
+again (duplicate status update).
+
+Why it matters: The outbox drainer polling loop will call dispatch() for pending
+events. Without a status guard, any caller code error that passes already-processed
+events results in duplicate publication.
+
+Impact: Duplicate Kafka messages if a caller re-dispatches a non-PENDING event.
+The inbox on the consumer side mitigates this with idempotency, but the network
+and broker resources are wasted.
+
+Recommendation: Add a PENDING guard at the top of dispatch():
+  if (message.publishStatus() != PublishStatus.PENDING) {
+      log.warn("Skipping dispatch for non-PENDING event {} status={}",
+               message.eventId(), message.publishStatus());
+      return CompletableFuture.completedFuture(null);
+  }
+Fix now or future slice: Fix now (one guard at top of dispatch()).
+Blocks roadmap: No (single-message dispatch; only matters with polling).
+
+FINDING S2 — [MEDIUM] No CLAIMED/IN_PROGRESS status — concurrent workers unprotected
+Category: Architecture
+Severity: MEDIUM
+
+Evidence: The outbox_events table has publish_status IN ('PENDING', 'PUBLISHED',
+'FAILED'). There is no IN_PROGRESS or CLAIMED status. If two concurrent workers
+poll for pending events and dispatch the same eventId, both will send the same
+Kafka message and both will call markPublished()/markFailed(). The optimistic
+lock (@Version on OutboxEventEntity) would cause the second status update to
+fail with an OptimisticLockingFailureException, but the duplicate Kafka send
+already occurred.
+
+Why it matters: This is a PRE-production concern. Single-message dispatch with
+one caller is safe. But once a polling loop with multiple workers starts, duplicate
+publication becomes likely.
+
+Recommendation: Before implementing concurrent workers or a scheduler:
+  1. Add IN_PROGRESS to PublishStatus enum
+  2. Add IN_PROGRESS to the CHECK constraint in V4 migration
+  3. Add a `claim(UUID eventId)` method to OutboxRepository that does:
+     UPDATE outbox_events SET publish_status = 'IN_PROGRESS'
+     WHERE id = ? AND publish_status = 'PENDING'
+  4. Return false (no rows updated) if already claimed → skip dispatch
+Fix now or future slice: Future slice (before concurrent workers).
+Blocks roadmap: No (blocks concurrent-worker slice, not current).
+
+FINDING S3 — [INFO] markPublished failure after successful publication = duplicate on retry
+Category: Architecture
+Severity: INFO
+
+If Kafka acknowledges the send but the markPublished() call fails (DB unavailable),
+the outbox event stays in PENDING status. On the next polling cycle, the event
+will be dispatched again. This produces a duplicate Kafka message. The consumer
+inbox provides idempotency (deduplication by eventId), so correctness is preserved,
+but resources are wasted.
+
+Impact: Acceptable for now. The inbox pattern (defined in ARB-021) handles
+idempotent consumption. Future slices may add at-least-once delivery
+acknowledgement to reduce duplicates.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 5: TRANSACTION BOUNDARIES — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING T1 — [POSITIVE] Correctly non-transactional for network-bound dispatch
+Category: Architecture
+Severity: INFO (positive)
+
+DispatchOutboxMessageService is intentionally NOT @Transactional. The Javadoc
+explains: "Keeping a database connection open while waiting for Kafka
+acknowledgement would exhaust the connection pool under load."
+
+This is architecturally correct:
+  - The transport (Kafka) is external to the database — no distributed
+    transaction is possible.
+  - markPublished and markFailed each execute in their own short, independent
+    transactions managed by the OutboxRepository adapter.
+  - The service sacrifices atomicity (publish + markPublished are not a single
+    unit) for correctness under load (no hung DB connections).
+
+Tension with project rule: The project rule states "application services own
+transactions and adapters do not." This service explicitly violates that rule
+by intention. The violation is justified:
+  - This is a coordination service, not a persistence service. It coordinates
+    two external systems (Kafka + PostgreSQL) that cannot share a transaction.
+  - The project rule was established for services that operate on a single
+    aggregate within a single database — those services can and should be
+    @Transactional.
+  - For cross-system coordination, non-transactional services with compensating
+    actions (markFailed) are the correct pattern.
+
+Recommendation: Document this exception in AGENTS.md or the application service
+design guidelines: "Coordination services that span external systems (transport +
+database) must NOT be @Transactional. Use compensating actions instead."
+Fix now or future slice: Documentation (informational).
+Blocks roadmap: No.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 6: PUBLISHER ACKNOWLEDGEMENT CONTRACT — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING A1 — [POSITIVE] CompletionStage<Void> is the correct contract
+
+Verified:
+  - Transport-neutral: JDK standard, no Kafka dependency
+  - Error propagation: stage completes exceptionally on transport failure
+  - SendResult hidden: Kafka adapter maps it away with .thenApply(sr -> null)
+  - Void sufficient: "succeeded" or "failed" is all the drainer needs
+  - No custom PublicationResult: premature — no demonstrated need for metadata
+  - Cancellation: NOT supported (no cancel callers). Correct for now — the
+    drainer does not cancel in-flight publications.
+  - Ready for batch/polling: Yes. The drainer can call dispatch() in a loop,
+    collect CompletionStages, and use CompletableFuture.allOf() or per-stage
+    callbacks.
+
+Contract is ready for production use in its current form.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 7: PAYLOAD STRATEGY — PASS (with observation)
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING P1 — [POSITIVE] String return type is correct for JSON; abstraction is honest
+
+Verified:
+  - OutboundPayloadSerializer returns String
+  - JsonOutboundPayloadSerializer returns event.payload() unchanged
+  - The interface Javadoc explicitly states that a future Avro implementation
+    would change the return type or need a different publisher adapter
+  - Auto-configuration registers JsonOutboundPayloadSerializer as
+    @ConditionalOnMissingBean — easily overridable
+
+FINDING P2 — [INFO] Avro will require a separate publisher, not just a new serializer
+Category: Architecture
+Severity: INFO
+
+Evidence: The current Kafka publisher is KafkaTemplate<String, String>. An Avro
+serializer produces byte[], not String. Changing OutboundPayloadSerializer to
+return byte[] would break JsonOutboundPayloadSerializer. A generic
+OutboundPayloadSerializer<T> would propagate the generic through the publisher
+and make bean wiring complex.
+
+Recommendation: When Avro is needed, implement a parallel KafkaAvroOutboundMessagePublisher
+that uses KafkaTemplate<String, byte[]> and a separate AvroOutboundPayloadSerializer
+interface (or byte[]-returning variant). The JSON path remains unchanged. The
+auto-configuration selects which publisher to register based on a property
+(e.g., arbitrier.messaging.format=json|avro).
+
+This is cleaner than forcing two incompatible serialization strategies through
+a single interface. The OutboundMessagePublisher port stays the same; only the
+implementation bean changes.
+
+Fix now or future slice: Future slice (Avro implementation).
+Blocks roadmap: No.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 8: ROUTING — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING R1 — [POSITIVE] Routing contract is honest and pragmatic
+
+Verified (post ARB-022.2.2-FIX-001):
+  - OutboundRoutingStrategy Javadoc now states: "The returned string is used
+    directly as the Kafka topic name." No pretense of logical-to-physical
+    translation.
+  - Example topic name in Javadoc: "arbitrier.order.created.v1" — matches the
+    existing TopicNames.java convention.
+  - aggregateId as partition key: correct. Messages for the same aggregate
+    are ordered within a partition.
+  - No default strategy: correct. Routing is service-specific. Each service
+    provides its own strategy bean.
+  - Ready for closed topic catalogue: Yes. A strategy implementation can map
+    eventType+messageNature to entries in TopicNames.java, creating a
+    compile-time-verified routing table.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 9: AUTO-CONFIGURATION — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING C3 — [POSITIVE] All ARB-022.2.2 review findings are resolved
+
+Verified (post ARB-022.2.2-FIX-001):
+  - A2 (missing @ConditionalOnBean): FIXED — line 74 adds
+    @ConditionalOnBean(OutboundRoutingStrategy.class) to the publisher bean.
+    No startup crash when routing strategy is absent.
+  - H2 (missing ArchUnit rule): FIXED — messaging_contracts_must_not_depend_on_kafka()
+    verifies that outbox/inbox packages do not depend on org.springframework.kafka..
+    or org.apache.kafka..
+  - R2 (Javadoc tension): FIXED — OutboundRoutingStrategy Javadoc now accurately
+    states the returned String is the Kafka topic name.
+  - T2 (missing routing failure test): FIXED — routing_strategy_failure_propagates_and_send_is_never_called()
+    test added.
+
+Additional verified:
+  - @ConditionalOnMissingBean(OutboundPayloadSerializer.class) for JSON default
+  - Named outboundMessageProducerFactory / outboundMessageKafkaTemplate beans
+    avoid conflicts with service-level Avro KafkaTemplate beans
+  - Clean override: services provide their own OutboundPayloadSerializer,
+    OutboundRoutingStrategy, or OutboundMessagePublisher bean to customize
+
+FINDING C4 — [INFO] Conditional chain prevents silent misconfiguration
+Category: Architecture
+Severity: INFO (positive)
+
+Activation chain: @ConditionalOnClass(KafkaTemplate.class) AND
+@ConditionalOnProperty("spring.kafka.bootstrap-servers") enable the
+configuration class. Inside: @ConditionalOnBean(OutboundRoutingStrategy.class)
+enables the publisher. All three conditions must be met. If any is absent,
+no beans are created — no startup failure, no half-configured state.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 10: TESTS — PASS (with observation)
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING T2 — [POSITIVE] Test coverage is thorough across all components
+
+Verified test inventory:
+  KafkaOutboundMessagePublisherTest: 13 tests
+    - serializer delegation (new — verifies serialize() called)
+    - payload output (updated — checks serializer output, not raw payload)
+    - destination resolution, partition key, EVENT headers, COMMAND headers,
+      null header omission, null rejection, invocation count (unchanged)
+    - stage completion: success and failure (new — verifies async contract)
+    - routing strategy failure propagation (new — verifies immediate throw)
+
+  DispatchOutboxMessageServiceTest: 9 tests
+    - null rejection, invocation count, success → markPublished,
+      success → no markFailed, async failure → markFailed,
+      async failure → exceptional stage, immediate failure → markFailed,
+      markFailed suppression, markPublished failure → exceptional stage
+
+  OutboundPayloadSerializerTest: 2 tests
+    - lambda implementability, EVENT/COMMAND acceptance
+
+  JsonOutboundPayloadSerializerTest: 3 tests
+    - payload passthrough, null rejection
+
+  PlatformArchitectureTest: 6 tests
+    - business domain isolation, messaging domain purity, adapter isolation,
+      ObjectMapper confinement, Kafka contract purity, Jackson contract purity
+
+Total: 33 tests across 5 test classes for the outbound dispatch path.
+
+FINDING T3 — [LOW] No test verifies that markPublished fires AFTER publish succeeds
+Category: Architecture
+Severity: LOW
+
+The test `successful_publication_calls_markPublished` verifies markPublished
+is called, but does not use InOrder to verify the sequence: publish() called
+before markPublished(). The composition logic guarantees this (exceptionallyCompose
+only passes through on success, thenRun fires after), but a test would make the
+contract explicit.
+
+Recommendation: Add an InOrder verification:
+  InOrder inOrder = inOrder(publisher, outboxRepository);
+  inOrder.verify(publisher).publish(any());
+  inOrder.verify(outboxRepository).markPublished(any());
+Fix now or future slice: Future slice (nice-to-have).
+Blocks roadmap: No.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 11: READINESS FOR NEXT SLICES
+────────────────────────────────────────────────────────────────────────────────
+
+| Capability | Status | Prerequisites |
+|---|---|---|
+| findPending integration | READY | dispatch() accepts individual OutboxEvent; polling loop is trivial |
+| Batch dispatch | READY WITH PREREQUISITES | Needs batch error handling strategy (skip failures vs abort batch) |
+| Scheduler | READY | @Scheduled method can iterate pending events, call dispatch() |
+| Multiple workers | NOT READY | Needs CLAIMED/IN_PROGRESS status, optimistic claim semantics (Finding S2) |
+| Retries and backoff | NOT READY | Needs attempt tracking on OutboxEvent/Entity, retry policy wiring |
+| Avro publisher | READY WITH PREREQUISITES | Needs KafkaTemplate<String, byte[]>, byte[] serializer (Finding P2) |
+| Command publisher replacement | READY WITH PREREQUISITES | Needs commands to be persisted to outbox first (ARB-022.1 prepared this) |
+
+────────────────────────────────────────────────────────────────────────────────
+EXPLICIT ANSWERS
+────────────────────────────────────────────────────────────────────────────────
+
+1. Can ARB-022.2.1 through 022.2.5 be accepted as a coherent outbound
+   dispatch foundation?
+   YES. The architecture is correct, composable, and well-isolated. All
+   ARB-022.2.2 review findings are resolved. The flow from OutboxEvent
+   through DispatchOutboxMessageService to Kafka is complete and testable.
+
+2. Is DispatchOutboxMessageService semantically correct?
+   YES. The composition guarantees markPublished only after successful
+   publication, markFailed after failure, no swallows, no blocking.
+   One gap: no PENDING guard (Finding S1).
+
+3. Should immediate failures be normalized into a failed CompletionStage?
+   NO. Keep the current split. Immediate failures (bugs, misconfig)
+   should throw directly for clear stack traces. Async failures (broker
+   degradation) complete the stage exceptionally. Normalizing would add
+   complexity without benefit. See Finding F2.
+
+4. Is the current Outbox state model sufficient before polling begins?
+   YES for single-threaded polling. NOT SUFFICIENT for concurrent workers.
+   IN_PROGRESS/CLAIMED status + optimistic claim semantics are needed
+   before multiple workers dispatch concurrently. See Finding S2.
+
+5. Are transaction boundaries correct?
+   YES. The service is intentionally non-transactional to avoid holding
+   DB connections during Kafka waits. This is a justified exception to
+   the "application services own transactions" rule. See Finding T1.
+
+6. Is the architecture ready for a pending-message polling slice?
+   YES. The dispatch() method accepts individual OutboxEvent. A polling
+   slice can: (1) call outboxRepository.findPending(), (2) loop over
+   results, (3) call dispatch() for each. Single-worker polling requires
+   no additional infrastructure.
+
+7. Which findings must be fixed before concurrent workers or production use?
+   Before concurrent workers: S2 (CLAIMED/IN_PROGRESS status, optimistic
+   claim). Before production: S1 (PENDING guard), a topic catalogue
+   (OutboundRoutingStrategy implementations), and Avro publisher decision.
+   None block the next slice (scheduler + single-worker polling).
+
+────────────────────────────────────────────────────────────────────────────────
+VERDICT
+────────────────────────────────────────────────────────────────────────────────
+
+Overall: PASS WITH WARNINGS
+
+Findings summary:
+  [INFO]  B1 — Seven components, seven distinct responsibilities (positive)
+  [INFO]  B2 — CompletableFuture usage stays transport-neutral (positive)
+  [INFO]  C1 — Composition is semantically correct (positive)
+  [LOW]   C2 — .thenRun() wraps markPublished failures in CompletionException
+  [INFO]  F1 — Immediate/async split is correct (positive)
+  [INFO]  F2 — Do not normalize immediate failures into CompletionStage
+  [MED]   S1 — No PENDING guard — can re-dispatch already-published events
+  [MED]   S2 — No CLAIMED/IN_PROGRESS — unprotected for concurrent workers
+  [INFO]  S3 — markPublished failure = duplicate on retry (informational)
+  [INFO]  T1 — Correctly non-transactional for cross-system coordination (positive)
+  [INFO]  A1 — CompletionStage<Void> is correct contract (positive)
+  [INFO]  P1 — String payload is correct for JSON; Avro needs separate publisher
+  [INFO]  P2 — Avro should use parallel publisher, not generic serializer
+  [INFO]  R1 — Routing contract is honest and pragmatic (positive)
+  [INFO]  C3 — All ARB-022.2.2 review findings resolved (positive)
+  [INFO]  C4 — Conditional chain prevents silent misconfiguration (positive)
+  [INFO]  T2 — 33 tests across 5 test classes (positive)
+  [LOW]   T3 — No InOrder verification for publish→markPublished sequence
+
+No FAIL findings. No blockers.

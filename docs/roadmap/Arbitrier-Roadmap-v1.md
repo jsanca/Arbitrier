@@ -78,24 +78,25 @@ ARB-017 [DONE]
 Pre-Saga Availability Negotiation
 
 ARB-017B [DONE]
-Global Inventory Allocation Ownership — warehouse selection remains inside Inventory
+Global Inventory Allocation Ownership
 
 ARB-018 [DONE]
-Saga Retry Decision Policy — attempt-count decisions; runtime scheduling remains ARB-024
+Saga Retry Decision Policy
+(Runtime scheduling deferred)
 
 ---
 
 =========================
-SECURITY REVIEW
+SECURITY
 =========================
 
-ARB-018A
+ARB-018A [DONE]
 Architecture Security Review
 
-ARB-018B
+ARB-018B [PLANNED]
 Threat Model
 
-ARB-018C
+ARB-018C [PLANNED]
 Security Hardening
 
 ---
@@ -103,51 +104,130 @@ Security Hardening
 # INFRASTRUCTURE ADAPTERS
 
 ARB-019 [DONE]
-Persistence Adapters — JPA, PostgreSQL Repositories, Optimistic Locking
+Persistence Adapters
 
 ARB-020 [DONE]
-Database Migrations & Synthetic Data — Flyway/Liquibase, Init Data
+Database Migrations & Synthetic Data
 
 ARB-021 [DONE]
 Outbox / Inbox Foundation
 
-ARB-022 [PLANNED]
-Kafka Runtime Adapters — Consumers, Producers, KafkaTemplate, Avro Mappers
+---
+
+# MESSAGING RUNTIME
+
+ARB-022 [IN PROGRESS]
+Outbound Messaging Runtime
+
+## Foundation
+
+ARB-022.1 [DONE]
+Messaging Contracts & Publisher Foundation
+
+ARB-022.2 [DONE]
+Outbound Dispatch Foundation
+
+- Publisher Port
+- Kafka Publisher Adapter
+- Payload Serialization Strategy
+- Publication Acknowledgement
+- Dispatch Service
+- Architecture Review
+- Review Fixes
+
+## Runtime
+
+ARB-022.3 [PLANNED]
+Pending Message Polling
+
+- findPending()
+- Sequential dispatch
+- Single worker
+
+ARB-022.4 [PLANNED]
+Scheduled Dispatcher
+
+- Spring Scheduler
+- Polling lifecycle
+- Runtime activation
+
+ARB-022.5 [PLANNED]
+Concurrent Dispatch
+
+- Claim semantics
+- Multiple workers
+- Duplicate dispatch protection
+
+ARB-022.6 [PLANNED]
+Dispatch Retry & Backoff
+
+- Retry policy
+- Exponential backoff
+- Next attempt scheduling
+- Dead message handling
+
+ARB-022.7 [PLANNED]
+Messaging Runtime Observability
+
+- Metrics
+- Tracing
+- Runtime health
+- Queue monitoring
+
+---
+
+# TRANSPORT
 
 ARB-023 [PLANNED]
-Schema Registry & Avro Serializer Finalization
+Avro Transport & Schema Registry
+
+- Avro Publisher
+- Schema Registry
+- Subject Strategy
+- Contract Evolution
+- JSON Development Adapter
+- Avro Production Adapter
+
+---
+
+# RESILIENCE
 
 ARB-024 [PLANNED]
-Resilience4j Runtime Policies — Retry, Circuit Breaker, Bulkhead, TimeLimiter
+Runtime Resilience
+
+- Circuit Breaker
+- Bulkhead
+- Rate Limiter
+- Time Limiter
 
 ---
 
 # USER INTERFACE
 
 ARB-UI-001 [DONE]
-Customer Portal React Prototype — mock-backed, no backend integration
+Customer Portal Prototype
 
 ARB-025 [PLANNED]
 Dashboard Backend API
 
 ARB-026 [PLANNED]
-Production Customer Portal Integration — real APIs, Keycloak, runtime status
+Production Customer Portal Integration
 
 ---
 
 # DELIVERY & OPERATIONS
 
 ARB-027 [DONE]
-Local Runtime Stack — Docker Compose, Kafka, PostgreSQL, Keycloak, Schema Registry
+Local Runtime Stack
 
 ARB-028 [PLANNED]
-Cloud Infrastructure — Terraform, GCP, GKE, Cloud SQL, Networking, Secrets
+Cloud Infrastructure
 
 ARB-029 [PLANNED]
-Kubernetes Deployment — manifests/Helm, probes, resources, autoscaling
+Kubernetes Deployment
 
 ARB-030 [PLANNED]
-CI/CD
+CI / CD
 
 ARB-031 [PLANNED]
 Performance & Resilience Validation
