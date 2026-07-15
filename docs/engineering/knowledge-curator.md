@@ -2,6 +2,10 @@
 
 The Knowledge Curator maintains Arbitrier’s durable engineering memory.
 
+Use the reusable [Knowledge Curator skill](../../.claude/skills/knowledge-curator/SKILL.md)
+for operational curation behavior; this document defines the project role and
+its governance boundaries.
+
 ## Responsibilities
 
 - Reconcile implementation reports, reviews, fixes, and active canonical documentation.

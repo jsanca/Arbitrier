@@ -1,0 +1,496 @@
+TASK: ARB-022.3-REVIEW — Pending Polling Runtime Review
+DATE: 2026-07-14
+AGENT: clio
+
+SUMMARY
+-------
+Reviewed the 3-slice polling runtime (ARB-022.3.1 retrieval, 022.3.2 sequential
+dispatch, 022.3.3 polling facade) as one coherent unit. Verified every class,
+every repository method, every composition chain, and every test against source
+on disk.
+
+Overall: PASS WITH WARNINGS. The polling architecture is correct for one
+bounded, manually-invocable cycle. Three warnings (overlap-prevention gap,
+retained findPending() debt, head-of-line blocking) and one hard prerequisite
+for scheduling are noted. The architecture is ready for a scheduler slice WITH
+the overlap-prevention caveat.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 1: REPOSITORY RETRIEVAL — PASS (with observation)
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING R1 — [POSITIVE] Bounded findPending(int) is correctly implemented with parity
+
+Verified across JPA and in-memory adapters:
+
+  JPA (JpaOutboxRepositoryAdapter.findPending(int)):
+    - limit < 0: throws IllegalArgumentException
+    - limit == 0: returns List.of() immediately, no DB access
+    - limit > 0: calls findByPublishStatusOrderByOccurredAtAsc(PENDING, PageRequest.of(0, limit))
+
+  In-Memory (InMemoryOutboxRepository.findPending(int)):
+    - limit < 0: throws IllegalArgumentException
+    - limit == 0: stream short-circuits via limit(0) → empty
+    - limit > 0: filter(PENDING) → sorted(occurredAt) → limit(limit)
+
+  Parity: FULL. Both implement the same semantics: status filter, ASC ordering,
+  limit enforcement, negative guard, zero short-circuit.
+
+  Status exclusion: Only PENDING rows are returned. PUBLISHED and FAILED are
+  excluded by the predicate.
+
+  SQL-level limiting: PageRequest.of(0, limit) applies LIMIT at the DB level
+  without a count query — correct and efficient.
+
+FINDING R2 — [LOW] Retained parameterless findPending() creates minor API debt
+Category: Architecture
+Severity: LOW
+
+Evidence: OutboxRepository still has both findPending() (no limit, returns all
+pending) and findPending(int limit) (bounded). The parameterless version is used
+only in adapter tests (JpaOutboxRepositoryAdapterTest, InMemoryOutboxRepositoryTest).
+No production code calls it — all new services use findPending(int limit).
+
+Impact: A future developer might call findPending() in production code thinking
+it's acceptable, loading all pending events into memory.
+
+Recommendation: Deprecate the parameterless findPending() or remove it once
+all callers are migrated. Acceptable to defer — the bounded version is the
+documented contract for dispatch.
+Fix now or future slice: Future cleanup (remove or deprecate).
+Blocks roadmap: No.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 2: ORDERING — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING O1 — [POSITIVE] occurredAt ASC is the correct FIFO ordering
+
+Verified:
+  - Database: ORDER BY occurred_at ASC via Spring Data method name
+  - In-memory: sorted(Comparator.comparing(OutboxEvent::occurredAt))
+  - occurredAt is set at outbox write time and never modified — stable FIFO key
+  - JPA adapter test verifies 3 events in non-chronological order → oldest-first
+
+Why occurredAt over alternatives:
+  - No persistedAt/createdAt column exists in outbox_events. occurredAt is the
+    closest equivalent.
+  - occurredAt is set by DomainEventToOutboxMapper at outbox write time via
+    TimeProvider.now() — it captures the moment the event is persisted.
+  - Adding a new column for ordering is premature — occurredAt is sufficient.
+
+FINDING O2 — [INFO] Equal-timestamp ordering is non-deterministic between queries
+Category: Architecture
+Severity: INFO
+
+Evidence: The Javadoc on findPending(int limit) states: "events with the same
+occurredAt value may appear in any stable order for that timestamp."
+
+No secondary ordering (e.g., eventId) is applied. Within a single query,
+PostgreSQL may return equal-timestamp rows in any order. The in-memory adapter
+uses occurredAt only (stable for equal values based on insertion order).
+
+Impact: Low. In practice, events are created by application services one at a
+time within transactions — timestamps are likely distinct at microsecond
+resolution (PostgreSQL TIMESTAMPTZ has microsecond precision).
+
+Recommendation: No fix needed for single-worker scheduling. If deterministic
+cross-cycle ordering becomes critical (e.g., for operational tooling that
+paginates through events), add a secondary eventId ASC ordering. Not needed now.
+Fix now or future slice: Future slice (if pagination/inspection tools need it).
+Blocks roadmap: No.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 3: SEQUENTIAL DISPATCH — PASS (with observation)
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING D1 — [POSITIVE] thenCompose fold correctly preserves ordering and stops on failure
+
+Verified algorithm (SequentialPendingDispatchService.dispatchPending, lines 80-84):
+
+  CompletionStage<Void> chain = completedFuture(null);
+  for (OutboxEvent event : pending) {
+      chain = chain.thenCompose(ignored -> dispatcher.dispatch(event));
+  }
+
+Composition guarantees:
+  - Strict sequential execution: YES. thenCompose fires only after the previous
+    stage completes. No parallelism introduced.
+  - Ordering preservation: YES. Loop order matches repository order.
+  - First-failure behavior: YES. If any dispatch(e) fails, the returned stage
+    from thenCompose is failed → subsequent thenCompose calls receive the failed
+    stage → their lambdas are NEVER invoked → chain terminates.
+  - Exception wrapping: CompletionException wrapping is standard CompletableFuture
+    behavior. The original dispatch exception is the cause.
+  - Memory/call-chain: For batch sizes of 10-100, the chain depth is negligible.
+    No recursion, no stack buildup — each thenCompose adds one link to the
+    CompletionStage chain, which is heap-based, not stack-based.
+
+Test `first_dispatch_failure_stops_remaining_dispatches` explicitly verifies
+that e3 is never dispatched when e2 fails. InOrder on the dispatcher mock
+confirms correct sequence.
+
+FINDING D2 — [INFO] Stop-on-first-failure is correct for first runtime
+Category: Architecture
+Severity: INFO
+
+Rationale: A failing event indicates a systemic problem (broker unavailable,
+serialization error). Retrying immediately with the next event is unlikely to
+succeed and wastes resources. Stopping the batch gives the scheduler a clean
+failure signal to react to (log, alert, backoff).
+
+Trade-off: A single poison event blocks the entire queue (head-of-line blocking).
+If event e1 has a corrupted payload, it will fail every cycle, and e2-e99 are
+never dispatched. This requires retry/DLQ in a future slice.
+
+Assessment: Stop-on-first-failure is correct for the first runtime. The
+scheduler should back off on failure and retry. A future slice may add
+skip-on-failure or DLQ routing. See Area 8.
+Fix now or future slice: Accept as-is for first runtime.
+Blocks roadmap: No.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 4: POLLING FACADE — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING P1 — [POSITIVE] Thin facade creates a clean scheduling boundary
+
+Verified:
+  - OutboxPollingService.pollOnce() delegates to sequentialDispatch.dispatchPending(batchSize)
+  - No Kafka dependencies, no repository dependencies, no Spring annotations
+  - batchSize validated at construction time (must be positive)
+  - Framework-neutral — plain Java class
+
+Is the facade meaningful? YES. It creates a scheduling boundary:
+  - The facade owns batch-size configuration and cycle semantics
+  - The scheduler (future slice) owns timing, fixed-delay, overlap detection
+  - Without the facade, the scheduler would need to know about
+    SequentialPendingDispatchService, batch sizes, repository semantics → leaks
+    dispatch internals into scheduling
+  - The facade is testable without timers, threads, or @Scheduled annotations
+
+FINDING P2 — [INFO] batchSize rejection semantics differ from findPending limit
+Category: Architecture
+Severity: INFO
+
+OutboxPollingService rejects batchSize <= 0 (zero is invalid).
+SequentialPendingDispatchService accepts limit == 0 (short-circuits).
+OutboxRepository accepts limit == 0 (short-circuits).
+
+This is correct: a polling facade with zero batch size has no useful behavior.
+The underlying services accept zero for the same reason they accept empty
+repositories — zero means "nothing to do, return immediately." The facade
+adds a stricter pre-condition.
+
+No action needed — intentional design choice documented in the implementation
+report.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 5: STATE INTEGRITY — PASS (with observation)
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING S1 — [INFO] PENDING guard still absent but caller-owned invariant is safe for
+  single-worker
+
+The ARB-022.2.5 review identified that DispatchOutboxMessageService.dispatch()
+lacks a PENDING guard (can re-dispatch already-published events). This was
+classified MEDIUM.
+
+For ARB-022.3: the guard remains absent. However, the sequential dispatch
+service and polling facade depend on findPending(int limit) which returns
+only PENDING events from the database. The database is the authoritative source
+of publish_status.
+
+Under single-worker polling, the invariant holds:
+  - findPending returns only PENDING rows → dispatch receives only PENDING events
+  - One worker processes one batch at a time → no concurrent status changes
+  - markPublished/markFailed updates the status in the DB → future findPending
+    calls exclude the now-processed event
+
+Risk: If findPending were to return non-PENDING rows (schema bug, adapter bug),
+dispatch would silently re-publish or re-fail already-processed events. A
+programmatic guard in dispatch() provides defense-in-depth.
+
+Recommendation: Keep the caller-owned invariant approach for the single-worker
+case. The dispatch() guard should still be added for defense-in-depth (see
+ARB-022.2.5 review Finding S1). Not critical for this slice.
+Fix now or future slice: Defer (same as ARB-022.2.5 S1 recommendation).
+Blocks roadmap: No for single-worker.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 6: SINGLE-WORKER SAFETY — PASS WITH WARNINGS (critical overlap finding)
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING W1 — [HIGH] pollOnce() is non-blocking — overlapping cycles cause duplicate dispatch
+
+Evidence: pollOnce() returns a CompletionStage immediately. It does NOT block
+until the batch completes. If a scheduler calls pollOnce() at a fixed interval
+that is shorter than the batch's Kafka publication time, the second call starts
+BEFORE the first batch finishes:
+
+  T0: pollOnce() → findPending → [e1, e2, e3] → start dispatching sequentially
+  T1: e1 completes, markPublished(e1) called (e1 status → PUBLISHED)
+  T2: scheduler fires again, pollOnce() → findPending → [e2, e3] (e1 is now
+      PUBLISHED, excluded)
+  T3: dispatch(e2) from BOTH cycle 1 AND cycle 2 begins simultaneously
+  → duplicate Kafka message for e2 and e3
+
+Why this matters: The sequential fold guarantees in-order dispatch WITHIN a
+single cycle. It does NOT guarantee that only one cycle runs at a time. The
+returned CompletionStage is a handle to monitor completion, not a lock.
+
+Impact under single scheduler worker:
+  - Fixed-rate scheduling: Cycles WILL overlap if the batch takes longer than
+    the interval → duplicate messages for mid-batch events.
+  - Fixed-delay scheduling: The scheduler waits for the previous cycle to
+    complete before starting the next — but the scheduler needs to know the
+    previous cycle's stage to wait on it.
+  - Under a JVM with one scheduler thread: overlapping cycles are possible if
+    the previous stage hasn't completed. The thread calls pollOnce() again
+    synchronously.
+
+Recommendation for ARB-022.4 scheduler:
+  MINIMUM REQUIREMENT: The scheduler MUST wait for the previous pollOnce()
+  stage to complete before initiating the next cycle. Options:
+    a. Track the active stage: `if (activeCycle != null && !activeCycle.isDone())
+       return;` — simplest, loses cycles
+    b. Fixed-delay with stage tracking: `activeCycle.whenComplete(() ->
+       scheduleNextCycle())` — correct, preserves all cycles
+    c. Single-threaded executor with serial execution — guarantees one cycle
+       at a time
+
+  Regardless of approach, the scheduler must:
+    1. Never start pollOnce() while the previous stage is still pending
+    2. Be able to detect that a cycle is in progress
+    3. Log when a cycle is skipped due to overlap
+
+Fix now or future slice: MUST be addressed in ARB-022.4 (scheduler slice).
+The polling service itself is correct — the scheduler owns overlap prevention.
+Blocks roadmap: No (blocks ARB-022.4 design, not this slice's acceptance).
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 7: CONCURRENT WORKER READINESS — NOT READY (informational)
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING C1 — [INFO] Multiple workers require claim infrastructure not yet implemented
+
+Current design is explicitly single-worker. Before multiple scheduler threads,
+application replicas, or concurrent pollers are introduced, the following must
+exist:
+
+  PublishStatus + CLAIMED (or IN_PROGRESS):
+    New status value to mark events as claimed by a worker. Prevents other
+    workers from claiming the same event.
+
+  OutboxRepository.claim(UUID, String workerId):
+    Atomic conditional UPDATE: WHERE publish_status = 'PENDING'. Returns
+    boolean (true = claimed, false = already claimed by another worker).
+    This is the database-level claim primitive.
+
+  claim expiration / lease:
+    If a worker claims an event and crashes before dispatching, the event
+    stays CLAIMED forever. A claim_expires_at column or a separate
+    cleanup process is needed for operational safety.
+
+  JPA adapter implementation:
+    Use @Modifying + @Query with JPQL UPDATE. The @Version on OutboxEventEntity
+    provides optimistic locking, but the claim should be a direct UPDATE to
+    avoid loading the entity.
+
+None of these are implemented. None are needed for single-worker. Each belongs
+to a distinct future slice (e.g., ARB-022.5 concurrent workers).
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 8: FAILURE POLICY — PASS (with caveat documented)
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING F1 — [INFO] Stop-on-first-failure + permanent FAILED exclusion = head-of-line
+  blocking across cycles; manual recovery needed
+
+Behavior across cycles:
+  Cycle 1: [e1, e2, e3], e2 fails → batch stops, e2 marked FAILED, e3 untouched
+  Cycle 2: findPending → [e3] (e2 is FAILED, excluded; e3 still PENDING)
+  → e3 dispatches correctly
+
+So the first-failure stop does NOT permanently block later messages ACROSS
+cycles — only WITHIN a cycle. e3 dispatches in the next cycle. This is
+correct — see Area 3 D2.
+
+However, FAILED events ARE permanently excluded from findPending. A FAILED
+event will never be retried unless a separate retry process exists. Operators
+must manually inspect FAILED rows and decide: retry, discard, or escalate.
+
+What's missing:
+  - Automatic retry with backoff (future slice)
+  - Dead-letter workflow / alerting for FAILED events (future slice)
+  - A process to reset FAILED → PENDING for retry (manual for now, automated later)
+
+Assessment: Correct for first runtime. The scheduler should log FAILED events
+count per cycle. Manual recovery via DB inspection is acceptable until a
+retry/DLQ slice addresses it.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 9: TRANSACTION BOUNDARIES — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING T1 — [POSITIVE] All operations are correctly short-lived
+
+Verified:
+  - findPending(int limit): single SELECT with LIMIT in the repository (no
+    long-running query)
+  - Sequential dispatch: calls dispatch() for each event. The dispatch service
+    is NOT @Transactional — no DB connection held during Kafka wait
+  - markPublished/markFailed: individual UPDATE operations in the Jpa adapter,
+    each in its own transaction (via Spring Data JPA's default transaction
+    handling on repository methods)
+  - No transaction wraps the full pollination cycle — correct
+
+Tension with project rule: The dispatch services intentionally violate the
+"application services own @Transactional" rule. This was documented and
+justified in the ARB-022.2.5 review (Finding T1). The same justification
+applies here — cross-system coordination cannot be transactionally atomic.
+No new tension introduced by ARB-022.3.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 10: TESTS — PASS
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING TC1 — [POSITIVE] 37 tests cover repository retrieval, sequential dispatch,
+  and polling facade
+
+Verified test inventory:
+  JpaOutboxRepositoryAdapterTest: 14 tests (7 prior + 7 new retrieval tests)
+    - empty repo, single event, multi-event ordering, limit > available,
+      limit=0, limit<0, PUBLISHED/FAILED exclusion
+
+  InMemoryOutboxRepositoryTest: 14 tests (mirrors JPA tests)
+    - Same scenarios, no PostgreSQL needed
+
+  SequentialPendingDispatchServiceTest: 8 tests
+    - Negative limit, zero limit, empty repo, single dispatch, multi-dispatch
+      InOrder verification, limit forwarding, first-failure stop, all-success
+      completion
+
+  OutboxPollingServiceTest: 8 tests
+    - Valid batchSize, zero rejection, negative rejection, delegation count,
+      batchSize forwarding, success propagation, failure propagation, immediate
+      throw propagation
+
+  Total ARB-022.3 tests: 37 (14 + 14 + 8 + 8)
+
+All tests use Mockito mocks — no broker, no Docker, no Testcontainers.
+Correct per scope (unit tests for the coordination layer; JPA adapter tests for
+the persistence layer).
+
+FINDING TC2 — [INFO] No test for equal-timestamp ordering stability
+Category: Architecture
+Severity: INFO
+
+The Javadoc documents equal-timestamp ordering as potentially non-deterministic
+between queries. No test verifies this (or verifies that order within a single
+query is stable).
+
+Impact: Low. The in-memory adapter is stable for equal timestamps based on
+insertion order. The JPA adapter depends on PostgreSQL's internal behavior.
+In practice, timestamps are distinct.
+Fix now or future slice: Future slice (optional).
+Blocks roadmap: No.
+
+────────────────────────────────────────────────────────────────────────────────
+AREA 11: READINESS FOR SCHEDULER — FINDINGS FOR ARB-022.4
+────────────────────────────────────────────────────────────────────────────────
+
+Minimum requirements for the ARB-022.4 scheduler slice:
+
+1. OVERLAP PREVENTION (REQUIRED)
+   The scheduler MUST NOT start a new pollOnce() cycle while the previous
+   cycle's CompletionStage has not completed. Failure to implement this causes
+   duplicate publication. See Finding W1.
+
+2. FIXED-DELAY SEMANTICS (REQUIRED)
+   After pollOnce().whenComplete(...), schedule the next cycle. This guarantees
+   no overlap and naturally adapts to variable batch durations.
+
+3. PROPERTY BINDING (REQUIRED)
+   - arbitrier.messaging.outbox.polling.batch-size: int (default 50)
+   - arbitrier.messaging.outbox.polling.enabled: boolean (default true)
+   - arbitrier.messaging.outbox.polling.initial-delay-ms: long (default 5000)
+   - arbitrier.messaging.outbox.polling.fixed-delay-ms: long (default 10000)
+
+4. CONDITIONAL ACTIVATION (REQUIRED)
+   @ConditionalOnBean(OutboundMessagePublisher.class) — only active when
+   the transport publisher is available. If Kafka is not configured, the
+   scheduler is not created.
+
+5. GRACEFUL SHUTDOWN (REQUIRED)
+   @PreDestroy method that waits for the active cycle to complete with a
+   timeout (e.g., 30s). Logs and gives up if timeout exceeded.
+
+6. LOGGING OF FAILED CYCLES (RECOMMENDED)
+   The scheduler should log when a cycle fails (exceptionally completed
+   stage), but not crash. The next cycle starts normally.
+
+────────────────────────────────────────────────────────────────────────────────
+EXPLICIT ANSWERS
+────────────────────────────────────────────────────────────────────────────────
+
+1. Can ARB-022.3 be marked DONE?
+   YES. All acceptance criteria for the 3 slices are met. The polling
+   architecture is correct for one bounded, manually-invocable cycle.
+
+2. Is occurredAt ordering sufficiently deterministic?
+   YES for single-worker. Timestamps are microsecond-precision, set at
+   outbox write. Equal-timestamp ordering is non-deterministic between
+   queries but timestamps are typically distinct in practice. No secondary
+   key needed now.
+
+3. Is stop-on-first-failure correct for the first runtime?
+   YES. A failing event indicates systemic problems (broker down). Stopping
+   preserves resources. The next cycle picks up remaining events. Permanent
+   FAILED exclusion requires manual recovery or a retry/DLQ slice.
+
+4. Is the design safe for one scheduled worker?
+   NO — with a caveat. The design is safe ONLY IF the scheduler prevents
+   overlapping cycles. pollOnce() is non-blocking. The scheduler MUST wait
+   for the previous cycle's CompletionStage to complete. See Finding W1.
+
+5. What overlap protection is required before ARB-022.4?
+   The scheduler must track the active cycle's CompletionStage and never
+   start a new cycle while the active one is pending. Fixed-delay with
+   stage-tracking is the recommended approach.
+
+6. Which findings block multiple replicas?
+   ALL of Area 7: CLAIMED/IN_PROGRESS status, atomic claim (conditional
+   UPDATE), claim expiration/reaping, SELECT FOR UPDATE SKIP LOCKED on the
+   repository. None of this exists yet.
+
+7. Is the architecture ready for the scheduler slice?
+   YES, WITH THE OVERLAP PREVENTION PREREQUISITE. The polling service exposes
+   a clean pollOnce() boundary. The scheduler must implement overlap
+   prevention as its first requirement.
+
+────────────────────────────────────────────────────────────────────────────────
+VERDICT
+────────────────────────────────────────────────────────────────────────────────
+
+Overall: PASS WITH WARNINGS
+
+Findings summary:
+  [INFO]  R1 — Bounded findPending(int) correctly implemented with full parity (positive)
+  [LOW]   R2 — Retained parameterless findPending() creates minor API debt
+  [INFO]  O1 — occurredAt ASC is correct FIFO ordering (positive)
+  [INFO]  O2 — Equal-timestamp ordering is non-deterministic between queries
+  [INFO]  D1 — thenCompose fold correctly preserves ordering, stops on failure (positive)
+  [INFO]  D2 — Stop-on-first-failure is correct for first runtime
+  [INFO]  P1 — Thin facade creates clean scheduling boundary (positive)
+  [INFO]  P2 — batchSize rejection semantics differ correctly from limit
+  [INFO]  S1 — PENDING guard absent, caller-owned invariant safe for single-worker
+  [HIGH]  W1 — pollOnce() non-blocking — overlapping cycles cause duplicate dispatch
+  [INFO]  C1 — Concurrent workers require claim infrastructure (not yet needed)
+  [INFO]  F1 — FAILED events permanently excluded; manual recovery needed
+  [INFO]  T1 — All operations correctly short-lived transactions (positive)
+  [INFO]  TC1 — 37 tests cover retrieval, dispatch, and facade (positive)
+  [INFO]  TC2 — No test for equal-timestamp ordering stability
+
+No FAIL findings. One HIGH finding (W1) is a known design property, not a bug —
+the overlap prevention responsibility belongs to the scheduler slice (ARB-022.4).
