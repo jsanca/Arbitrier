@@ -10,6 +10,7 @@ import java.util.concurrent.CompletableFuture;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -23,6 +24,8 @@ class OutboxPollingServiceTest {
 
     @Mock
     SequentialPendingDispatchService sequentialDispatch;
+
+    // ── construction ─────────────────────────────────────────────────────────
 
     @Test
     void valid_batch_size_accepted() {
@@ -44,8 +47,10 @@ class OutboxPollingServiceTest {
                 .withMessageContaining("batchSize");
     }
 
+    // ── basic delegation ──────────────────────────────────────────────────────
+
     @Test
-    void pollOnce_delegates_exactly_once() {
+    void first_poll_executes_and_delegates() {
         when(sequentialDispatch.dispatchPending(5))
                 .thenReturn(CompletableFuture.completedFuture(null));
         var service = new OutboxPollingService(sequentialDispatch, 5);
@@ -65,6 +70,79 @@ class OutboxPollingServiceTest {
 
         verify(sequentialDispatch).dispatchPending(42);
     }
+
+    // ── overlap prevention ────────────────────────────────────────────────────
+
+    @Test
+    void concurrent_poll_returns_immediately_without_dispatch() {
+        // Hold the first cycle open with an incomplete future
+        CompletableFuture<Void> firstCycle = new CompletableFuture<>();
+        when(sequentialDispatch.dispatchPending(10)).thenReturn(firstCycle);
+        var service = new OutboxPollingService(sequentialDispatch, 10);
+
+        service.pollOnce(); // starts first cycle (not yet complete)
+
+        // Second call while first is still running
+        var secondResult = service.pollOnce().toCompletableFuture();
+
+        assertThat(secondResult.isDone()).isTrue();
+        assertThat(secondResult.isCompletedExceptionally()).isFalse();
+        verify(sequentialDispatch, times(1)).dispatchPending(10); // only once
+    }
+
+    @Test
+    void dispatcher_invoked_only_once_when_overlap_occurs() {
+        CompletableFuture<Void> firstCycle = new CompletableFuture<>();
+        when(sequentialDispatch.dispatchPending(10)).thenReturn(firstCycle);
+        var service = new OutboxPollingService(sequentialDispatch, 10);
+
+        service.pollOnce();
+        service.pollOnce();
+        service.pollOnce();
+
+        verify(sequentialDispatch, times(1)).dispatchPending(10);
+    }
+
+    // ── flag cleared after completion ─────────────────────────────────────────
+
+    @Test
+    void running_flag_cleared_after_success_so_next_poll_executes() {
+        when(sequentialDispatch.dispatchPending(10))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        var service = new OutboxPollingService(sequentialDispatch, 10);
+
+        service.pollOnce(); // completes immediately
+        service.pollOnce(); // should also execute
+
+        verify(sequentialDispatch, times(2)).dispatchPending(10);
+    }
+
+    @Test
+    void running_flag_cleared_after_failure_so_next_poll_executes() {
+        when(sequentialDispatch.dispatchPending(10))
+                .thenReturn(CompletableFuture.failedFuture(new RuntimeException("dispatch failed")));
+        var service = new OutboxPollingService(sequentialDispatch, 10);
+
+        service.pollOnce(); // completes exceptionally
+        service.pollOnce(); // should also execute
+
+        verify(sequentialDispatch, times(2)).dispatchPending(10);
+    }
+
+    @Test
+    void running_flag_cleared_after_immediate_exception() {
+        when(sequentialDispatch.dispatchPending(10))
+                .thenThrow(new RuntimeException("synchronous failure"))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        var service = new OutboxPollingService(sequentialDispatch, 10);
+
+        try { service.pollOnce(); } catch (RuntimeException ignored) { }
+        service.pollOnce(); // should execute after flag is cleared
+
+        verify(sequentialDispatch, times(2)).dispatchPending(10);
+    }
+
+    // ── failure propagation ───────────────────────────────────────────────────
 
     @Test
     void successful_stage_is_propagated() {

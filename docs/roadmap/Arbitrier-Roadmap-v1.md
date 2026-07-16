@@ -151,7 +151,7 @@ Scheduled Dispatcher
 - Polling lifecycle
 - Runtime activation
 
-ARB-022.5 [PLANNED]
+ARB-022.5 [DONE]
 Concurrent Dispatch
 
 - Claim semantics

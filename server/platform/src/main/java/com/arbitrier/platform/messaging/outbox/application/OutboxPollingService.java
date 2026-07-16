@@ -2,16 +2,25 @@ package com.arbitrier.platform.messaging.outbox.application;
 
 import com.arbitrier.platform.validation.Require;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Polling facade that represents one bounded Outbox dispatch cycle.
+ * Polling facade that represents one bounded Outbox dispatch cycle with
+ * overlap prevention.
  *
  * <p>Each {@link #pollOnce()} invocation retrieves at most {@code batchSize} pending
  * messages from the repository and dispatches them sequentially via
- * {@link SequentialPendingDispatchService}. The service owns one responsibility:
- * running one cycle on demand. Scheduling, timing, and overlap prevention are
- * explicitly deferred to a later runtime configuration slice.
+ * {@link SequentialPendingDispatchService}.
+ *
+ * <h2>Overlap prevention</h2>
+ * <p>Only one polling cycle may execute at a time. If {@code pollOnce()} is called
+ * while a previous cycle is still executing asynchronously, the second invocation
+ * returns {@link CompletableFuture#completedFuture(Object) completedFuture(null)}
+ * immediately without starting another dispatch cycle. The running flag is always
+ * cleared when a cycle finishes — whether it completes normally, exceptionally, or
+ * throws synchronously — so a subsequent call may start a new cycle.
  *
  * <h2>Batch size</h2>
  * <p>{@code batchSize} is validated at construction time and must be positive. The
@@ -21,9 +30,8 @@ import java.util.concurrent.CompletionStage;
  * changing the class.
  *
  * <h2>Failure semantics</h2>
- * <p>{@code pollOnce()} propagates all failures — synchronous throws from the delegate
- * and asynchronous stage completions — unchanged. The caller (future scheduler) decides
- * how to log, isolate, or retry a failed cycle.
+ * <p>When a cycle does execute, all failures are propagated unchanged. The caller
+ * (future scheduler) decides how to log, isolate, or retry a failed cycle.
  *
  * <p>Layer: platform/messaging/outbox/application
  * <p>Module: platform
@@ -32,6 +40,7 @@ public class OutboxPollingService {
 
     private final SequentialPendingDispatchService sequentialDispatch;
     private final int batchSize;
+    private final AtomicBoolean running = new AtomicBoolean(false);
 
     /**
      * Create a polling facade with the given delegate and batch size.
@@ -53,13 +62,29 @@ public class OutboxPollingService {
      * Execute one polling cycle: retrieve at most {@code batchSize} pending messages
      * and dispatch them sequentially.
      *
-     * <p>The returned {@link CompletionStage} has the same lifecycle as the one
-     * returned by the delegate — it completes normally when all messages in the cycle
-     * are dispatched, or exceptionally on the first dispatch failure.
+     * <p>If a cycle is already running, this method returns
+     * {@link CompletableFuture#completedFuture(Object) completedFuture(null)} immediately
+     * without invoking the delegate. The skip is intentional — the in-flight cycle
+     * will process any messages that arrived before it finishes.
      *
-     * @return a {@link CompletionStage} representing the current polling cycle
+     * <p>When a cycle does run, the running flag is cleared when the returned
+     * {@link CompletionStage} completes (normally or exceptionally), allowing the next
+     * invocation to start a new cycle.
+     *
+     * @return a {@link CompletionStage} representing the current polling cycle, or an
+     *         already-completed stage if a cycle was already running
      */
     public CompletionStage<Void> pollOnce() {
-        return sequentialDispatch.dispatchPending(batchSize);
+        if (!running.compareAndSet(false, true)) {
+            return CompletableFuture.completedFuture(null);
+        }
+        final CompletionStage<Void> cycle;
+        try {
+            cycle = sequentialDispatch.dispatchPending(batchSize);
+        } catch (RuntimeException immediate) {
+            running.set(false);
+            throw immediate;
+        }
+        return cycle.whenComplete((result, ex) -> running.set(false));
     }
 }
