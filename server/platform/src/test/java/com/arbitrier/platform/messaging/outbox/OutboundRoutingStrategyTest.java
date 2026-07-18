@@ -18,7 +18,7 @@ class OutboundRoutingStrategyTest {
         OutboxEvent event = new OutboxEvent(
                 UUID.randomUUID(), "ord-1", "Order", "OrderCreated",
                 "{}", "JSON", NOW, null, PublishStatus.PENDING, 0, null, null, null,
-                MessageNature.EVENT);
+                MessageNature.EVENT, null, null);
 
         assertThat(strategy.resolveDestination(event)).isEqualTo("order.ordercreated");
     }
@@ -33,12 +33,12 @@ class OutboundRoutingStrategyTest {
         OutboxEvent event = new OutboxEvent(
                 UUID.randomUUID(), "ord-1", "Order", "OrderCreated",
                 "{}", "JSON", NOW, null, PublishStatus.PENDING, 0, null, null, null,
-                MessageNature.EVENT);
+                MessageNature.EVENT, null, null);
 
         OutboxEvent command = new OutboxEvent(
                 UUID.randomUUID(), "saga-1", "Saga", "ReserveStockCommand",
                 "{}", "JSON", NOW, null, PublishStatus.PENDING, 0, null, null, null,
-                MessageNature.COMMAND);
+                MessageNature.COMMAND, null, null);
 
         assertThat(strategy.resolveDestination(event)).isEqualTo("events.order");
         assertThat(strategy.resolveDestination(command)).isEqualTo("commands.saga");

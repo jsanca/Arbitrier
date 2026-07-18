@@ -84,6 +84,21 @@ class FlywayMigrationIT {
     }
 
     @Test
+    void inventory_stock_table_exists_after_v2_migration() throws Exception {
+        assertTableExists("inventory_service", "inventory_stock");
+    }
+
+    @Test
+    void inventory_stock_product_id_column_exists() throws Exception {
+        assertColumnExists("inventory_service", "inventory_stock", "product_id");
+    }
+
+    @Test
+    void inventory_stock_on_hand_quantity_column_exists() throws Exception {
+        assertColumnExists("inventory_service", "inventory_stock", "on_hand_quantity");
+    }
+
+    @Test
     void context_loads_and_hibernate_validates() {
         assertThat(dataSource).isNotNull();
     }

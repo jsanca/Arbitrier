@@ -10,40 +10,39 @@ import java.util.concurrent.CompletableFuture;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link OutboxPollingService}.
- * SequentialPendingDispatchService is mocked — no broker, no DB, no scheduler.
+ * ClaimBasedBatchDispatchService is mocked — no broker, no DB, no scheduler.
  */
 @ExtendWith(MockitoExtension.class)
 class OutboxPollingServiceTest {
 
     @Mock
-    SequentialPendingDispatchService sequentialDispatch;
+    ClaimBasedBatchDispatchService dispatcher;
 
     // ── construction ─────────────────────────────────────────────────────────
 
     @Test
     void valid_batch_size_accepted() {
-        var service = new OutboxPollingService(sequentialDispatch, 10);
+        var service = new OutboxPollingService(dispatcher, 10);
         assertThat(service).isNotNull();
     }
 
     @Test
     void zero_batch_size_rejected() {
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> new OutboxPollingService(sequentialDispatch, 0))
+                .isThrownBy(() -> new OutboxPollingService(dispatcher, 0))
                 .withMessageContaining("batchSize");
     }
 
     @Test
     void negative_batch_size_rejected() {
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> new OutboxPollingService(sequentialDispatch, -1))
+                .isThrownBy(() -> new OutboxPollingService(dispatcher, -1))
                 .withMessageContaining("batchSize");
     }
 
@@ -51,34 +50,33 @@ class OutboxPollingServiceTest {
 
     @Test
     void first_poll_executes_and_delegates() {
-        when(sequentialDispatch.dispatchPending(5))
+        when(dispatcher.dispatchClaimed(5))
                 .thenReturn(CompletableFuture.completedFuture(null));
-        var service = new OutboxPollingService(sequentialDispatch, 5);
+        var service = new OutboxPollingService(dispatcher, 5);
 
         service.pollOnce();
 
-        verify(sequentialDispatch, times(1)).dispatchPending(5);
+        verify(dispatcher, times(1)).dispatchClaimed(5);
     }
 
     @Test
-    void configured_batch_size_is_passed_to_dispatchPending() {
-        when(sequentialDispatch.dispatchPending(42))
+    void configured_batch_size_is_passed_to_dispatchClaimed() {
+        when(dispatcher.dispatchClaimed(42))
                 .thenReturn(CompletableFuture.completedFuture(null));
-        var service = new OutboxPollingService(sequentialDispatch, 42);
+        var service = new OutboxPollingService(dispatcher, 42);
 
         service.pollOnce();
 
-        verify(sequentialDispatch).dispatchPending(42);
+        verify(dispatcher).dispatchClaimed(42);
     }
 
     // ── overlap prevention ────────────────────────────────────────────────────
 
     @Test
     void concurrent_poll_returns_immediately_without_dispatch() {
-        // Hold the first cycle open with an incomplete future
         CompletableFuture<Void> firstCycle = new CompletableFuture<>();
-        when(sequentialDispatch.dispatchPending(10)).thenReturn(firstCycle);
-        var service = new OutboxPollingService(sequentialDispatch, 10);
+        when(dispatcher.dispatchClaimed(10)).thenReturn(firstCycle);
+        var service = new OutboxPollingService(dispatcher, 10);
 
         service.pollOnce(); // starts first cycle (not yet complete)
 
@@ -87,68 +85,68 @@ class OutboxPollingServiceTest {
 
         assertThat(secondResult.isDone()).isTrue();
         assertThat(secondResult.isCompletedExceptionally()).isFalse();
-        verify(sequentialDispatch, times(1)).dispatchPending(10); // only once
+        verify(dispatcher, times(1)).dispatchClaimed(10); // only once
     }
 
     @Test
     void dispatcher_invoked_only_once_when_overlap_occurs() {
         CompletableFuture<Void> firstCycle = new CompletableFuture<>();
-        when(sequentialDispatch.dispatchPending(10)).thenReturn(firstCycle);
-        var service = new OutboxPollingService(sequentialDispatch, 10);
+        when(dispatcher.dispatchClaimed(10)).thenReturn(firstCycle);
+        var service = new OutboxPollingService(dispatcher, 10);
 
         service.pollOnce();
         service.pollOnce();
         service.pollOnce();
 
-        verify(sequentialDispatch, times(1)).dispatchPending(10);
+        verify(dispatcher, times(1)).dispatchClaimed(10);
     }
 
     // ── flag cleared after completion ─────────────────────────────────────────
 
     @Test
     void running_flag_cleared_after_success_so_next_poll_executes() {
-        when(sequentialDispatch.dispatchPending(10))
+        when(dispatcher.dispatchClaimed(10))
                 .thenReturn(CompletableFuture.completedFuture(null));
-        var service = new OutboxPollingService(sequentialDispatch, 10);
+        var service = new OutboxPollingService(dispatcher, 10);
 
         service.pollOnce(); // completes immediately
         service.pollOnce(); // should also execute
 
-        verify(sequentialDispatch, times(2)).dispatchPending(10);
+        verify(dispatcher, times(2)).dispatchClaimed(10);
     }
 
     @Test
     void running_flag_cleared_after_failure_so_next_poll_executes() {
-        when(sequentialDispatch.dispatchPending(10))
+        when(dispatcher.dispatchClaimed(10))
                 .thenReturn(CompletableFuture.failedFuture(new RuntimeException("dispatch failed")));
-        var service = new OutboxPollingService(sequentialDispatch, 10);
+        var service = new OutboxPollingService(dispatcher, 10);
 
         service.pollOnce(); // completes exceptionally
         service.pollOnce(); // should also execute
 
-        verify(sequentialDispatch, times(2)).dispatchPending(10);
+        verify(dispatcher, times(2)).dispatchClaimed(10);
     }
 
     @Test
     void running_flag_cleared_after_immediate_exception() {
-        when(sequentialDispatch.dispatchPending(10))
+        when(dispatcher.dispatchClaimed(10))
                 .thenThrow(new RuntimeException("synchronous failure"))
                 .thenReturn(CompletableFuture.completedFuture(null));
-        var service = new OutboxPollingService(sequentialDispatch, 10);
+        var service = new OutboxPollingService(dispatcher, 10);
 
         try { service.pollOnce(); } catch (RuntimeException ignored) { }
         service.pollOnce(); // should execute after flag is cleared
 
-        verify(sequentialDispatch, times(2)).dispatchPending(10);
+        verify(dispatcher, times(2)).dispatchClaimed(10);
     }
 
     // ── failure propagation ───────────────────────────────────────────────────
 
     @Test
     void successful_stage_is_propagated() {
-        when(sequentialDispatch.dispatchPending(10))
+        when(dispatcher.dispatchClaimed(10))
                 .thenReturn(CompletableFuture.completedFuture(null));
-        var service = new OutboxPollingService(sequentialDispatch, 10);
+        var service = new OutboxPollingService(dispatcher, 10);
 
         var result = service.pollOnce().toCompletableFuture();
 
@@ -158,9 +156,9 @@ class OutboxPollingServiceTest {
 
     @Test
     void exceptional_stage_is_propagated() {
-        when(sequentialDispatch.dispatchPending(10))
+        when(dispatcher.dispatchClaimed(10))
                 .thenReturn(CompletableFuture.failedFuture(new RuntimeException("dispatch failed")));
-        var service = new OutboxPollingService(sequentialDispatch, 10);
+        var service = new OutboxPollingService(dispatcher, 10);
 
         var result = service.pollOnce().toCompletableFuture();
 
@@ -169,9 +167,9 @@ class OutboxPollingServiceTest {
 
     @Test
     void immediate_delegate_failure_is_propagated() {
-        when(sequentialDispatch.dispatchPending(10))
+        when(dispatcher.dispatchClaimed(10))
                 .thenThrow(new RuntimeException("synchronous failure"));
-        var service = new OutboxPollingService(sequentialDispatch, 10);
+        var service = new OutboxPollingService(dispatcher, 10);
 
         assertThatThrownBy(service::pollOnce)
                 .isInstanceOf(RuntimeException.class)

@@ -144,7 +144,7 @@ Pending Message Polling
 - Sequential dispatch
 - Single worker
 
-ARB-022.4 [PLANNED]
+ARB-022.4 [DONE]
 Scheduled Dispatcher
 
 - Spring Scheduler
@@ -154,9 +154,11 @@ Scheduled Dispatcher
 ARB-022.5 [DONE]
 Concurrent Dispatch
 
-- Claim semantics
-- Multiple workers
-- Duplicate dispatch protection
+- Claim semantics (ARB-022.5.1 DONE)
+- Atomic single-event claim repository (ARB-022.5.2 DONE)
+- Claim-aware batch retrieval (ARB-022.5.3 DONE)
+- Multi-worker polling runtime (ARB-022.5.4 DONE)
+- Stale claim recovery (deferred to ARB-022.6)
 
 ARB-022.6 [PLANNED]
 Dispatch Retry & Backoff
@@ -173,6 +175,15 @@ Messaging Runtime Observability
 - Tracing
 - Runtime health
 - Queue monitoring
+
+ARB-023 — Executable Order Entry Flow [IN PROGRESS]
+ARB-023.1 Inventory Availability gRPC Contract [DONE]
+ARB-023.2 Inventory gRPC Server Adapter [DONE]
+ARB-023.2A Inventory Stock Availability Persistence [DONE]
+ARB-023.3 Order gRPC Client Adapter [DONE]
+ARB-023.4 REST Order Entry Point
+ARB-023.5 Order Acceptance and Saga Start
+ARB-023.6 Vertical Integration Proof
 
 ---
 

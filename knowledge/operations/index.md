@@ -15,9 +15,14 @@ and runbook-level navigation when supported by current runtime documentation.
 - [Technical baseline RNF](../../docs/rnf/RNF-0001-technical-baseline.md)
 - [Saga runtime RNF](../../docs/rnf/RNF-UC-01-saga-runtime.md)
 - [Trace-context ADR](../../docs/adr/ADR-0008-w3c-trace-context-propagation.md)
+- [Outbox, inbox, and idempotency ADR](../../docs/adr/ADR-0005-outbox-inbox-idempotency.md)
 - [Local runtime guide](../../infra/docker/README.md)
 
 ## Navigation
 
-No metric or runtime-concept pages are curated yet. Add them incrementally from
-verified operational behavior, not from aspirational configuration.
+- [Concurrent Dispatch Runtime](concurrent-dispatch-runtime.md) — durable
+  outbox-claim lifecycle, worker ownership, database coordination, and polling
+  boundaries.
+
+Add metrics, recovery, retry, and tuning pages incrementally from verified
+operational behavior, not from aspirational configuration.

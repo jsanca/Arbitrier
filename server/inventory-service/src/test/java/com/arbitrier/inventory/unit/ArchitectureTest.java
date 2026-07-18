@@ -78,4 +78,40 @@ class ArchitectureTest {
                 .allowEmptyShould(true)
                 .check(classes);
     }
+
+    @Test
+    void application_must_not_depend_on_jpa() {
+        ArchRuleDefinition.noClasses().that().resideInAPackage("..application..")
+                .should().dependOnClassesThat().resideInAnyPackage("jakarta.persistence..")
+                .allowEmptyShould(true)
+                .check(classes);
+    }
+
+    @Test
+    void grpc_adapter_must_not_depend_on_spring_data_repositories() {
+        ArchRuleDefinition.noClasses().that().resideInAPackage("..adapter.inbound.grpc..")
+                .should().dependOnClassesThat()
+                .resideInAPackage("org.springframework.data..")
+                .allowEmptyShould(true)
+                .check(classes);
+    }
+
+    @Test
+    void application_must_not_depend_on_protobuf() {
+        ArchRuleDefinition.noClasses().that().resideInAPackage("..application..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "com.google.protobuf..", "com.arbitrier.contracts.inventory..")
+                .allowEmptyShould(true)
+                .check(classes);
+    }
+
+    @Test
+    void domain_must_not_depend_on_grpc() {
+        ArchRuleDefinition.noClasses().that().resideInAPackage("..domain..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "io.grpc..", "net.devh..", "com.google.protobuf..",
+                        "com.arbitrier.contracts.inventory..")
+                .allowEmptyShould(true)
+                .check(classes);
+    }
 }

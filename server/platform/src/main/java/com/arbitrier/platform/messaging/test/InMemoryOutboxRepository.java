@@ -8,7 +8,10 @@ import com.arbitrier.platform.validation.Require;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -50,6 +53,58 @@ public final class InMemoryOutboxRepository implements OutboxRepository {
     }
 
     @Override
+    public synchronized List<OutboxEvent> claimPending(final String workerId, final Instant claimedAt, final int limit) {
+        Require.notBlank(workerId, "workerId");
+        Require.notNull(claimedAt, "claimedAt");
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit must not be negative: " + limit);
+        }
+        if (limit == 0) {
+            return List.of();
+        }
+        List<UUID> candidateIds = events.stream()
+                .filter(e -> e.publishStatus() == PublishStatus.PENDING)
+                .sorted(Comparator.comparing(OutboxEvent::occurredAt).thenComparing(OutboxEvent::eventId))
+                .limit(limit)
+                .map(OutboxEvent::eventId)
+                .toList();
+        if (candidateIds.isEmpty()) {
+            return List.of();
+        }
+        Set<UUID> candidateSet = new HashSet<>(candidateIds);
+        List<OutboxEvent> result = new ArrayList<>(candidateIds.size());
+        for (int i = 0; i < events.size(); i++) {
+            OutboxEvent e = events.get(i);
+            if (candidateSet.contains(e.eventId())) {
+                OutboxEvent claimed = e.claim(workerId, claimedAt);
+                events.set(i, claimed);
+                result.add(claimed);
+            }
+        }
+        result.sort(Comparator.comparing(OutboxEvent::occurredAt).thenComparing(OutboxEvent::eventId));
+        return List.copyOf(result);
+    }
+
+    @Override
+    public synchronized Optional<OutboxEvent> claimEvent(final UUID eventId, final String workerId, final Instant claimedAt) {
+        Require.notNull(eventId, "eventId");
+        Require.notBlank(workerId, "workerId");
+        Require.notNull(claimedAt, "claimedAt");
+        for (int i = 0; i < events.size(); i++) {
+            OutboxEvent e = events.get(i);
+            if (e.eventId().equals(eventId)) {
+                if (e.publishStatus() != PublishStatus.PENDING) {
+                    return Optional.empty();
+                }
+                OutboxEvent claimed = e.claim(workerId, claimedAt);
+                events.set(i, claimed);
+                return Optional.of(claimed);
+            }
+        }
+        return Optional.empty();
+    }
+
+    @Override
     public void markPublished(UUID eventId) {
         Require.notNull(eventId, "eventId");
         replace(eventId, e -> new OutboxEvent(
@@ -58,7 +113,7 @@ public final class InMemoryOutboxRepository implements OutboxRepository {
                 Instant.now(),
                 PublishStatus.PUBLISHED,
                 e.attemptCount(), e.lastAttempt(), e.correlationId(), e.causationId(),
-                e.messageNature()));
+                e.messageNature(), null, null));
     }
 
     @Override
@@ -72,7 +127,7 @@ public final class InMemoryOutboxRepository implements OutboxRepository {
                 e.attemptCount() + 1,
                 Instant.now(),
                 e.correlationId(), e.causationId(),
-                e.messageNature()));
+                e.messageNature(), null, null));
     }
 
     /**

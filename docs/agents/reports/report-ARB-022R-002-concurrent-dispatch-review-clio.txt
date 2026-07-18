@@ -1,0 +1,260 @@
+ARB-022R-002 — Concurrent Dispatch Architecture Review
+DATE: 2026-07-14
+REVIEWER: clio
+
+EXECUTIVE SUMMARY
+─────────────────
+The Concurrent Dispatch subsystem (ARB-022.5.1 through 022.5.4) is
+architecturally sound. The claim state model, atomic claim repository,
+batch retrieval, and multi-worker polling integration form a coherent
+whole that correctly prevents duplicate dispatch across concurrent workers.
+
+The `SELECT ... FOR UPDATE SKIP LOCKED` strategy is the correct PostgreSQL
+primitive for concurrent batch claiming. The two-step SELECT-then-UPDATE
+within a single `@Transactional` boundary is the canonical Spring Data JPA
+approach. Worker identity is properly recorded and cleared.
+
+One Major finding (stale CLAIMED events block the queue with no recovery),
+two Minor findings (unused domain state-machine in dispatch path, veto on
+`final` adapter class), and two Observations. No Critical findings.
+
+READY for ARB-022.6 with the stale-claim prerequisite noted below.
+
+────────────────────────────────────────────────────────────────────────────────
+ARCHITECTURE ASSESSMENT
+────────────────────────────────────────────────────────────────────────────────
+
+The concurrent dispatch stack across 4 slices:
+
+  ARB-022.5.1 — Claim State Model
+    PublishStatus + CLAIMED, claimedBy/claimedAt on OutboxEvent,
+    domain transitions (claim/markPublished/markFailed), constructor
+    invariants, Flyway V4, entity mapping.
+
+  ARB-022.5.2 — Atomic Claim Repository
+    claimEvent(UUID, workerId, claimedAt) → conditional UPDATE,
+    @Modifying + flush/clear, in-memory synchronized impl.
+
+  ARB-022.5.3 — Claim-Aware Batch Retrieval
+    claimPending(workerId, claimedAt, limit) → SELECT FOR UPDATE SKIP
+    LOCKED + bulk UPDATE within @Transactional, FIFO with eventId
+    tiebreaker, full test suite (40 JPA adapter tests).
+
+  ARB-022.5.4 — Multi-Worker Claim-Based Polling
+    ClaimBasedBatchDispatchService replaces SequentialPendingDispatchService,
+    OutboxPollingService delegate changed, auto-configuration restructured
+    to own the full pipeline, worker ID generation.
+
+Full dispatch flow with concurrency protection:
+
+  OutboxPollingScheduler     [@Scheduled tick]
+    → OutboxPollingService   [AtomicBoolean: JVM-level overlap guard]
+      → ClaimBasedBatchDispatchService  [claim + dispatch]
+        → claimPending(workerId, now, limit)  [SELECT FOR UPDATE SKIP LOCKED]
+            → DB arbitrates: disjoint batches across workers
+        → for each claimed event: thenCompose → dispatch(event)
+          → OutboundMessagePublisher.publish(event)
+          → markPublished(eventId) or markFailed(eventId)
+            → claimedBy/claimedAt cleared to null
+
+Two layers of concurrency protection, each at the right abstraction level:
+  1. AtomicBoolean in OutboxPollingService — prevents intra-JVM overlap
+     from competing scheduler ticks
+  2. SKIP LOCKED in claimPending — prevents inter-JVM overlap from competing
+     application instances
+
+────────────────────────────────────────────────────────────────────────────────
+FINDINGS
+────────────────────────────────────────────────────────────────────────────────
+
+─── CRITICAL ──────────────────────────────────────────────────────────────────
+
+(None)
+
+─── MAJOR ─────────────────────────────────────────────────────────────────────
+
+FINDING M1 — Stale CLAIMED events block the queue indefinitely
+Severity: MAJOR
+Category: Concurrency / Operational Reliability
+Evidence:
+  - claimPending transitions PENDING → CLAIMED in a short DB transaction
+  - DispatchOutboxMessageService.dispatch() calls Kafka, then markPublished/markFailed
+  - If the JVM crashes between claim and markPublished, the event stays CLAIMED
+  - findPending() and claimPending() filter on publish_status = 'PENDING'
+  - CLAIMED events are excluded from all retrieval paths
+  - No timeout, no lease expiration, no background recovery process exists
+
+Impact:
+  - A single worker crash can leave up to batchSize (default 100) events in
+    CLAIMED state forever
+  - These events will never be dispatched until an operator manually resets
+    them to PENDING or an automated recovery process exists
+  - In a deployment with frequent restarts (rolling updates, pod eviction),
+    the queue can accumulate stale claims over time
+
+Current mitigation: None. The implementation report for 022.5.4 explicitly
+  notes this as deferred to ARB-022.6.
+
+Recommendation for ARB-022.6:
+  Must implement stale claim recovery as the first task:
+    1. Add `claimed_at` to the recovery query: `WHERE publish_status = 'CLAIMED'
+       AND claimed_at < now() - expiration_threshold`
+    2. Add a configurable property `arbitrier.messaging.outbox.polling.claim-expiration-ms`
+       (default e.g. 120_000 = 2 minutes)
+    3. Run recovery before claimPending(): reset expired CLAIMED → PENDING
+       in the same transaction, or as a separate periodic cleanup
+    4. Log recovered events with their original workerId for operational visibility
+  This is the single most important prerequisite for production readiness.
+
+─── MINOR ─────────────────────────────────────────────────────────────────────
+
+FINDING M2 — Domain state machine (markPublished/markFailed on OutboxEvent)
+  is unused in the dispatch path
+Severity: MINOR
+Category: Architecture / Domain Model
+Evidence:
+  - OutboxEvent.claim(workerId, claimedAt) — used by InMemoryOutboxRepository only
+  - OutboxEvent.markPublished(Instant) — NOT called by any production code
+  - OutboxEvent.markFailed(Instant) — NOT called by any production code
+  - DispatchOutboxMessageService calls outboxRepository.markPublished(UUID)
+    and outboxRepository.markFailed(UUID) — the REPOSITORY methods, which
+    accept any source status and operate on entities directly
+  - The JPA adapter's markPublished/markFailed use entity setters, not
+    domain transitions
+
+Impact:
+  - The domain model's state machine enforcement (CLAIMED→PUBLISHED only)
+    is bypassed in the production dispatch path
+  - The claim-to-publish transition is enforced at the database level
+    (only CLAIMED events exist in the claim batch) rather than at the
+    domain level
+  - The domain methods exist and are tested (30 OutboxEventTest tests) but
+    are not exercised in the runtime path
+  - This creates a false impression: reading the domain model suggests
+    strict state transitions, but the runtime uses a different path
+
+Recommendation:
+  Option A: Have DispatchOutboxMessageService use the domain methods.
+    After successful publish, call `message.markPublished(now)` to transition
+    the OutboxEvent to PUBLISHED via the domain type, then pass the new
+    instance to the repository. This requires changing the repository contract
+    to accept the updated OutboxEvent rather than just the eventId.
+  Option B: Document that the repository path is the canonical runtime path
+    and the domain state machine is advisory/documentation only. Remove
+    the unused methods to avoid confusion.
+  Option C: Accept the current split. The database is the authority on
+    status transitions. The domain methods serve as documentation and
+    test fixtures. The runtime uses the repository directly for efficiency
+    (no need to construct a new OutboxEvent just to transition status).
+
+  RECOMMEND: Option C (accept) for now. The domain methods are valuable
+  documentation and test fixtures. The repository path is correct and
+  efficient for the runtime. Revisit when the domain model gains more
+  complex transition logic that requires enforcement at the type level.
+  Fix now or future slice: Informational. No code change required.
+  Blocks roadmap: No.
+
+FINDING M3 — JpaOutboxRepositoryAdapter class is no longer final, forced by
+  CGLIB proxying for @Transactional
+Severity: MINOR
+Category: Architecture / AOP
+Evidence:
+  - ARB-022.5.3 implementation report: "The adapter now depends on Spring
+    AOP for transaction management, so final must be absent"
+  - Spring Boot 4.1 defaults to CGLIB proxying (proxy-target-class=true)
+  - JpaOutboxRepositoryAdapter has @Transactional on claimPending and claimEvent
+  - Removing final breaks the immutability-by-default convention in the adapter
+    layer (the class was designed as final)
+
+Impact:
+  - The class CAN be subclassed now, violating the "closed for extension"
+    intent
+  - Spring AOP requires non-final classes for CGLIB proxying — no workaround
+    with proxy-target-class=true
+  - If the project adopts interface-based proxying (proxy-target-class=false)
+    in the future, the class could become final again — but that requires
+    the bean to be accessed through its interface (OutboxRepository), which
+    is already the case
+
+Recommendation:
+  Accept as a necessary compromise. The adapter IS accessed through its
+  interface (OutboxRepository), so the lack of final does not create a
+  concrete risk of subclassing in practice. Document in the class Javadoc:
+  "Not final because Spring AOP requires CGLIB subclassing for @Transactional
+  advice. Always reference this bean through OutboxRepository."
+  Fix now or future slice: Accept (infrastructure constraint).
+  Blocks roadmap: No.
+
+─── OBSERVATIONS ──────────────────────────────────────────────────────────────
+
+OBSERVATION O1 — claimPending uses native PostgreSQL SQL (SELECT FOR UPDATE
+  SKIP LOCKED) in SpringDataOutboxRepository
+Category: Portability
+  The `selectPendingIdsForClaim` native query is PostgreSQL-specific. H2
+  does not support FOR UPDATE SKIP LOCKED. The in-memory test adapter
+  provides equivalent semantics via synchronized access, and integration
+  tests use Testcontainers PostgreSQL. This is acceptable for a platform
+  that targets PostgreSQL as its only production database (per docker-compose
+  and ADR-0003). Document this as a PostgreSQL dependency in the repository
+  Javadoc.
+  Fix: Documentation only. No code change.
+
+OBSERVATION O2 — InMemoryOutboxRepository uses synchronized for claim operations
+Category: Test Infrastructure
+  The in-memory adapter serializes all claim calls. While this prevents races
+  in tests, it does not replicate PostgreSQL's row-level locking semantics
+  (e.g., two transactions can claim different events concurrently in PostgreSQL
+  but are serialized in the in-memory adapter). The test
+  `claimEvent_concurrent_exactly_one_winner` in the JPA adapter test uses a
+  real PostgreSQL container, providing correct concurrent semantics at the
+  integration level. The in-memory adapter is sufficient for unit tests.
+  Fix: No change needed. Adequate for test scope.
+
+────────────────────────────────────────────────────────────────────────────────
+RECOMMENDATIONS FOR ARB-022.6
+────────────────────────────────────────────────────────────────────────────────
+
+In priority order:
+
+1. STALE CLAIM RECOVERY (REQUIRED — Finding M1)
+   This is the highest-priority prerequisite for production readiness.
+   Without it, a single worker crash permanently blocks up to batchSize
+   events. See M1 for detailed implementation approach.
+
+2. RETRY WITH BACKOFF (RECOMMENDED)
+   Current stop-on-first-failure policy is correct for first runtime but
+   leaves FAILED events permanently excluded from dispatch. ARB-022.6
+   should add:
+   - Per-event attempt counter (OutboxEvent.attemptCount already exists)
+   - Exponential backoff: delay = base * 2^attempt before retry
+   - A status for retry-aware dispatch (e.g., the existing attemptCount
+     field combined with PENDING status on claim recovery)
+   - Maximum retry attempts before permanent FAILED
+   - Observable metrics: retry count, backoff duration, final disposition
+
+3. @PreDestroy GRACEFUL SHUTDOWN (RECOMMENDED)
+   Already noted in ARB-022R-001 (Finding F6). The scheduler should wait
+   for the active dispatch cycle to complete on shutdown.
+
+4. CLAIM EXPIRATION PROPERTY (RECOMMENDED)
+   `arbitrier.messaging.outbox.polling.claim-expiration-ms` with a
+   conservative default (e.g., 120 seconds). Tied to stale claim recovery.
+
+5. DOMAIN STATE MACHINE CLARIFICATION (OPTIONAL — Finding M2)
+   Document or resolve the split between domain state-machine methods and
+   repository status updates.
+
+────────────────────────────────────────────────────────────────────────────────
+VERDICT
+────────────────────────────────────────────────────────────────────────────────
+
+Classification: PASS
+
+Findings: 0 Critical, 1 Major, 2 Minor, 2 Observations
+
+The concurrent dispatch architecture is correct and production-ready in design.
+Stale claim recovery (M1) must be implemented before multi-instance production
+deployment. All other findings are informational or acceptable tradeoffs.
+
+ARB-022.5.1 through 022.5.4 CAN BE MARKED DONE with the caveat that M1
+(stale claim recovery) is a prerequisite for ARB-022.6.

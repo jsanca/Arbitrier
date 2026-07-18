@@ -48,6 +48,6 @@ class OutboundMessagePublisherTest {
                 "{}", "JSON",
                 Instant.parse("2026-01-15T10:00:00Z"), null,
                 PublishStatus.PENDING, 0, null, null, null,
-                nature);
+                nature, null, null);
     }
 }

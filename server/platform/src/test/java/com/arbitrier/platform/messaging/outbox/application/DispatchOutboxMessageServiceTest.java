@@ -137,6 +137,6 @@ class DispatchOutboxMessageServiceTest {
         return new OutboxEvent(
                 UUID.randomUUID(), "order-001", "Order", "OrderCreatedDomainEvent",
                 "{}", "JSON", Instant.now(), null, PublishStatus.PENDING, 0, null,
-                null, null, MessageNature.EVENT);
+                null, null, MessageNature.EVENT, null, null);
     }
 }

@@ -144,6 +144,6 @@ class SequentialPendingDispatchServiceTest {
                 UUID.randomUUID(), "agg-" + UUID.randomUUID(), "Order",
                 "OrderCreatedDomainEvent", "{}", "JSON",
                 Instant.now(), null, PublishStatus.PENDING, 0, null,
-                null, null, MessageNature.EVENT);
+                null, null, MessageNature.EVENT, null, null);
     }
 }

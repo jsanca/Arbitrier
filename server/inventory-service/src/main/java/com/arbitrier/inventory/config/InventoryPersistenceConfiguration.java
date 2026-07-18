@@ -1,9 +1,13 @@
 package com.arbitrier.inventory.config;
 
+import com.arbitrier.inventory.adapter.outbound.persistence.InventoryStockEntity;
+import com.arbitrier.inventory.adapter.outbound.persistence.JpaInventoryAvailabilityQueryAdapter;
 import com.arbitrier.inventory.adapter.outbound.persistence.JpaStockReservationRepositoryAdapter;
+import com.arbitrier.inventory.adapter.outbound.persistence.SpringDataInventoryStockRepository;
 import com.arbitrier.inventory.adapter.outbound.persistence.SpringDataStockReservationRepository;
 import com.arbitrier.inventory.adapter.outbound.persistence.StockReservationEntity;
 import com.arbitrier.inventory.adapter.outbound.persistence.StockReservationPersistenceMapper;
+import com.arbitrier.inventory.application.port.outbound.InventoryAvailabilityQueryPort;
 import com.arbitrier.inventory.application.port.outbound.StockReservationRepository;
 import com.arbitrier.platform.messaging.inbox.InboxRepository;
 import com.arbitrier.platform.messaging.inbox.adapter.JpaInboxRepositoryAdapter;
@@ -33,9 +37,16 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  */
 @Configuration
 @ConditionalOnMissingBean(StockReservationRepository.class)
-@EntityScan(basePackageClasses = {StockReservationEntity.class, OutboxEventEntity.class, InboxEventEntity.class})
-@EnableJpaRepositories(basePackageClasses = {SpringDataStockReservationRepository.class, SpringDataOutboxRepository.class, SpringDataInboxRepository.class})
+@EntityScan(basePackageClasses = {StockReservationEntity.class, InventoryStockEntity.class, OutboxEventEntity.class, InboxEventEntity.class})
+@EnableJpaRepositories(basePackageClasses = {SpringDataStockReservationRepository.class, SpringDataInventoryStockRepository.class, SpringDataOutboxRepository.class, SpringDataInboxRepository.class})
 public class InventoryPersistenceConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean(InventoryAvailabilityQueryPort.class)
+    public InventoryAvailabilityQueryPort inventoryAvailabilityQueryPort(
+            SpringDataInventoryStockRepository springDataInventoryStockRepository) {
+        return new JpaInventoryAvailabilityQueryAdapter(springDataInventoryStockRepository);
+    }
 
     @Bean
     public StockReservationPersistenceMapper stockReservationPersistenceMapper() {

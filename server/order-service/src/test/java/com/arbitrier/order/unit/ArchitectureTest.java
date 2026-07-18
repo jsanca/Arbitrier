@@ -78,4 +78,32 @@ class ArchitectureTest {
                 .allowEmptyShould(true)
                 .check(classes);
     }
+
+    @Test
+    void domain_must_not_depend_on_grpc_or_protobuf() {
+        ArchRuleDefinition.noClasses().that().resideInAPackage("..domain..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage("io.grpc..", "com.google.protobuf..", "com.arbitrier.contracts..")
+                .allowEmptyShould(true)
+                .check(classes);
+    }
+
+    @Test
+    void application_must_not_depend_on_grpc_or_protobuf() {
+        ArchRuleDefinition.noClasses().that().resideInAPackage("..application..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage("io.grpc..", "com.google.protobuf..", "com.arbitrier.contracts..")
+                .allowEmptyShould(true)
+                .check(classes);
+    }
+
+    @Test
+    void grpc_adapter_must_reside_in_adapter_outbound_grpc_package() {
+        ArchRuleDefinition.noClasses().that()
+                .resideInAPackage("..adapter..")
+                .and().resideOutsideOfPackage("..adapter.outbound.grpc..")
+                .should().dependOnClassesThat().resideInAPackage("io.grpc..")
+                .allowEmptyShould(true)
+                .check(classes);
+    }
 }

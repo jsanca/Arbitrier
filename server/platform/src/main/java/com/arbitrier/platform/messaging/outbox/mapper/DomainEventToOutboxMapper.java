@@ -90,6 +90,8 @@ public final class DomainEventToOutboxMapper {
                 null,
                 null,
                 null,
-                nature);
+                nature,
+                null,
+                null);
     }
 }

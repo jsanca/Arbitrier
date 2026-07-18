@@ -21,6 +21,28 @@
             <groupId>org.apache.avro</groupId>
             <artifactId>avro</artifactId>
         </dependency>
+
+        <!-- Protobuf runtime — required for generated message classes -->
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+        </dependency>
+        <!-- gRPC stubs runtime -->
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-stub</artifactId>
+        </dependency>
+        <!-- gRPC protobuf serialisation support -->
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-protobuf</artifactId>
+        </dependency>
+        <!-- javax.annotation.Generated used by gRPC-generated stubs in Java 9+ -->
+        <dependency>
+            <groupId>javax.annotation</groupId>
+            <artifactId>javax.annotation-api</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -29,6 +51,15 @@
     </dependencies>
 
     <build>
+        <!-- os-maven-plugin detects ${os.detected.classifier} (e.g. osx-x86_64, linux-x86_64)
+             which the protobuf-maven-plugin uses to download the correct native protoc binary. -->
+        <extensions>
+            <extension>
+                <groupId>kr.motd.maven</groupId>
+                <artifactId>os-maven-plugin</artifactId>
+                <version>1.7.1</version>
+            </extension>
+        </extensions>
         <plugins>
             <!-- Avro Maven plugin -->
             <plugin>
@@ -53,6 +84,27 @@
                                 <import>${project.basedir}/src/main/avro/orchestrator/CompensationAction.avsc</import>
                             </imports>
                         </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Protobuf + gRPC code generation -->
+            <plugin>
+                <groupId>org.xolstice.maven.plugins</groupId>
+                <artifactId>protobuf-maven-plugin</artifactId>
+                <version>0.6.1</version>
+                <configuration>
+                    <protocArtifact>com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
+                    <pluginId>grpc-java</pluginId>
+                    <pluginArtifact>io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <!-- Generates Java message classes from .proto files -->
+                            <goal>compile</goal>
+                            <!-- Generates gRPC service stubs -->
+                            <goal>compile-custom</goal>
+                        </goals>
                     </execution>
                 </executions>
             </plugin>

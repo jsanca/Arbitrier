@@ -66,6 +66,12 @@ public class OutboxEventEntity {
     @Column(name = "message_nature", nullable = false)
     private String messageNature;
 
+    @Column(name = "claimed_by")
+    private String claimedBy;
+
+    @Column(name = "claimed_at")
+    private Instant claimedAt;
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
@@ -115,6 +121,12 @@ public class OutboxEventEntity {
 
     public String getMessageNature() { return messageNature; }
     public void setMessageNature(String messageNature) { this.messageNature = messageNature; }
+
+    public String getClaimedBy() { return claimedBy; }
+    public void setClaimedBy(String claimedBy) { this.claimedBy = claimedBy; }
+
+    public Instant getClaimedAt() { return claimedAt; }
+    public void setClaimedAt(Instant claimedAt) { this.claimedAt = claimedAt; }
 
     public Long getVersion() { return version; }
     public void setVersion(Long version) { this.version = version; }

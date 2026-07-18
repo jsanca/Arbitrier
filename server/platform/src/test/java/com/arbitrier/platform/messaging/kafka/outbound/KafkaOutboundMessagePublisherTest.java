@@ -160,7 +160,7 @@ class KafkaOutboundMessagePublisherTest {
         OutboxEvent event = new OutboxEvent(
                 UUID.randomUUID(), AGGREGATE_ID, "Order", "OrderCreatedDomainEvent",
                 "{}", "JSON", Instant.now(), null, PublishStatus.PENDING, 0, null,
-                null, null, MessageNature.EVENT);
+                null, null, MessageNature.EVENT, null, null);
 
         publisher.publish(event);
 
@@ -213,7 +213,7 @@ class KafkaOutboundMessagePublisherTest {
                 UUID.randomUUID(), AGGREGATE_ID, "Order", "OrderCreatedDomainEvent",
                 "{\"orderId\":\"order-test-001\"}", "JSON",
                 Instant.now(), null, PublishStatus.PENDING, 0, null,
-                CORRELATION_ID, CAUSATION_ID, MessageNature.EVENT);
+                CORRELATION_ID, CAUSATION_ID, MessageNature.EVENT, null, null);
     }
 
     private OutboxEvent commandMessage() {
@@ -221,6 +221,6 @@ class KafkaOutboundMessagePublisherTest {
                 UUID.randomUUID(), "saga-001", "Saga", "ReserveStockCommand",
                 "{\"sku\":\"SKU-A\"}", "JSON",
                 Instant.now(), null, PublishStatus.PENDING, 0, null,
-                CORRELATION_ID, null, MessageNature.COMMAND);
+                CORRELATION_ID, null, MessageNature.COMMAND, null, null);
     }
 }

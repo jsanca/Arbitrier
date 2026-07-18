@@ -40,6 +40,20 @@ arbitrier:
   kafka:
     topics:
       order-created: arbitrier.order.created.v1
+  order:
+    inventory:
+      grpc:
+        deadline-ms: ${INVENTORY_GRPC_DEADLINE_MS:2000}
+
+# gRPC client — address must be provided via environment variable in deployment.
+# Set grpc.client.inventory.address (e.g. via INVENTORY_GRPC_ADDRESS env var).
+# When address is absent this config class is skipped and test stubs fill the port.
+#
+# grpc:
+#   client:
+#     inventory:
+#       address: static://inventory-service:9091
+#       negotiation-type: plaintext
 
 management:
   endpoints:

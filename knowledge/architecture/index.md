@@ -22,5 +22,8 @@ unless they are themselves a stable public boundary.
 
 ## Navigation
 
-No child pages are curated yet. Add a page only when it links several stable
-authorities or makes a durable relationship easier to discover.
+- [Concurrent Dispatch Runtime](../operations/concurrent-dispatch-runtime.md) —
+  database-owned message claims and transport-independent dispatch boundaries.
+
+Add a page only when it links several stable authorities or makes a durable
+relationship easier to discover.

@@ -47,13 +47,13 @@ class JsonOutboundPayloadSerializerTest {
         return new OutboxEvent(
                 UUID.randomUUID(), "order-001", "Order", "OrderCreatedDomainEvent",
                 payload, "JSON", Instant.now(), null, PublishStatus.PENDING, 0, null,
-                null, null, MessageNature.EVENT);
+                null, null, MessageNature.EVENT, null, null);
     }
 
     private OutboxEvent commandWithPayload(String payload) {
         return new OutboxEvent(
                 UUID.randomUUID(), "saga-001", "Saga", "ReserveStockCommand",
                 payload, "JSON", Instant.now(), null, PublishStatus.PENDING, 0, null,
-                null, null, MessageNature.COMMAND);
+                null, null, MessageNature.COMMAND, null, null);
     }
 }

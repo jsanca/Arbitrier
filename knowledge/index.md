@@ -34,7 +34,7 @@ winner without an explicit decision.
 - [Domain](domain/index.md) — bounded contexts and durable business concepts.
 - [Contracts](contracts/index.md) — APIs, messages, schemas, and integrations.
 - [Data](data/index.md) — persistent and dataset-level concepts.
-- [Operations](operations/index.md) — runtime and observability concepts.
+- [Operations](operations/index.md) — runtime, dispatch, and observability concepts.
 - [Glossary](glossary/index.md) — shared project terminology.
 
 Each section index is intentionally lightweight. Add child pages only when a

@@ -1,7 +1,9 @@
 package com.arbitrier.inventory.integration;
 
+import com.arbitrier.inventory.adapter.outbound.ConfigurableInventoryAvailabilityQueryAdapter;
 import com.arbitrier.inventory.adapter.outbound.ConfigurableWarehouseAllocationPort;
 import com.arbitrier.inventory.adapter.outbound.InMemoryStockReservationRepository;
+import com.arbitrier.inventory.application.port.outbound.InventoryAvailabilityQueryPort;
 import com.arbitrier.inventory.application.port.outbound.StockReservationRepository;
 import com.arbitrier.inventory.application.port.outbound.WarehouseAllocationPort;
 import com.arbitrier.platform.messaging.inbox.InboxRepository;
@@ -41,5 +43,10 @@ public class InventoryServiceTestConfiguration {
     @Primary
     InboxRepository inboxRepository() {
         return new InMemoryInboxRepository();
+    }
+
+    @Bean
+    InventoryAvailabilityQueryPort inventoryAvailabilityQueryPort() {
+        return new ConfigurableInventoryAvailabilityQueryAdapter();
     }
 }

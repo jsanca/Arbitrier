@@ -52,6 +52,14 @@ public class AdvanceSagaService implements AdvanceSagaUseCase {
                 .orElseThrow(() -> new IllegalArgumentException(
                         "No saga found with id: " + sagaId));
 
+        // #revision-advise [Concurrency & Race Conditions]
+        // CRITICAL: saga.advance() yields a brand new immutable Saga instance.
+        // However, if multiple Kafka listeners (e.g., credit and inventory responses)
+        // trigger this service concurrently for the same sagaId, we are exposed to a
+        // "Lost Update" anomaly at the database level.
+        // TO DO / TO VERIFY: Ensure the underlying Saga persistence entity implements
+        // Optimistic Locking (e.g., JPA @Version) or State-Based Constraints to guarantee
+        // that a transaction fails-fast if another concurrent worker advanced the saga first.
         final Saga advanced = saga.advance(command.nextStep());
 
         repository.save(advanced);

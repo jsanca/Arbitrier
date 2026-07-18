@@ -1,0 +1,137 @@
+syntax = "proto3";
+
+// gRPC contract for the Inventory Availability query.
+//
+// Purpose: allows Order Service to ask Inventory Service whether requested
+// products currently have sufficient stock BEFORE accepting an order and
+// starting its Saga.
+//
+// This is a READ-ONLY precondition check.
+// It does NOT reserve, allocate, decrement, lock, or mutate inventory.
+// Inventory reservation remains exclusively part of the Saga transaction flow.
+//
+// Query semantics:
+//   Order Service ──CheckAvailability──▶ Inventory Service
+//   Inventory Service ──AVAILABLE / UNAVAILABLE──▶ Order Service
+//
+// Availability is a point-in-time observation. A result of AVAILABLE means
+// "Inventory Service currently reports enough stock." It does NOT guarantee
+// that stock will remain available when the Saga later attempts reservation.
+// The following sequence is normal distributed-system behavior:
+//
+//   CheckAvailability = AVAILABLE
+//   → another transaction consumes stock
+//   → Saga reservation = REJECTED
+//
+// Future evolution must preserve wire compatibility:
+//   - never reuse field numbers
+//   - never renumber existing fields
+//   - reserve removed field numbers and names
+//   - only add backward-compatible fields
+//   - preserve enum zero values as UNSPECIFIED
+
+package arbitrier.inventory.v1;
+
+option java_multiple_files = true;
+option java_package = "com.arbitrier.contracts.inventory.v1";
+option java_outer_classname = "InventoryAvailabilityProto";
+
+// Synchronous availability query from Order Service to Inventory Service.
+// Unary RPC: one request, one response, no streaming.
+service InventoryAvailabilityService {
+  rpc CheckAvailability(CheckAvailabilityRequest)
+      returns (CheckAvailabilityResponse);
+}
+
+// Request message carrying all products and quantities required by a
+// prospective order.
+//
+// Request invariants (enforced by the server adapter, not by protobuf):
+//   - request_id must not be blank
+//   - items must contain at least one entry
+//   - each product_id must not be blank
+//   - each quantity must be greater than zero
+//   - product_id must not appear more than once in the items list
+message CheckAvailabilityRequest {
+  // Correlation identifier for traceability and diagnostic association.
+  // Not an inventory reservation ID.
+  // Not an idempotency guarantee at the wire level.
+  string request_id = 1;
+
+  // All products and quantities required by the prospective order.
+  // Must contain at least one entry.
+  repeated RequestedItem items = 2;
+}
+
+// A single product and quantity from a prospective order.
+message RequestedItem {
+  // Inventory-managed product identifier. Must not be blank.
+  string product_id = 1;
+
+  // Quantity requested by the order. Must be greater than zero.
+  // Does not represent reserved quantity.
+  int32 quantity = 2;
+}
+
+// Response indicating whether all requested products are currently available.
+//
+// Response invariants:
+//   AVAILABLE   → unavailable_items must be empty
+//   UNAVAILABLE → unavailable_items must not be empty; every entry
+//                 corresponds to a product present in the request
+//                 and available_quantity must not be negative
+message CheckAvailabilityResponse {
+  // Overall availability verdict for all requested products.
+  AvailabilityStatus status = 1;
+
+  // Details for each product that is currently unavailable.
+  // Empty when status is AVAILABLE.
+  repeated UnavailableItem unavailable_items = 2;
+}
+
+// Overall verdict on whether Inventory Service can currently satisfy the
+// requested quantities.
+enum AvailabilityStatus {
+  // Absent, unknown, invalid, or forward-compatibility state.
+  // Application adapters must not treat this value as availability.
+  AVAILABILITY_STATUS_UNSPECIFIED = 0;
+
+  // Every requested product currently has sufficient available stock.
+  // unavailable_items will be empty.
+  AVAILABILITY_STATUS_AVAILABLE = 1;
+
+  // At least one requested product does not have sufficient available stock.
+  // unavailable_items will contain one or more entries.
+  AVAILABILITY_STATUS_UNAVAILABLE = 2;
+}
+
+// Details for a single product that cannot satisfy the requested quantity.
+message UnavailableItem {
+  // The product identifier from the original request.
+  string product_id = 1;
+
+  // The quantity originally requested.
+  int32 requested_quantity = 2;
+
+  // The quantity currently available according to Inventory Service.
+  // May be zero for an unknown product.
+  // Must not be negative.
+  int32 available_quantity = 3;
+
+  // The specific reason this product cannot satisfy the requested quantity.
+  UnavailabilityReason reason = 4;
+}
+
+// Specific reason a requested product cannot be fulfilled.
+// Technical failures (timeout, service unavailable, internal error) must
+// NOT be encoded here; they belong to gRPC status errors.
+enum UnavailabilityReason {
+  // Absent, unknown, or forward-compatibility state.
+  UNAVAILABILITY_REASON_UNSPECIFIED = 0;
+
+  // The product exists but current stock is below the requested quantity.
+  UNAVAILABILITY_REASON_INSUFFICIENT_STOCK = 1;
+
+  // The product identifier is not known to Inventory Service.
+  UNAVAILABILITY_REASON_PRODUCT_NOT_FOUND = 2;
+}

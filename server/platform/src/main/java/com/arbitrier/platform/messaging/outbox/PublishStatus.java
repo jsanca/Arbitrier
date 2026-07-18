@@ -9,6 +9,8 @@ package com.arbitrier.platform.messaging.outbox;
 public enum PublishStatus {
     /** Event has been persisted but not yet published to the message bus. */
     PENDING,
+    /** Event is temporarily owned by one worker pending publication. */
+    CLAIMED,
     /** Event has been successfully published. */
     PUBLISHED,
     /** Publication failed after retries; requires manual intervention. */

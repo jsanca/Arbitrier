@@ -37,9 +37,14 @@ cd client && npm ci && npm run build && npm test
 cd client && npx playwright test
 cd client && npx playwright test e2e/uc01-confirmed.spec.ts
 
+# Client — local development server
+cd client && npm ci && npm run dev        # http://localhost:5173, login: brio@arbitrier.com / any password
+
 # Local infrastructure (Kafka, PostgreSQL, Keycloak, Schema Registry)
-docker compose -f infra/docker/docker-compose.yml up -d
-docker compose -f infra/docker/docker-compose.yml down -v
+infra/docker/start.sh
+infra/docker/stop.sh
+infra/docker/reset.sh                    # wipes volumes + re-imports Keycloak realm
+infra/docker/health.sh                   # verify all services are up
 ```
 
 Local stack ports: PostgreSQL 5432, Kafka 9092, Schema Registry 8081, Keycloak 8180, Kafka UI 8088.
@@ -296,6 +301,32 @@ import org.springframework.boot.persistence.autoconfigure.EntityScan;
 
 This matters in JPA adapter Testcontainer tests that boot an inner `@SpringBootConfiguration` — `spring.jpa.packages` in `application.yml` is not effective in those contexts; explicit `@EntityScan` on the persistence configuration class is required.
 
+### `@Transactional` on JPA adapter mutation methods
+
+Every `JpaOutboxRepositoryAdapter` (and analogous adapters) method that calls a `@Modifying` Spring Data query — or performs a multi-step read-then-write — must be annotated `@Transactional`. Without it:
+
+- Calls from background threads (e.g., concurrent claim tests) arrive outside any Spring transaction context; `@Modifying(flushAutomatically = true)` then throws `TransactionRequiredException`.
+- The `@Transactional` on the test method is thread-local and is not inherited by threads spawned inside the test.
+
+The rule: annotate **every** adapter method that modifies state, not just the ones that obviously need a transaction. `@Transactional` is a no-op when an outer transaction already exists (default `Propagation.REQUIRED`), so adding it redundantly is safe.
+
+### JPA adapter classes must not be `final`
+
+Spring Boot defaults to CGLIB proxying (`spring.aop.proxy-target-class=true`). CGLIB creates a subclass of the target to apply `@Transactional` advice. A `final` class cannot be subclassed — the context will fail to load with `AopConfigException: Cannot subclass final class`. Never declare a JPA adapter class `final`.
+
+### Spring-managed adapter bean required for `@Transactional` tests
+
+When a JPA adapter test calls a method annotated `@Transactional`, the adapter **must be a Spring-managed `@Bean`** — not instantiated manually with `new`. A manually created object is not wrapped by a Spring AOP proxy, so `@Transactional` has no effect. In `*TestConfig`:
+
+```java
+@Bean
+OutboxRepository outboxRepository(SpringDataOutboxRepository repo, TimeProvider timeProvider) {
+    return new JpaOutboxRepositoryAdapter(repo, timeProvider);  // proxy created by Spring
+}
+```
+
+Inject it via `@Autowired` in the test class. Never use `new JpaOutboxRepositoryAdapter(...)` in `@BeforeEach` when any method under test carries `@Transactional`.
+
 ### Including `server/contracts` when compiling service tests
 
 `arbitrier-contracts` is a snapshot dependency. Always include `server/contracts` in the `-pl` list when building or testing a service module, otherwise Maven cannot resolve the artifact:
@@ -377,6 +408,8 @@ Every aggregate that requires persistence needs four artifacts in `adapter/outbo
 | `SpringData*Repository` | `JpaRepository<*Entity, UUID>` — Spring Data interface |
 
 ArchUnit enforces that `@Entity` classes stay in `..adapter.outbound.persistence..` — run `mvn test` after adding any new entity to confirm.
+
+Adapter classes must **not** be `final` (CGLIB proxy requirement — see Spring Boot 4.x Patterns). Every adapter method that mutates state must carry `@Transactional`.
 
 ### Persistence mapper — three-method contract
 
