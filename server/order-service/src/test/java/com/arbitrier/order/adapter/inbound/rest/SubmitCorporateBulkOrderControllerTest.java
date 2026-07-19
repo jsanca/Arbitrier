@@ -1,5 +1,9 @@
 package com.arbitrier.order.adapter.inbound.rest;
 
+import com.arbitrier.order.adapter.outbound.grpc.inventory.InventoryAvailabilityInternalException;
+import com.arbitrier.order.adapter.outbound.grpc.inventory.InventoryAvailabilityProtocolException;
+import com.arbitrier.order.adapter.outbound.grpc.inventory.InventoryAvailabilityRemoteUnavailableException;
+import com.arbitrier.order.adapter.outbound.grpc.inventory.InventoryAvailabilityTimeoutException;
 import com.arbitrier.order.application.OrderProblemCode;
 import com.arbitrier.order.application.port.inbound.SubmitCorporateBulkOrderCommand;
 import com.arbitrier.order.application.port.inbound.SubmitCorporateBulkOrderResult;
@@ -152,6 +156,75 @@ class SubmitCorporateBulkOrderControllerTest {
                         .content(validRequestBody()))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ORDER_ACCESS_DENIED"));
+    }
+
+    // ── inventory availability ────────────────────────────────────────────────
+
+    @Test
+    void inventory_unavailable_returns_422() throws Exception {
+        when(useCase.execute(any()))
+                .thenThrow(new ApplicationProblemException(
+                        OrderProblemCode.ORDER_ITEMS_UNAVAILABLE,
+                        OrderProblemCode.ORDER_ITEMS_UNAVAILABLE.description()));
+
+        mockMvc.perform(post("/api/orders")
+                        .with(jwt().jwt(j -> j.subject("user-123")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validRequestBody()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("ORDER_ITEMS_UNAVAILABLE"));
+    }
+
+    @Test
+    void inventory_timeout_returns_504() throws Exception {
+        when(useCase.execute(any()))
+                .thenThrow(new InventoryAvailabilityTimeoutException("timed out", new RuntimeException()));
+
+        mockMvc.perform(post("/api/orders")
+                        .with(jwt().jwt(j -> j.subject("user-123")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validRequestBody()))
+                .andExpect(status().isGatewayTimeout())
+                .andExpect(jsonPath("$.code").value("INVENTORY_TIMEOUT"));
+    }
+
+    @Test
+    void inventory_remote_unavailable_returns_503() throws Exception {
+        when(useCase.execute(any()))
+                .thenThrow(new InventoryAvailabilityRemoteUnavailableException("down", new RuntimeException()));
+
+        mockMvc.perform(post("/api/orders")
+                        .with(jwt().jwt(j -> j.subject("user-123")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validRequestBody()))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("INVENTORY_SERVICE_UNAVAILABLE"));
+    }
+
+    @Test
+    void inventory_protocol_error_returns_502() throws Exception {
+        when(useCase.execute(any()))
+                .thenThrow(new InventoryAvailabilityProtocolException("protocol violation", new RuntimeException()));
+
+        mockMvc.perform(post("/api/orders")
+                        .with(jwt().jwt(j -> j.subject("user-123")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validRequestBody()))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value("INVENTORY_PROTOCOL_ERROR"));
+    }
+
+    @Test
+    void inventory_internal_error_returns_500() throws Exception {
+        when(useCase.execute(any()))
+                .thenThrow(new InventoryAvailabilityInternalException("internal error", new RuntimeException()));
+
+        mockMvc.perform(post("/api/orders")
+                        .with(jwt().jwt(j -> j.subject("user-123")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validRequestBody()))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INVENTORY_INTEGRATION_ERROR"));
     }
 
     // ── validation ────────────────────────────────────────────────────────────

@@ -1,9 +1,7 @@
 package com.arbitrier.order.adapter.outbound.persistence;
 
-import com.arbitrier.order.adapter.outbound.RecordingOrderEventPublisher;
 import com.arbitrier.order.adapter.outbound.StubInventoryAvailabilityPort;
 import com.arbitrier.order.application.port.outbound.InventoryAvailabilityPort;
-import com.arbitrier.order.application.port.outbound.OrderEventPublisher;
 import com.arbitrier.order.application.port.outbound.OrderRepository;
 import com.arbitrier.order.domain.model.CustomerId;
 import com.arbitrier.order.domain.model.Order;
@@ -67,12 +65,6 @@ class TransactionalOutboxIT {
 
     @TestConfiguration
     static class Config {
-
-        @Bean
-        @Primary
-        OrderEventPublisher orderEventPublisher() {
-            return new RecordingOrderEventPublisher();
-        }
 
         @Bean
         @Primary

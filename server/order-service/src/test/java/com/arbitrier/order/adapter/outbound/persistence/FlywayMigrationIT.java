@@ -1,9 +1,7 @@
 package com.arbitrier.order.adapter.outbound.persistence;
 
-import com.arbitrier.order.adapter.outbound.RecordingOrderEventPublisher;
 import com.arbitrier.order.adapter.outbound.StubInventoryAvailabilityPort;
 import com.arbitrier.order.application.port.outbound.InventoryAvailabilityPort;
-import com.arbitrier.order.application.port.outbound.OrderEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -49,12 +47,6 @@ class FlywayMigrationIT {
 
     @TestConfiguration
     static class Config {
-
-        @Bean
-        @Primary
-        OrderEventPublisher orderEventPublisher() {
-            return new RecordingOrderEventPublisher();
-        }
 
         @Bean
         @Primary

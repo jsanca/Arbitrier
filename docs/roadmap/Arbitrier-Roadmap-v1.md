@@ -176,28 +176,31 @@ Messaging Runtime Observability
 - Runtime health
 - Queue monitoring
 
-ARB-023 — Executable Order Entry Flow [IN PROGRESS]
+ARB-023 — Executable Order Entry Flow  [DONE]
 ARB-023.1 Inventory Availability gRPC Contract [DONE]
 ARB-023.2 Inventory gRPC Server Adapter [DONE]
 ARB-023.2A Inventory Stock Availability Persistence [DONE]
 ARB-023.3 Order gRPC Client Adapter [DONE]
-ARB-023.4 REST Order Entry Point
-ARB-023.5 Order Acceptance and Saga Start
-ARB-023.6 Vertical Integration Proof
+ARB-023.4 REST Order Entry Point [DONE]
+ARB-023.5 Order Acceptance and Saga Start  [DONE]
+ARB-023.6 Vertical Integration Proof  [DONE]
 
 ---
 
 # TRANSPORT
 
-ARB-023 [PLANNED]
+ARB-024 [PLANNED]
 Avro Transport & Schema Registry
 
-- Avro Publisher
-- Schema Registry
-- Subject Strategy
-- Contract Evolution
-- JSON Development Adapter
-- Avro Production Adapter
+  ARB-024.1 — Transport Publication Boundary
+  ARB-024.2 — Avro Publisher Foundation
+  ARB-024.3 — Schema Registry Integration
+  ARB-024.4 — Subject Naming Strategy
+  ARB-024.5 — Contract Compatibility and Evolution
+  ARB-024.6 — JSON Development Adapter
+  ARB-024.7 — Avro Production Adapter
+  ARB-024.8 — Vertical Transport Proof
+  ARB-024R-001 — Transport Architecture Review
 
 ---
 

@@ -2,9 +2,13 @@ package com.arbitrier.order.application.service;
 
 import com.arbitrier.order.application.OrderProblemCode;
 import com.arbitrier.order.application.port.inbound.SubmitCorporateBulkOrderCommand;
+import com.arbitrier.order.application.port.inbound.SubmitCorporateBulkOrderLineCommand;
 import com.arbitrier.order.application.port.inbound.SubmitCorporateBulkOrderResult;
 import com.arbitrier.order.application.port.inbound.SubmitCorporateBulkOrderUseCase;
+import com.arbitrier.order.application.port.outbound.AvailabilityLineQuery;
+import com.arbitrier.order.application.port.outbound.AvailabilityLineResponse;
 import com.arbitrier.order.application.port.outbound.CustomerAccessPort;
+import com.arbitrier.order.application.port.outbound.InventoryAvailabilityPort;
 import com.arbitrier.order.application.port.outbound.OrderRepository;
 import com.arbitrier.order.domain.event.OrderCreatedDomainEvent;
 import com.arbitrier.order.domain.model.CustomerId;
@@ -22,8 +26,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Application service that handles {@link SubmitCorporateBulkOrderUseCase}.
@@ -46,20 +53,24 @@ public class SubmitCorporateBulkOrderService implements SubmitCorporateBulkOrder
     private final OutboxRepository outboxRepository;
     private final DomainEventToOutboxMapper outboxMapper;
     private final CustomerAccessPort customerAccessPort;
+    private final InventoryAvailabilityPort inventoryAvailabilityPort;
 
     public SubmitCorporateBulkOrderService(OrderRepository orderRepository,
                                            OutboxRepository outboxRepository,
                                            DomainEventToOutboxMapper outboxMapper,
-                                           CustomerAccessPort customerAccessPort) {
+                                           CustomerAccessPort customerAccessPort,
+                                           InventoryAvailabilityPort inventoryAvailabilityPort) {
         this.orderRepository = Require.notNull(orderRepository, "orderRepository");
         this.outboxRepository = Require.notNull(outboxRepository, "outboxRepository");
         this.outboxMapper = Require.notNull(outboxMapper, "outboxMapper");
         this.customerAccessPort = Require.notNull(customerAccessPort, "customerAccessPort");
+        this.inventoryAvailabilityPort = Require.notNull(inventoryAvailabilityPort, "inventoryAvailabilityPort");
     }
 
     @Override
     @Transactional
-    public SubmitCorporateBulkOrderResult execute(SubmitCorporateBulkOrderCommand command) {
+    public SubmitCorporateBulkOrderResult execute(final SubmitCorporateBulkOrderCommand command) {
+
         Require.notNull(command, "command");
 
         if (!customerAccessPort.canSubmitOrder(command.submittedByUserId(), command.customerId())) {
@@ -69,32 +80,65 @@ public class SubmitCorporateBulkOrderService implements SubmitCorporateBulkOrder
                     OrderProblemCode.CUSTOMER_ACCESS_DENIED.description());
         }
 
-        OrderId orderId = OrderId.of(UUID.randomUUID().toString());
+        final LinkedHashMap<String, Integer> requestedBySku = aggregateRequestedQuantitiesBySku(command);
 
-        List<OrderLine> domainLines = command.lines().stream()
-                .map(l -> new OrderLine(Sku.of(l.sku()), Quantity.of(l.quantity())))
+        this.verifyInventoryAvailability(requestedBySku);
+
+        final OrderId orderId = OrderId.of(UUID.randomUUID().toString());
+
+        final List<OrderLine> domainLines = requestedBySku.entrySet().stream()
+                .map(e -> new OrderLine(Sku.of(e.getKey()), Quantity.of(e.getValue())))
                 .toList();
 
-        Order order = Order.create(
+        final Order order = Order.create(
                 orderId,
                 CustomerId.of(command.customerId()),
                 UserId.of(command.submittedByUserId()),
                 domainLines);
 
-        orderRepository.save(order);
+        this.orderRepository.save(order);
 
         // OPEN QUESTION: correlationId is not yet part of the command — mark for observability wiring.
         log.info("Order created: orderId={}, customerId={}, lines={}",
                 orderId, command.customerId(), domainLines.size());
 
-        OrderCreatedDomainEvent event = new OrderCreatedDomainEvent(
+        final OrderCreatedDomainEvent event = new OrderCreatedDomainEvent(
                 orderId,
                 order.customerId(),
                 order.submittedBy(),
                 order.lines());
 
-        outboxRepository.save(outboxMapper.map(event, orderId.value(), AGGREGATE_TYPE));
+        this.outboxRepository.save(this.outboxMapper.map(event, orderId.value(), AGGREGATE_TYPE));
 
         return new SubmitCorporateBulkOrderResult(orderId.value(), order.status().name());
+    }
+
+    private void verifyInventoryAvailability(final Map<String, Integer> requestedBySku) {
+
+        final List<AvailabilityLineQuery> queries = requestedBySku.entrySet().stream()
+                .map(e -> new AvailabilityLineQuery(e.getKey(), e.getValue()))
+                .toList();
+
+        final List<AvailabilityLineResponse> responses = this.inventoryAvailabilityPort.checkAvailability(queries);
+
+        final boolean allAvailable = responses.stream()
+                .allMatch(r -> r.availableQuantity() >= requestedBySku.getOrDefault(r.sku(), 0));
+
+        if (!allAvailable) {
+            log.info("Order rejected: insufficient inventory. requestedSkus={}", requestedBySku.keySet());
+            throw new ApplicationProblemException(
+                    OrderProblemCode.ORDER_ITEMS_UNAVAILABLE,
+                    OrderProblemCode.ORDER_ITEMS_UNAVAILABLE.description());
+        }
+    }
+
+    private LinkedHashMap<String, Integer> aggregateRequestedQuantitiesBySku(
+            final SubmitCorporateBulkOrderCommand command) {
+        return command.lines().stream()
+                .collect(Collectors.toMap(
+                        SubmitCorporateBulkOrderLineCommand::sku,
+                        SubmitCorporateBulkOrderLineCommand::quantity,
+                        Integer::sum,
+                        LinkedHashMap::new));
     }
 }

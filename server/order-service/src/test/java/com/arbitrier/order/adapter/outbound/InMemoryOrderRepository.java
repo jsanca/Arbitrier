@@ -36,4 +36,9 @@ public class InMemoryOrderRepository implements OrderRepository {
     public int size() {
         return store.size();
     }
+
+    /** Removes all saved orders (test helper). */
+    public void clear() {
+        store.clear();
+    }
 }

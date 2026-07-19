@@ -11,8 +11,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Outbound gRPC adapter implementing {@link InventoryAvailabilityPort} for Order Service.
@@ -26,6 +29,11 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>No business decisions are made here. The adapter only translates the remote response
  * into the existing {@link AvailabilityLineResponse} model consumed by the application service.
+ *
+ * <p>After mapping, the response is validated against the original query list: the response
+ * must contain exactly one entry per requested SKU, with no duplicates and no unexpected SKUs.
+ * Violations throw {@link InventoryAvailabilityProtocolException} — they are upstream integration
+ * failures, not business unavailability.
  *
  * <p>{@code StatusRuntimeException} is never exposed outside this class; it is always
  * converted by {@link InventoryAvailabilityGrpcExceptionMapper}.
@@ -46,10 +54,18 @@ public class GrpcInventoryAvailabilityAdapter implements InventoryAvailabilityPo
     public GrpcInventoryAvailabilityAdapter(
             final InventoryAvailabilityServiceGrpc.InventoryAvailabilityServiceBlockingStub stub,
             final Duration deadline) {
+        this(stub, deadline, new InventoryAvailabilityGrpcResponseMapper());
+    }
+
+    /** Package-private constructor for unit tests — allows injecting a mock response mapper. */
+    GrpcInventoryAvailabilityAdapter(
+            final InventoryAvailabilityServiceGrpc.InventoryAvailabilityServiceBlockingStub stub,
+            final Duration deadline,
+            final InventoryAvailabilityGrpcResponseMapper responseMapper) {
         this.stub = Require.notNull(stub, "GrpcInventoryAvailabilityAdapter.stub");
         this.deadline = Require.notNull(deadline, "GrpcInventoryAvailabilityAdapter.deadline");
         this.requestMapper = new InventoryAvailabilityGrpcRequestMapper();
-        this.responseMapper = new InventoryAvailabilityGrpcResponseMapper();
+        this.responseMapper = Require.notNull(responseMapper, "GrpcInventoryAvailabilityAdapter.responseMapper");
         this.exceptionMapper = new InventoryAvailabilityGrpcExceptionMapper();
     }
 
@@ -66,6 +82,7 @@ public class GrpcInventoryAvailabilityAdapter implements InventoryAvailabilityPo
                     .checkAvailability(request);
 
             final List<AvailabilityLineResponse> result = responseMapper.toLines(response, lines);
+            validateResponseContract(result, lines);
 
             log.debug("Inventory availability response: requestId={}, status={}, unavailableItems={}",
                     request.getRequestId(), response.getStatus(), response.getUnavailableItemsCount());
@@ -79,6 +96,37 @@ public class GrpcInventoryAvailabilityAdapter implements InventoryAvailabilityPo
             log.warn("Inventory availability query failed: requestId={}, error={}",
                     request.getRequestId(), mapped.getMessage());
             throw mapped;
+        }
+    }
+
+    /**
+     * Validates that the mapped response satisfies the port contract:
+     * exactly one result per requested SKU, no duplicates, no unexpected SKUs.
+     */
+    private void validateResponseContract(
+            final List<AvailabilityLineResponse> result,
+            final List<AvailabilityLineQuery> queries) {
+
+        if (result.size() != queries.size()) {
+            throw new InventoryAvailabilityProtocolException(
+                    "Inventory response line count mismatch: expected " + queries.size()
+                    + ", got " + result.size());
+        }
+
+        final Set<String> requestedSkus = queries.stream()
+                .map(AvailabilityLineQuery::sku)
+                .collect(Collectors.toSet());
+
+        final Set<String> seenSkus = new HashSet<>(result.size());
+        for (final AvailabilityLineResponse r : result) {
+            if (!seenSkus.add(r.sku())) {
+                throw new InventoryAvailabilityProtocolException(
+                        "Inventory response contains duplicate SKU: " + r.sku());
+            }
+            if (!requestedSkus.contains(r.sku())) {
+                throw new InventoryAvailabilityProtocolException(
+                        "Inventory response contains unexpected SKU: " + r.sku());
+            }
         }
     }
 }

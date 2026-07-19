@@ -53,6 +53,22 @@ class ArchitectureTest {
                 .check(classes);
     }
 
+    /**
+     * Publication boundary rule (ARB-024.1):
+     * Application services must write domain events to the transactional Outbox only.
+     * KafkaTemplate and Kafka producer adapters belong exclusively to the transport/relay layer.
+     * No application class may hold a reference to a Kafka publisher of any kind.
+     */
+    @Test
+    void application_must_not_depend_on_kafka_publisher_adapters() {
+        ArchRuleDefinition.noClasses().that().resideInAPackage("..application..")
+                .should().dependOnClassesThat().resideInAPackage("..adapter.outbound.kafka..")
+                .because("application services publish through OutboxRepository; " +
+                         "transport publication adapters belong in the adapter layer")
+                .allowEmptyShould(true)
+                .check(classes);
+    }
+
     @Test
     void application_must_not_depend_on_spring_data() {
         ArchRuleDefinition.noClasses().that().resideInAPackage("..application..")

@@ -1,9 +1,7 @@
 package com.arbitrier.order.adapter.outbound.persistence;
 
-import com.arbitrier.order.adapter.outbound.RecordingOrderEventPublisher;
 import com.arbitrier.order.adapter.outbound.StubInventoryAvailabilityPort;
 import com.arbitrier.order.application.port.outbound.InventoryAvailabilityPort;
-import com.arbitrier.order.application.port.outbound.OrderEventPublisher;
 import com.arbitrier.order.application.port.outbound.OrderRepository;
 import com.arbitrier.order.domain.model.CancellationReason;
 import com.arbitrier.order.domain.model.CustomerId;
@@ -62,12 +60,6 @@ class JpaOrderRepositoryAdapterTest {
     /** Stubs for non-persistence ports — OrderRepository is provided by JPA config. */
     @TestConfiguration
     static class Config {
-
-        @Bean
-        @Primary
-        OrderEventPublisher orderEventPublisher() {
-            return new RecordingOrderEventPublisher();
-        }
 
         @Bean
         @Primary

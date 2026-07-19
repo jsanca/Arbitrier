@@ -35,9 +35,12 @@ public class SubmitCorporateBulkOrderController {
     private static final Logger log = LoggerFactory.getLogger(SubmitCorporateBulkOrderController.class);
 
     private final SubmitCorporateBulkOrderUseCase useCase;
+    private final CreateOrderRestMapper createOrderRestMapper;
 
-    public SubmitCorporateBulkOrderController(SubmitCorporateBulkOrderUseCase useCase) {
+    public SubmitCorporateBulkOrderController(final SubmitCorporateBulkOrderUseCase useCase,
+                                              final CreateOrderRestMapper createOrderRestMapper) {
         this.useCase = useCase;
+        this.createOrderRestMapper = createOrderRestMapper;
     }
 
     /**
@@ -52,22 +55,15 @@ public class SubmitCorporateBulkOrderController {
      */
     @PostMapping
     public ResponseEntity<CreateOrderResponse> submitOrder(
-            @RequestBody @Valid CreateOrderRequest request,
-            Authentication authentication) {
+            @RequestBody @Valid final CreateOrderRequest request,
+            final Authentication authentication) {
 
-        String userId = authentication.getName();
+        final String userId = authentication.getName();
         log.info("Order submission: customerId={}, lines={}", request.customerId(), request.lines().size());
 
-        List<SubmitCorporateBulkOrderLineCommand> lineCommands = request.lines().stream()
-                .map(l -> new SubmitCorporateBulkOrderLineCommand(l.sku(), l.quantity()))
-                .toList();
+        final SubmitCorporateBulkOrderCommand command = this.createOrderRestMapper.toCommand(request, userId);
 
-        SubmitCorporateBulkOrderCommand command = new SubmitCorporateBulkOrderCommand(
-                request.customerId(),
-                userId,
-                lineCommands);
-
-        SubmitCorporateBulkOrderResult result = useCase.execute(command);
+        final SubmitCorporateBulkOrderResult result = this.useCase.execute(command);
 
         log.info("Order submitted: orderId={}", result.orderId());
 

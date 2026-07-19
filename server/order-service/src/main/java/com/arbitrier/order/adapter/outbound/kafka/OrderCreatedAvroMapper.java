@@ -7,18 +7,23 @@ import com.arbitrier.contracts.order.OrderCreated;
 import com.arbitrier.order.domain.event.OrderCreatedDomainEvent;
 import com.arbitrier.order.domain.model.OrderLine;
 import com.arbitrier.platform.time.TimeProvider;
-import org.springframework.stereotype.Component;
-
 import java.util.List;
 import java.util.UUID;
 
 /**
  * Maps {@link OrderCreatedDomainEvent} to the {@link OrderCreated} Avro contract.
  *
+ * <p><b>Outbox relay transport component (ARB-024)</b> — this mapper belongs to the Avro
+ * transport adapter of the Outbox relay, not to any application service. Application services
+ * must not reference this class. The relay reads {@code OutboxEvent} records from the database
+ * and invokes this mapper when publishing via Avro to Schema Registry + Kafka.
+ *
+ * <p>Not registered as a Spring bean here — the relay's transport configuration will wire it
+ * when the Avro adapter is implemented.
+ *
  * <h2>requestedTotal decision (ARB-011)</h2>
  * <p>{@code requestedTotal} is a required field in the {@link OrderCreated} Avro schema but has
- * no equivalent in {@link OrderCreatedDomainEvent}. The domain Order does not model pricing —
- * that remains an open question from ARB-006.
+ * no equivalent in {@link OrderCreatedDomainEvent}. The domain Order does not model pricing.
  *
  * <p><strong>Decision (ARB-011, option a):</strong> Emit {@code MoneyAmount("0", "USD")} as a
  * documented placeholder. Downstream consumers must not rely on this value until a pricing source
@@ -28,15 +33,14 @@ import java.util.UUID;
  * catalog/pricing service provides the total at order-submission time.
  *
  * <h2>correlationId</h2>
- * <p>{@link OrderCreatedDomainEvent} does not yet carry a {@code correlationId}. The caller
- * (KafkaOrderEventPublisher) reads the correlation ID from the MDC and passes it here.
- * When correlation is threaded through {@code SubmitCorporateBulkOrderCommand}, this parameter
- * should be replaced by the domain event field.
+ * <p>{@link OrderCreatedDomainEvent} does not yet carry a {@code correlationId}. The relay
+ * caller must supply the correlation ID from the {@code OutboxEvent} metadata.
+ * When correlation is threaded through the Outbox record, this parameter should be replaced
+ * by the relay's own metadata extraction.
  *
  * <p>Layer: adapter/outbound/kafka
  * <p>Module: order-service
  */
-@Component
 public class OrderCreatedAvroMapper {
 
     private static final String SCHEMA_VERSION = "v1";

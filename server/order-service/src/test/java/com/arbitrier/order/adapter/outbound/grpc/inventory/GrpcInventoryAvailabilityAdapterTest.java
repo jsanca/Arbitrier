@@ -28,6 +28,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+// Response-contract validation tests use the injectable-mapper constructor to make the
+// mapper return bad data that the real gRPC protocol can't produce.
+
 class GrpcInventoryAvailabilityAdapterTest {
 
     private InventoryAvailabilityServiceGrpc.InventoryAvailabilityServiceBlockingStub stub;
@@ -37,6 +40,9 @@ class GrpcInventoryAvailabilityAdapterTest {
     private static final Duration DEADLINE = Duration.ofMillis(500);
     private static final List<AvailabilityLineQuery> QUERIES = List.of(
             new AvailabilityLineQuery("SKU-001", 5));
+    private static final List<AvailabilityLineQuery> TWO_QUERIES = List.of(
+            new AvailabilityLineQuery("SKU-001", 5),
+            new AvailabilityLineQuery("SKU-002", 3));
 
     @BeforeEach
     @SuppressWarnings("unchecked")
@@ -45,6 +51,20 @@ class GrpcInventoryAvailabilityAdapterTest {
         deadlineStub = mock(InventoryAvailabilityServiceGrpc.InventoryAvailabilityServiceBlockingStub.class);
         when(stub.withDeadlineAfter(anyLong(), any(TimeUnit.class))).thenReturn(deadlineStub);
         adapter = new GrpcInventoryAvailabilityAdapter(stub, DEADLINE);
+    }
+
+    /** Builds an adapter with a mock response mapper that returns {@code mapperResult}. */
+    @SuppressWarnings("unchecked")
+    private GrpcInventoryAvailabilityAdapter adapterWithMappedResult(
+            final List<AvailabilityLineResponse> mapperResult) {
+        final InventoryAvailabilityGrpcResponseMapper mockMapper =
+                mock(InventoryAvailabilityGrpcResponseMapper.class);
+        when(mockMapper.toLines(any(), any())).thenReturn(mapperResult);
+        when(deadlineStub.checkAvailability(any())).thenReturn(
+                CheckAvailabilityResponse.newBuilder()
+                        .setStatus(AvailabilityStatus.AVAILABILITY_STATUS_AVAILABLE)
+                        .build());
+        return new GrpcInventoryAvailabilityAdapter(stub, DEADLINE, mockMapper);
     }
 
     @Test
@@ -193,5 +213,92 @@ class GrpcInventoryAvailabilityAdapterTest {
 
         // Only checkAvailability should be called; no other interaction on the stub
         verify(deadlineStub, times(1)).checkAvailability(any());
+    }
+
+    // ── response contract validation ──────────────────────────────────────────
+
+    @Test
+    void complete_response_is_accepted() {
+        final List<AvailabilityLineResponse> expected = List.of(
+                new AvailabilityLineResponse("SKU-001", 5),
+                new AvailabilityLineResponse("SKU-002", 3));
+        final GrpcInventoryAvailabilityAdapter testAdapter = adapterWithMappedResult(expected);
+
+        final List<AvailabilityLineResponse> result = testAdapter.checkAvailability(TWO_QUERIES);
+
+        assertThat(result).isEqualTo(expected);
+    }
+
+    @Test
+    void empty_response_for_nonempty_request_throws_protocol_exception() {
+        final GrpcInventoryAvailabilityAdapter testAdapter = adapterWithMappedResult(List.of());
+
+        assertThatThrownBy(() -> testAdapter.checkAvailability(QUERIES))
+                .isInstanceOf(InventoryAvailabilityProtocolException.class)
+                .hasMessageContaining("mismatch");
+    }
+
+    @Test
+    void missing_requested_sku_throws_protocol_exception() {
+        // 2 queries, mapper returns only 1 line
+        final List<AvailabilityLineResponse> partial = List.of(
+                new AvailabilityLineResponse("SKU-001", 5));
+        final GrpcInventoryAvailabilityAdapter testAdapter = adapterWithMappedResult(partial);
+
+        assertThatThrownBy(() -> testAdapter.checkAvailability(TWO_QUERIES))
+                .isInstanceOf(InventoryAvailabilityProtocolException.class)
+                .hasMessageContaining("mismatch");
+    }
+
+    @Test
+    void duplicate_response_sku_throws_protocol_exception() {
+        final List<AvailabilityLineResponse> withDuplicate = List.of(
+                new AvailabilityLineResponse("SKU-001", 5),
+                new AvailabilityLineResponse("SKU-001", 5));
+        final GrpcInventoryAvailabilityAdapter testAdapter = adapterWithMappedResult(withDuplicate);
+
+        assertThatThrownBy(() -> testAdapter.checkAvailability(TWO_QUERIES))
+                .isInstanceOf(InventoryAvailabilityProtocolException.class)
+                .hasMessageContaining("duplicate SKU");
+    }
+
+    @Test
+    void unexpected_response_sku_throws_protocol_exception() {
+        // Queries are SKU-001 and SKU-002; response includes SKU-GHOST
+        final List<AvailabilityLineResponse> withUnexpected = List.of(
+                new AvailabilityLineResponse("SKU-001", 5),
+                new AvailabilityLineResponse("SKU-GHOST", 3));
+        final GrpcInventoryAvailabilityAdapter testAdapter = adapterWithMappedResult(withUnexpected);
+
+        assertThatThrownBy(() -> testAdapter.checkAvailability(TWO_QUERIES))
+                .isInstanceOf(InventoryAvailabilityProtocolException.class)
+                .hasMessageContaining("unexpected SKU");
+    }
+
+    @Test
+    void response_in_different_order_from_request_is_accepted() {
+        // Response returns SKU-002 before SKU-001 — order should not matter
+        final List<AvailabilityLineResponse> reversedOrder = List.of(
+                new AvailabilityLineResponse("SKU-002", 3),
+                new AvailabilityLineResponse("SKU-001", 5));
+        final GrpcInventoryAvailabilityAdapter testAdapter = adapterWithMappedResult(reversedOrder);
+
+        final List<AvailabilityLineResponse> result = testAdapter.checkAvailability(TWO_QUERIES);
+
+        assertThat(result).containsExactlyInAnyOrder(
+                new AvailabilityLineResponse("SKU-001", 5),
+                new AvailabilityLineResponse("SKU-002", 3));
+    }
+
+    @Test
+    void insufficient_quantity_is_returned_normally_and_not_treated_as_protocol_error() {
+        final List<AvailabilityLineResponse> insufficient = List.of(
+                new AvailabilityLineResponse("SKU-001", 2)); // requested 5, only 2 available
+        final GrpcInventoryAvailabilityAdapter testAdapter = adapterWithMappedResult(insufficient);
+
+        final List<AvailabilityLineResponse> result = testAdapter.checkAvailability(QUERIES);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).availableQuantity()).isEqualTo(2);
     }
 }

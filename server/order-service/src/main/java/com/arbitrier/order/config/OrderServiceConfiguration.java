@@ -27,9 +27,10 @@ public class OrderServiceConfiguration {
             OrderRepository orderRepository,
             OutboxRepository outboxRepository,
             DomainEventToOutboxMapper outboxMapper,
-            CustomerAccessPort customerAccessPort) {
-        return new SubmitCorporateBulkOrderService(orderRepository, outboxRepository, outboxMapper,
-                customerAccessPort);
+            CustomerAccessPort customerAccessPort,
+            InventoryAvailabilityPort inventoryAvailabilityPort) {
+        return new SubmitCorporateBulkOrderService(
+                orderRepository, outboxRepository, outboxMapper, customerAccessPort, inventoryAvailabilityPort);
     }
 
     /**
