@@ -5,20 +5,28 @@ import com.arbitrier.platform.messaging.outbox.OutboxEvent;
 import com.arbitrier.platform.messaging.outbox.OutboxRepository;
 import com.arbitrier.platform.messaging.outbox.OutboundMessagePublisher;
 import com.arbitrier.platform.messaging.outbox.PublishStatus;
+import com.arbitrier.platform.messaging.retry.BackoffDelay;
+import com.arbitrier.platform.messaging.retry.BackoffStrategy;
+import com.arbitrier.platform.messaging.retry.RetryPolicy;
+import com.arbitrier.platform.messaging.retry.RetryScheduler;
+import com.arbitrier.platform.messaging.retry.SimpleRetryPolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -129,6 +137,78 @@ class DispatchOutboxMessageServiceTest {
 
         assertThat(result.isCompletedExceptionally()).isTrue();
         verify(outboxRepository, never()).markFailed(any());
+    }
+
+    // ── scheduler integration ─────────────────────────────────────────────────
+
+    @Mock
+    RetryScheduler retryScheduler;
+
+    @Mock
+    BackoffStrategy backoffStrategy;
+
+    @Test
+    void dispatcher_calls_scheduler_on_retry() {
+        // policy: retry once; scheduler: execute action immediately
+        RetryPolicy retryOnce = new SimpleRetryPolicy(2);
+        lenient().when(backoffStrategy.nextDelay(any(int.class))).thenReturn(BackoffDelay.ZERO);
+        doAnswer(inv -> {
+            Supplier<?> action = inv.getArgument(0);
+            return action.get();
+        }).when(retryScheduler).schedule(any(), any());
+
+        // first call fails, second succeeds
+        when(publisher.publish(any()))
+                .thenReturn(CompletableFuture.failedFuture(new RuntimeException("transient")))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        var service = new DispatchOutboxMessageService(
+                publisher, outboxRepository, retryOnce, backoffStrategy, retryScheduler);
+
+        service.dispatch(eventMessage()).toCompletableFuture().join();
+
+        verify(retryScheduler, times(1)).schedule(any(), any());
+        verify(outboxRepository).markPublished(any(UUID.class));
+        verify(outboxRepository, never()).markFailed(any());
+    }
+
+    @Test
+    void dispatcher_honors_backoff_delay_from_strategy() {
+        RetryPolicy retryOnce = new SimpleRetryPolicy(2);
+        BackoffDelay expectedDelay = BackoffDelay.ofMillis(750);
+        when(backoffStrategy.nextDelay(2)).thenReturn(expectedDelay);
+        doAnswer(inv -> {
+            Supplier<?> action = inv.getArgument(0);
+            return action.get();
+        }).when(retryScheduler).schedule(any(), any());
+        when(publisher.publish(any()))
+                .thenReturn(CompletableFuture.failedFuture(new RuntimeException("transient")))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        var service = new DispatchOutboxMessageService(
+                publisher, outboxRepository, retryOnce, backoffStrategy, retryScheduler);
+
+        service.dispatch(eventMessage()).toCompletableFuture().join();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<BackoffDelay> delayCaptor = ArgumentCaptor.forClass(BackoffDelay.class);
+        verify(retryScheduler).schedule(any(), delayCaptor.capture());
+        assertThat(delayCaptor.getValue()).isEqualTo(expectedDelay);
+    }
+
+    @Test
+    void dispatcher_does_not_call_scheduler_when_policy_says_stop() {
+        RetryPolicy noRetry = new SimpleRetryPolicy(1);
+        when(publisher.publish(any()))
+                .thenReturn(CompletableFuture.failedFuture(new RuntimeException("fail")));
+
+        var service = new DispatchOutboxMessageService(
+                publisher, outboxRepository, noRetry, backoffStrategy, retryScheduler);
+
+        service.dispatch(eventMessage()).toCompletableFuture();
+
+        verify(retryScheduler, never()).schedule(any(), any());
+        verify(outboxRepository).markFailed(any(UUID.class));
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

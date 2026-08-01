@@ -3,39 +3,45 @@ package com.arbitrier.platform.messaging.outbox.application;
 import com.arbitrier.platform.messaging.outbox.OutboxEvent;
 import com.arbitrier.platform.messaging.outbox.OutboxRepository;
 import com.arbitrier.platform.messaging.outbox.OutboundMessagePublisher;
+import com.arbitrier.platform.messaging.retry.BackoffDelay;
+import com.arbitrier.platform.messaging.retry.BackoffStrategy;
 import com.arbitrier.platform.messaging.retry.RetryDecision;
 import com.arbitrier.platform.messaging.retry.RetryPolicy;
+import com.arbitrier.platform.messaging.retry.RetryScheduler;
 import com.arbitrier.platform.messaging.retry.SimpleRetryPolicy;
 import com.arbitrier.platform.validation.Require;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.function.Supplier;
 
 /**
  * Application-level service that dispatches a single pending {@link OutboxEvent} to its
  * transport and updates the outbox status according to the publication result.
  *
- * <p>This service coordinates two ports:
+ * <p>This service coordinates two ports and three retry-infrastructure collaborators:
  * <ol>
  *   <li>{@link OutboundMessagePublisher} — hands the message to the active transport adapter.</li>
  *   <li>{@link OutboxRepository} — records the publication outcome.</li>
+ *   <li>{@link RetryPolicy} — decides whether another attempt should occur after a failure.</li>
+ *   <li>{@link BackoffStrategy} — computes the delay before the next attempt.</li>
+ *   <li>{@link RetryScheduler} — submits the next attempt after the computed delay without
+ *       blocking the calling thread.</li>
  * </ol>
  *
- * <h2>Retry behaviour</h2>
- * <p>Each attempt is evaluated by the injected {@link RetryPolicy}. The policy decides whether
- * to retry based on the attempt number and the failure; it does not introduce delays. Delay and
- * backoff are deferred to ARB-022.6.2.
+ * <h2>Retry pipeline</h2>
+ * <pre>
+ * Dispatch Failure
+ *   → RetryPolicy.evaluate()
+ *       STOP  → markFailed, complete exceptionally
+ *       RETRY → BackoffStrategy.nextDelay(nextAttempt)
+ *                 → RetryScheduler.schedule(nextAttempt, delay)
+ *                     → [after delay] repeat
+ * </pre>
  *
  * <h2>Success flow</h2>
  * <pre>
  * publisher.publish(event) → [broker ack] → outboxRepository.markPublished(eventId)
- * </pre>
- *
- * <h2>Failure flow (all retries exhausted)</h2>
- * <pre>
- * publisher.publish(event) → [transport failure] → retryPolicy.evaluate(attempt, ex) → STOP
- *                                                → outboxRepository.markFailed(eventId)
- *                                                → stage completes exceptionally
  * </pre>
  *
  * <h2>Transaction decision</h2>
@@ -45,10 +51,6 @@ import java.util.concurrent.CompletionStage;
  * {@link OutboxRepository#markFailed(java.util.UUID)} each execute in their own short,
  * independent transaction managed by the repository implementation.
  *
- * <h2>Scope</h2>
- * <p>This service handles exactly one message per invocation. Polling, batching, scheduling,
- * claim/lock semantics, and backoff are intentionally deferred to later slices.
- *
  * <p>Layer: platform/messaging/outbox/application
  * <p>Module: platform
  */
@@ -57,20 +59,53 @@ public class DispatchOutboxMessageService {
     private final OutboundMessagePublisher publisher;
     private final OutboxRepository outboxRepository;
     private final RetryPolicy retryPolicy;
+    private final BackoffStrategy backoffStrategy;
+    private final RetryScheduler retryScheduler;
 
     /**
-     * Create a dispatch service with a custom retry policy.
+     * Create a fully configured dispatch service.
      *
      * @param publisher        the transport adapter; must not be null
      * @param outboxRepository the outbox port; must not be null
-     * @param retryPolicy      the retry policy; must not be null
+     * @param retryPolicy      decides whether to retry after a failure; must not be null
+     * @param backoffStrategy  computes the delay before the next attempt; must not be null
+     * @param retryScheduler   submits attempts after the computed delay; must not be null
+     */
+    public DispatchOutboxMessageService(final OutboundMessagePublisher publisher,
+                                        final OutboxRepository outboxRepository,
+                                        final RetryPolicy retryPolicy,
+                                        final BackoffStrategy backoffStrategy,
+                                        final RetryScheduler retryScheduler) {
+        this.publisher = Require.notNull(publisher, "publisher");
+        this.outboxRepository = Require.notNull(outboxRepository, "outboxRepository");
+        this.retryPolicy = Require.notNull(retryPolicy, "retryPolicy");
+        this.backoffStrategy = Require.notNull(backoffStrategy, "backoffStrategy");
+        this.retryScheduler = Require.notNull(retryScheduler, "retryScheduler");
+    }
+
+    /**
+     * Create a dispatch service with a custom retry policy and no delay between retries.
+     *
+     * <p>Retries are executed immediately (no scheduling). Useful in tests and configurations
+     * where delay is managed externally.
+     *
+     * @param publisher        the transport adapter; must not be null
+     * @param outboxRepository the outbox port; must not be null
+     * @param retryPolicy      decides whether to retry; must not be null
      */
     public DispatchOutboxMessageService(final OutboundMessagePublisher publisher,
                                         final OutboxRepository outboxRepository,
                                         final RetryPolicy retryPolicy) {
-        this.publisher = Require.notNull(publisher, "publisher");
-        this.outboxRepository = Require.notNull(outboxRepository, "outboxRepository");
-        this.retryPolicy = Require.notNull(retryPolicy, "retryPolicy");
+        this(publisher, outboxRepository, retryPolicy,
+                attempt -> BackoffDelay.ZERO,
+                new RetryScheduler() {
+                    @Override
+                    public <T> CompletionStage<T> schedule(
+                            final Supplier<CompletionStage<T>> action,
+                            final BackoffDelay delay) {
+                        return action.get();
+                    }
+                });
     }
 
     /**
@@ -87,27 +122,15 @@ public class DispatchOutboxMessageService {
     /**
      * Dispatch one outbox message to the transport and update its publication status.
      *
-     * <p>Retries are governed by the configured {@link RetryPolicy}. On each failure the policy
-     * is consulted; if it returns {@link RetryDecision#shouldRetry()} the publish call is
-     * repeated immediately (no delay in this slice). When the policy returns stop, or on the
-     * first successful attempt, the outcome is recorded via {@link OutboxRepository}.
-     *
-     * <ul>
-     *   <li>On success: {@link OutboxRepository#markPublished(java.util.UUID)} is called after
-     *       the transport confirms delivery.</li>
-     *   <li>On final failure: {@link OutboxRepository#markFailed(java.util.UUID)} is called and
-     *       the original publication exception is preserved as the stage's cause. Any
-     *       {@code markFailed} exception is attached as suppressed.</li>
-     *   <li>On immediate failure (throws before returning a stage): {@code markFailed} is called
-     *       and the original exception is rethrown.</li>
-     * </ul>
-     *
-     * <p>This method never calls {@code get()} or {@code join()} on any future; it is
-     * non-blocking.
+     * <p>On each failure the {@link RetryPolicy} is consulted. If it returns retry, the
+     * {@link BackoffStrategy} computes the next delay and the {@link RetryScheduler} submits
+     * the next attempt after that delay — without blocking the calling thread. When the policy
+     * returns stop, {@link OutboxRepository#markFailed} is called and the stage completes
+     * exceptionally.
      *
      * @param message the event to dispatch; must not be null
      * @return a {@link CompletionStage} that completes normally after {@code markPublished},
-     *         or exceptionally on transport or persistence failure
+     *         or exceptionally on final transport or persistence failure
      */
     public CompletionStage<Void> dispatch(final OutboxEvent message) {
         Require.notNull(message, "message");
@@ -119,10 +142,12 @@ public class DispatchOutboxMessageService {
         final CompletionStage<Void> published;
         try {
             published = publisher.publish(message);
-        } catch (RuntimeException immediate) {
+        } catch (final RuntimeException immediate) {
             final RetryDecision decision = retryPolicy.evaluate(attempt, immediate);
             if (decision.shouldRetry()) {
-                return attemptDispatch(message, attempt + 1);
+                final int next = attempt + 1;
+                final BackoffDelay delay = backoffStrategy.nextDelay(next);
+                return retryScheduler.schedule(() -> attemptDispatch(message, next), delay);
             }
             callMarkFailed(message, immediate);
             throw immediate;
@@ -131,7 +156,9 @@ public class DispatchOutboxMessageService {
         return published.exceptionallyCompose(pubEx -> {
             final RetryDecision decision = retryPolicy.evaluate(attempt, pubEx);
             if (decision.shouldRetry()) {
-                return attemptDispatch(message, attempt + 1);
+                final int next = attempt + 1;
+                final BackoffDelay delay = backoffStrategy.nextDelay(next);
+                return retryScheduler.schedule(() -> attemptDispatch(message, next), delay);
             }
             callMarkFailed(message, pubEx);
             return CompletableFuture.failedFuture(pubEx);
@@ -141,7 +168,7 @@ public class DispatchOutboxMessageService {
     private void callMarkFailed(final OutboxEvent message, final Throwable pubEx) {
         try {
             outboxRepository.markFailed(message.eventId());
-        } catch (RuntimeException markFailedEx) {
+        } catch (final RuntimeException markFailedEx) {
             pubEx.addSuppressed(markFailedEx);
         }
     }
