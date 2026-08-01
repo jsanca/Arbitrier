@@ -1,0 +1,94 @@
+package com.arbitrier.order.adapter.outbound.transport.avro;
+
+import com.arbitrier.contracts.common.MessageMetadata;
+import com.arbitrier.contracts.common.MoneyAmount;
+import com.arbitrier.contracts.common.OrderLineContract;
+import com.arbitrier.contracts.order.OrderCreated;
+import com.arbitrier.order.domain.event.OrderCreatedDomainEvent;
+import com.arbitrier.order.domain.model.OrderLine;
+import com.arbitrier.platform.time.TimeProvider;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Maps {@link OrderCreatedDomainEvent} to the {@link OrderCreated} Avro contract.
+ *
+ * <p><b>Outbox relay — Avro transport component (ARB-024)</b> — belongs to the Avro transport
+ * adapter of the Outbox relay. Application services must not reference this class. The relay reads
+ * {@code OutboxEvent} records from the database and invokes this mapper when publishing via Avro
+ * to Schema Registry + Kafka.
+ *
+ * <p>Not registered as a Spring bean here — the relay's Avro transport configuration
+ * will wire it when implemented (ARB-024.x).
+ *
+ * <h2>requestedTotal decision (ARB-011)</h2>
+ * <p>{@code requestedTotal} is a required field in the {@link OrderCreated} Avro schema but has
+ * no equivalent in {@link OrderCreatedDomainEvent}. The domain Order does not model pricing.
+ *
+ * <p><strong>Decision (ARB-011, option a):</strong> Emit {@code MoneyAmount("0", "USD")} as a
+ * documented placeholder. Downstream consumers must not rely on this value until a pricing source
+ * of truth is established and this mapper is updated.
+ *
+ * <p>OPEN QUESTION: Replace this placeholder when pricing is added to the domain model or when a
+ * catalog/pricing service provides the total at order-submission time.
+ *
+ * <h2>correlationId</h2>
+ * <p>{@link OrderCreatedDomainEvent} does not yet carry a {@code correlationId}. The relay
+ * caller must supply the correlation ID from the {@code OutboxEvent} metadata.
+ * When correlation is threaded through the Outbox record, this parameter should be replaced
+ * by the relay's own metadata extraction.
+ *
+ * <p>Layer: adapter/outbound/transport/avro
+ * <p>Module: order-service
+ */
+public class OrderCreatedAvroMapper {
+
+    private static final String SCHEMA_VERSION = "v1";
+    private static final String PLACEHOLDER_AMOUNT = "0";
+    private static final String PLACEHOLDER_CURRENCY = "USD";
+
+    private final TimeProvider timeProvider;
+
+    public OrderCreatedAvroMapper(final TimeProvider timeProvider) {
+        this.timeProvider = timeProvider;
+    }
+
+    /**
+     * Maps a domain event to an Avro {@link OrderCreated} record.
+     *
+     * @param event         the domain event produced by {@code Order.create()}
+     * @param correlationId business correlation ID — sourced from the OutboxEvent metadata
+     * @return the Avro contract ready for publishing
+     */
+    public OrderCreated map(final OrderCreatedDomainEvent event, final String correlationId) {
+
+        final MessageMetadata metadata = MessageMetadata.newBuilder()
+                .setMessageId(UUID.randomUUID().toString())
+                .setCorrelationId(correlationId)
+                .setCausationId(null)
+                .setOccurredAt(timeProvider.now().toString())
+                .setSchemaVersion(SCHEMA_VERSION)
+                .build();
+
+        return OrderCreated.newBuilder()
+                .setMetadata(metadata)
+                .setOrderId(event.orderId().value())
+                .setCustomerId(event.customerId().value())
+                .setSubmittedByUserId(event.submittedBy().value())
+                .setLines(mapLines(event.lines()))
+                .setRequestedTotal(MoneyAmount.newBuilder()
+                        .setAmount(PLACEHOLDER_AMOUNT)
+                        .setCurrency(PLACEHOLDER_CURRENCY)
+                        .build())
+                .build();
+    }
+
+    private List<OrderLineContract> mapLines(final List<OrderLine> lines) {
+        return lines.stream()
+                .map(line -> OrderLineContract.newBuilder()
+                        .setSku(line.sku().value())
+                        .setQuantity(line.quantity().value())
+                        .build())
+                .toList();
+    }
+}

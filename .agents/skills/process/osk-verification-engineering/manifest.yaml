@@ -1,0 +1,12 @@
+id: osk-verification-engineering
+name: Verification Engineering
+version: 0.1.0
+status: draft
+category: process
+owner: osk-core
+summary: Transforms requirements and use cases into reproducible verification automation, observed results, evidence, and honest outcomes.
+dependencies: [osk-execution-timebox, osk-execution-observability, osk-engineering-reporting]
+compatible_agents: [any]
+tags: [qa, verification, test-case-design, acceptance-criteria, e2e-testing, reproducible-tests, test-evidence, verification-reports, browser-automation, api-verification, test-execution, regression-validation]
+created: "2026-07-26"
+updated: "2026-07-26"

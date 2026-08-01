@@ -1,0 +1,12 @@
+id: osk-engineering-reporting
+name: Engineering Reporting
+version: 0.1.0
+status: draft
+category: process
+owner: osk-core
+summary: Produces durable, evidence-based implementation, review, fix, checkpoint, and documentation-audit records.
+dependencies: [osk-execution-timebox]
+compatible_agents: [any]
+tags: [reporting, evidence, checkpoints, process]
+created: "2026-07-24"
+updated: "2026-07-24"

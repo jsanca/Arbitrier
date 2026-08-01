@@ -1,0 +1,4 @@
+interface:
+  display_name: "Engineering Reporting"
+  short_description: "Curate durable engineering reports"
+  default_prompt: "Use $engineering-reporting to document this completed engineering task."

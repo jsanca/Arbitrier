@@ -32,10 +32,6 @@ cd client && npm run lint
 # Client tests are vitest run (single-run, not watch)
 cd client && npm test
 
-# E2E (Playwright, against running stack)
-cd client && npx playwright test
-cd client && npx playwright test e2e/uc01-confirmed.spec.ts
-
 # Regenerate Avro types after schema changes (never commit generated sources)
 mvn -B generate-sources --no-transfer-progress -pl server/contracts
 
@@ -86,7 +82,7 @@ platform (library) → contracts (Avro codegen) → [order-service | inventory-s
 - **Domain is pure Java** — zero Spring/JPA/Kafka imports. Models are immutable (new instance per transition, no setters).
 - **Application services** follow: validate (in command constructors via `Require`) → derive → execute domain → persist → publish → return. Outcome always from aggregate `.status()`.
 - **Kafka activation** gated by `@ConditionalOnProperty("spring.kafka.bootstrap-servers")`. Tests skip Kafka silently via test adapters.
-- **Avro serializer** is `ByteArraySerializer` (placeholder). Choose Confluent `KafkaAvroSerializer` before production.
+- **Outbound serializer** is `JsonOutboundPayloadSerializer` (JSON passthrough, no Avro yet). Production Avro/Confluent serializer is deferred.
 - **JPA is active** in all four services — `@Entity` classes exist with PostgreSQL schemas. When adding entities, register `RuntimeHintsRegistrar` for GraalVM native image.
 - **JWT auth only in order-service**. `submittedByUserId` derived from JWT `authentication.getName()`, never from request body.
 - **Spring Boot 4.1**: no `@WebMvcTest`, no `@DataJpaTest`, no bean override, no auto-configured `KafkaTemplate`. `@EntityScan` import moved to `org.springframework.boot.persistence.autoconfigure.EntityScan`.

@@ -1,0 +1,12 @@
+id: osk-execution-observability
+name: Execution Observability
+version: 0.1.0
+status: draft
+category: process
+owner: osk-core
+summary: Makes agent execution progress, decisions, convergence, and risks visible to a human supervisor at a proportional level of detail.
+dependencies: [osk-execution-timebox]
+compatible_agents: [any]
+tags: [execution-observability, supervisor-visibility, progress-checkpoints, verbosity-mode, loop-prevention, supervised-execution, agent-status-updates, non-convergence-detection]
+created: "2026-07-26"
+updated: "2026-07-26"

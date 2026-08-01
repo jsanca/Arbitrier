@@ -71,6 +71,7 @@ public class GrpcInventoryAvailabilityAdapter implements InventoryAvailabilityPo
 
     @Override
     public List<AvailabilityLineResponse> checkAvailability(final List<AvailabilityLineQuery> lines) {
+
         final CheckAvailabilityRequest request = requestMapper.toRequest(lines);
 
         log.debug("Sending inventory availability query: requestId={}, itemCount={}",

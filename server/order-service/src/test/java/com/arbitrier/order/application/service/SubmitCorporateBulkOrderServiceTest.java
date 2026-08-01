@@ -92,11 +92,12 @@ class SubmitCorporateBulkOrderServiceTest {
     }
 
     @Test
-    void outbox_event_carries_order_created_type() {
+    void outbox_event_carries_stable_order_created_type() {
         service.execute(validCommand());
 
+        // Derived from OrderCreatedDomainEvent.descriptor().type(), not from class simple name
         assertThat(outboxRepository.findAll().get(0).eventType())
-                .isEqualTo("OrderCreatedDomainEvent");
+                .isEqualTo("order.created");
     }
 
     @Test

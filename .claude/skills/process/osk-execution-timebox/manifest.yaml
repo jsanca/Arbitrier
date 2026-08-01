@@ -1,0 +1,12 @@
+id: osk-execution-timebox
+name: Execution Timebox
+version: 0.1.0
+status: draft
+category: process
+owner: osk-core
+summary: Bounds agent execution and requires a recovery checkpoint on interruption, timeout, or invalid execution.
+dependencies: []
+compatible_agents: [any]
+tags: [timebox, recovery, checkpoints, process]
+created: "2026-07-24"
+updated: "2026-07-24"

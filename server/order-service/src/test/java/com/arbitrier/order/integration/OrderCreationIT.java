@@ -108,7 +108,7 @@ class OrderCreationIT {
         InMemoryOutboxRepository typedOutbox = (InMemoryOutboxRepository) outboxRepository;
         assertThat(((InMemoryOrderRepository) orderRepository).size()).isEqualTo(1);
         assertThat(typedOutbox.findAll()).hasSize(1);
-        assertThat(typedOutbox.findAll().get(0).eventType()).isEqualTo("OrderCreatedDomainEvent");
+        assertThat(typedOutbox.findAll().get(0).eventType()).isEqualTo("order.created");
     }
 
     // ── insufficient inventory ─────────────────────────────────────────────────

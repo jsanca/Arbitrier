@@ -1,0 +1,12 @@
+id: osk-architecture-review
+name: Architecture Review
+version: 0.1.0
+status: draft
+category: architecture
+owner: osk-core
+summary: Validates system structure, boundaries, and contracts against intended architecture.
+dependencies: [osk-engineering-reporting, osk-execution-timebox]
+compatible_agents: [any]
+tags: [architecture, review, quality]
+created: "2026-07-24"
+updated: "2026-07-24"

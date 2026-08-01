@@ -94,7 +94,12 @@ com.arbitrier.<service>/
       kafka/       Event-driven adapters (Kafka consumers)
     outbound/
       persistence/ JPA-driven adapters (Spring Data repositories)
-      kafka/       Kafka producer adapters
+      kafka/       Kafka producer adapters (deprecated — replaced by transport/)
+      transport/   Relay-layer adapters for outbound publication
+        avro/      Avro serialization mappers (e.g. OrderCreatedAvroMapper)
+        json/      JSON dev-mode adapters (placeholder)
+        kafka/     Kafka publisher (placeholder)
+        model/     TransportEventMetadata — bridges EventDescriptor to transport encoding
   application/
     port/
       inbound/     Use-case interfaces called by inbound adapters
@@ -221,6 +226,8 @@ Use `OPEN QUESTION:` (all caps) for unresolved items. Never invent values for op
 - `platform` must have no business domain knowledge (no order/credit/inventory types).
 - Callers of Inventory Service express only SKUs and quantities — never warehouse IDs. Warehouse selection is internal to Inventory (ADR-0009).
 - `IdempotencyStore` has no production implementation yet — do not wire it as if it does.
+- Domain events must implement `DomainEvent` and declare a stable `EventDescriptor`; never rely on `getClass().getSimpleName()` for event identity in outbox records or transport adapters.
+- Application services write domain events only to `OutboxRepository`; `adapter/outbound/transport/` classes belong exclusively to the relay layer and must never be referenced from `application/`.
 
 ## Native Image Compatibility (cross-cutting constraint — ADR-0007)
 
@@ -356,6 +363,34 @@ The `platform` module provides cross-cutting utilities that all services must us
 | `OutboundPayloadSerializer` | `platform.messaging.outbox` | Port interface — serializes `OutboxEvent` → transport payload string. Transport-neutral; default impl is `JsonOutboundPayloadSerializer` (passthrough). Override with a custom bean to swap formats (e.g. Avro) |
 | `JsonOutboundPayloadSerializer` | `platform.messaging.serialization` | Default `OutboundPayloadSerializer` — returns `OutboxEvent.payload()` unchanged. Auto-configured; Avro impl is a future task |
 | `CorrelationId`, `CausationId`, `MessageId`, `RequestId` | `platform.correlation` | Distinct value objects for message tracing — do not conflate with `traceparent` |
+| `DomainEvent` | `platform.messaging.event` | Marker interface — domain events implement this to declare a stable `EventDescriptor`; `DomainEventToOutboxMapper` reads the descriptor instead of the Java class name |
+| `EventDescriptor` | `platform.messaging.event` | Immutable record `(String type, int version)` — `type` is dot-separated (`"order.created"`), `version` is integer ≥ 1. Transport adapters convert to their own encoding (e.g. `"v1"`) |
+
+---
+
+## Event Identity Contract (ARB-024.2)
+
+Domain events carry a stable logical identity independent of Java class names, Avro schemas, and Kafka topics.
+
+```
+DomainEvent (platform interface)
+  └── descriptor() → EventDescriptor(type="order.created", version=1)
+                          ↓
+              DomainEventToOutboxMapper writes type to outbox eventType field
+                          ↓
+         adapter/outbound/transport/model/TransportEventMetadata.from(descriptor)
+                          → eventType="order.created", eventVersion="v1"
+                          ↓
+         transport/avro/  — populates Avro MessageMetadata
+         transport/json/  — future JSON dev adapter
+         transport/kafka/ — future Kafka producer
+```
+
+**Rules:**
+- `type` is dot-separated lowercase (`"order.created"`); must not change after first publish.
+- `version` is an integer ≥ 1; transport adapters convert to `"v1"` string encoding.
+- `TransportEventMetadata` is only used inside `adapter/outbound/transport/` — application services never touch it.
+- `DomainEventToOutboxMapper` reads `DomainEvent.descriptor().type()` when the event implements `DomainEvent`; falls back to `getClass().getSimpleName()` for legacy events only.
 
 ---
 
@@ -392,7 +427,7 @@ class InventoryServiceApplicationIT { ... }
 
 ### ArchUnit enforcement
 
-Every service has `src/test/java/.../unit/ArchitectureTest.java`. It enforces hexagonal boundaries at compile time: domain must not import Spring/JPA/Avro/Kafka; application must not import Avro/Kafka/Spring Data; `@Entity` classes must reside only in `..adapter.outbound.persistence..`. Always run `mvn test` after adding a new entity or dependency to catch violations early.
+Every service has `src/test/java/.../unit/ArchitectureTest.java`. It enforces hexagonal boundaries at compile time: domain must not import Spring/JPA/Avro/Kafka; application must not import Avro/Kafka/Spring Data; `@Entity` classes must reside only in `..adapter.outbound.persistence..`; application classes must not reference `..adapter.outbound.transport..` (publication belongs to the relay, not to services). Always run `mvn test` after adding a new entity or dependency to catch violations early.
 
 ---
 

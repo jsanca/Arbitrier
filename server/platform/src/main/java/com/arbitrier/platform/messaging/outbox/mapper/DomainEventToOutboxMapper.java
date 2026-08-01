@@ -1,5 +1,6 @@
 package com.arbitrier.platform.messaging.outbox.mapper;
 
+import com.arbitrier.platform.messaging.event.DomainEvent;
 import com.arbitrier.platform.messaging.outbox.MessageNature;
 import com.arbitrier.platform.messaging.outbox.OutboxEvent;
 import com.arbitrier.platform.messaging.outbox.PublishStatus;
@@ -14,8 +15,9 @@ import java.util.UUID;
  * ready to be persisted by the transactional outbox.
  *
  * <p>Generates a fresh event identifier, records the current instant as {@code occurredAt},
- * derives the message name from the runtime class simple name, and serializes the payload
- * via the injected {@link EventSerializer}.
+ * derives the event type from {@link DomainEvent#descriptor()} when the message implements
+ * {@link DomainEvent}, and falls back to the runtime class simple name otherwise.
+ * Payload is serialized via the injected {@link EventSerializer}.
  *
  * <p>The three-argument {@link #map(Object, String, String)} overload always produces an
  * {@link MessageNature#EVENT} record and is the default path for domain events. Use the
@@ -76,11 +78,15 @@ public final class DomainEventToOutboxMapper {
         Require.notBlank(aggregateType, "aggregateType");
         Require.notNull(nature, "nature");
 
+        final String eventType = (message instanceof DomainEvent de)
+                ? de.descriptor().type()
+                : message.getClass().getSimpleName();
+
         return new OutboxEvent(
                 UUID.randomUUID(),
                 aggregateId,
                 aggregateType,
-                message.getClass().getSimpleName(),
+                eventType,
                 serializer.serialize(message),
                 JSON_FORMAT,
                 timeProvider.now(),

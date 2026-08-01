@@ -1,5 +1,7 @@
 package com.arbitrier.platform.messaging.outbox.mapper;
 
+import com.arbitrier.platform.messaging.event.DomainEvent;
+import com.arbitrier.platform.messaging.event.EventDescriptor;
 import com.arbitrier.platform.messaging.outbox.MessageNature;
 import com.arbitrier.platform.messaging.outbox.OutboxEvent;
 import com.arbitrier.platform.messaging.outbox.PublishStatus;
@@ -83,9 +85,25 @@ class DomainEventToOutboxMapperTest {
     }
 
     @Test
-    void uses_event_class_simple_name_as_eventType() {
+    void falls_back_to_class_simple_name_when_domain_event_not_implemented() {
+        // OrderPlacedEvent is a plain record — no DomainEvent interface
         OutboxEvent result = mapper.map(new OrderPlacedEvent("x", "y"), "x", "Order");
         assertThat(result.eventType()).isEqualTo("OrderPlacedEvent");
+    }
+
+    @Test
+    void uses_descriptor_type_when_domain_event_interface_implemented() {
+        // DomainEventAwareOrderPlaced explicitly declares a stable logical type
+        OutboxEvent result = mapper.map(new DomainEventAwareOrderPlaced("x", "y"), "x", "Order");
+        assertThat(result.eventType()).isEqualTo("order.placed");
+    }
+
+    @Test
+    void descriptor_type_is_independent_of_java_class_name() {
+        // Renaming the Java class would change getSimpleName() but not descriptor().type()
+        DomainEventAwareOrderPlaced event = new DomainEventAwareOrderPlaced("id", "cust");
+        assertThat(event.descriptor().type()).isNotEqualTo(event.getClass().getSimpleName());
+        assertThat(event.descriptor().type()).isEqualTo("order.placed");
     }
 
     @Test
@@ -134,4 +152,13 @@ class DomainEventToOutboxMapperTest {
     public record OrderPlacedEvent(String orderId, String customerId) {}
 
     public record ReserveStockCommand(String orderId, String sku, int quantity) {}
+
+    /** Test event that implements DomainEvent with a stable logical type. */
+    public record DomainEventAwareOrderPlaced(String orderId, String customerId)
+            implements DomainEvent {
+        @Override
+        public EventDescriptor descriptor() {
+            return new EventDescriptor("order.placed", 1);
+        }
+    }
 }

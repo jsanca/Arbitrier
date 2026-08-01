@@ -216,7 +216,7 @@ class CorporateBulkOrderVerticalIT {
         assertThat(outboxCount()).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT event_type FROM order_service.outbox_events", String.class))
-                .isEqualTo("OrderCreatedDomainEvent");
+                .isEqualTo("order.created");
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT aggregate_id FROM order_service.outbox_events", String.class))
                 .isEqualTo(orderId);

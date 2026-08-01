@@ -1,0 +1,4 @@
+interface:
+  display_name: "Knowledge Curator"
+  short_description: "Maintain authoritative project knowledge"
+  default_prompt: "Use $knowledge-curator to audit the knowledge base for authority, freshness, and broken links."
