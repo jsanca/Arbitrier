@@ -1,0 +1,161 @@
+# ARB-022.6.4 — Dead Message Handling
+
+Status: Planned
+Owner: Clio
+Role: Implementation
+Target: 20–30 minutes
+Hard Stop: 45 minutes
+
+## Execution Requirements
+Apply .claude/skills/execution-timebox/SKILL.md
+Apply .claude/skills/engineering-reporting/SKILL.md
+No commits
+Create checkpoint:
+docs/agents/checkpoints/CHECKPOINT-ARB-022.6.4-dead-message-handling.md
+
+## Objective
+
+Introduce a transport-agnostic dead message handling abstraction responsible for processing messages that permanently fail after exhausting all configured retry attempts.
+
+This task completes the retry pipeline while intentionally remaining independent of Kafka, DLQs, or persistent storage.
+
+## Context
+
+The retry infrastructure now consists of:
+
+RetryPolicy
+BackoffStrategy
+RetryScheduler
+
+When the retry policy decides to stop retrying, the dispatcher currently propagates the failure directly.
+
+Instead, permanent failures should be delegated to a dedicated component.
+
+## Scope
+In Scope
+
+Create:
+
+platform
+└── messaging
+    └── retry
+        ├── DeadMessageHandler
+        ├── LoggingDeadMessageHandler
+        └── DeadMessageContext
+
+Example API:
+
+public interface DeadMessageHandler {
+
+    CompletionStage<Void> handle(
+        DeadMessageContext context
+    );
+
+}
+
+DeadMessageContext should contain the information required to diagnose the failure, for example:
+
+Outbox message
+Attempt count
+Failure cause
+Timestamp
+
+The default implementation (LoggingDeadMessageHandler) should:
+
+log the permanent failure
+include retry count
+include root exception
+complete successfully without throwing
+
+## Dispatcher Integration
+
+When RetryPolicy returns STOP:
+
+Dispatch Failure
+        │
+        ▼
+RetryPolicy
+        │
+        ├── RETRY ──► Scheduler
+        │
+        └── STOP
+                │
+                ▼
+DeadMessageHandler
+
+The dispatcher should delegate to DeadMessageHandler before completing the failed dispatch.
+
+## Out of Scope
+
+Do not implement:
+
+Kafka DLQ
+retry topics
+persistent dead-letter storage
+database updates
+Outbox replay
+alerting
+metrics additions
+Spring configuration
+
+## Acceptance Criteria
+DeadMessageHandler abstraction introduced.
+Default logging implementation provided.
+Dispatcher delegates permanent failures.
+No Kafka dependency introduced.
+No persistence introduced.
+Existing retry behavior preserved.
+Existing tests continue to pass.
+New unit tests verify:
+handler invoked after final failure
+handler not invoked during retries
+handler receives correct context
+
+## Deliverables
+DeadMessageHandler
+LoggingDeadMessageHandler
+DeadMessageContext
+Dispatcher integration
+Unit tests
+Engineering report
+Recovery checkpoint
+
+## Architectural Notes
+
+This completes the retry pipeline:
+
+Dispatch
+    │
+    ▼
+RetryPolicy
+    │
+    ├── RETRY
+    │       │
+    │       ▼
+    │  BackoffStrategy
+    │       │
+    │       ▼
+    │  RetryScheduler
+    │
+    └── STOP
+            │
+            ▼
+    DeadMessageHandler
+
+The default implementation is intentionally minimal. Future slices can replace it with:
+
+Kafka Dead Letter Queue
+Persistent dead-message repository
+Operational alerting
+Replay tooling
+
+without modifying the dispatcher.
+
+##  Definition of Done
+Permanent failures are delegated to DeadMessageHandler.
+Dispatcher no longer owns dead-message processing.
+Transport-independent design preserved.
+Existing tests pass.
+New unit tests pass.
+Validation completed.
+No commits performed.

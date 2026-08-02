@@ -7,6 +7,8 @@ import com.arbitrier.platform.messaging.outbox.OutboundMessagePublisher;
 import com.arbitrier.platform.messaging.outbox.PublishStatus;
 import com.arbitrier.platform.messaging.retry.BackoffDelay;
 import com.arbitrier.platform.messaging.retry.BackoffStrategy;
+import com.arbitrier.platform.messaging.retry.DeadMessageContext;
+import com.arbitrier.platform.messaging.retry.DeadMessageHandler;
 import com.arbitrier.platform.messaging.retry.RetryPolicy;
 import com.arbitrier.platform.messaging.retry.RetryScheduler;
 import com.arbitrier.platform.messaging.retry.SimpleRetryPolicy;
@@ -24,7 +26,6 @@ import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -108,10 +109,9 @@ class DispatchOutboxMessageServiceTest {
     void immediate_publication_failure_calls_markFailed() {
         when(publisher.publish(any())).thenThrow(new RuntimeException("routing error"));
 
-        assertThatThrownBy(() -> service.dispatch(eventMessage()))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("routing error");
+        var result = service.dispatch(eventMessage()).toCompletableFuture();
 
+        assertThat(result.isCompletedExceptionally()).isTrue();
         verify(outboxRepository).markFailed(any(UUID.class));
         verify(outboxRepository, never()).markPublished(any());
     }
@@ -146,6 +146,9 @@ class DispatchOutboxMessageServiceTest {
 
     @Mock
     BackoffStrategy backoffStrategy;
+
+    @Mock
+    DeadMessageHandler deadMessageHandler;
 
     @Test
     void dispatcher_calls_scheduler_on_retry() {
@@ -196,6 +199,111 @@ class DispatchOutboxMessageServiceTest {
         assertThat(delayCaptor.getValue()).isEqualTo(expectedDelay);
     }
 
+    // ── dead message handler integration ─────────────────────────────────────
+
+    @Test
+    void handler_invoked_after_final_async_failure() {
+        when(deadMessageHandler.handle(any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(publisher.publish(any()))
+                .thenReturn(CompletableFuture.failedFuture(new RuntimeException("permanent")));
+
+        var service = new DispatchOutboxMessageService(
+                publisher, outboxRepository,
+                new SimpleRetryPolicy(1),
+                attempt -> BackoffDelay.ZERO,
+                immediateScheduler(),
+                deadMessageHandler);
+
+        service.dispatch(eventMessage()).toCompletableFuture();
+
+        verify(deadMessageHandler, times(1)).handle(any(DeadMessageContext.class));
+    }
+
+    @Test
+    void handler_not_invoked_during_retries() {
+        doAnswer(inv -> {
+            Supplier<?> action = inv.getArgument(0);
+            return action.get();
+        }).when(retryScheduler).schedule(any(), any());
+        // First two attempts fail, third succeeds → handler never called
+        when(publisher.publish(any()))
+                .thenReturn(CompletableFuture.failedFuture(new RuntimeException("transient")))
+                .thenReturn(CompletableFuture.failedFuture(new RuntimeException("transient")))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        var service = new DispatchOutboxMessageService(
+                publisher, outboxRepository,
+                new SimpleRetryPolicy(3),
+                attempt -> BackoffDelay.ZERO,
+                retryScheduler,
+                deadMessageHandler);
+
+        service.dispatch(eventMessage()).toCompletableFuture().join();
+
+        verify(deadMessageHandler, never()).handle(any());
+    }
+
+    @Test
+    void handler_receives_correct_context() {
+        RuntimeException cause = new RuntimeException("permanent broker error");
+        when(publisher.publish(any()))
+                .thenReturn(CompletableFuture.failedFuture(cause));
+        ArgumentCaptor<DeadMessageContext> ctxCaptor =
+                ArgumentCaptor.forClass(DeadMessageContext.class);
+        when(deadMessageHandler.handle(ctxCaptor.capture()))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        var msg = eventMessage();
+        var service = new DispatchOutboxMessageService(
+                publisher, outboxRepository,
+                new SimpleRetryPolicy(1),
+                attempt -> BackoffDelay.ZERO,
+                immediateScheduler(),
+                deadMessageHandler);
+
+        service.dispatch(msg).toCompletableFuture();
+
+        DeadMessageContext ctx = ctxCaptor.getValue();
+        assertThat(ctx.totalAttempts()).isEqualTo(1);
+        assertThat(ctx.cause()).isSameAs(cause);
+        assertThat(ctx.message()).isSameAs(msg);
+        assertThat(ctx.failedAt()).isNotNull();
+    }
+
+    @Test
+    void handler_not_invoked_on_successful_dispatch() {
+        when(publisher.publish(any())).thenReturn(CompletableFuture.completedFuture(null));
+
+        var service = new DispatchOutboxMessageService(
+                publisher, outboxRepository,
+                new SimpleRetryPolicy(1),
+                attempt -> BackoffDelay.ZERO,
+                immediateScheduler(),
+                deadMessageHandler);
+
+        service.dispatch(eventMessage()).toCompletableFuture().join();
+
+        verify(deadMessageHandler, never()).handle(any());
+    }
+
+    @Test
+    void dispatch_stage_completes_exceptionally_after_handler() {
+        RuntimeException cause = new RuntimeException("fatal");
+        when(publisher.publish(any())).thenReturn(CompletableFuture.failedFuture(cause));
+        when(deadMessageHandler.handle(any())).thenReturn(CompletableFuture.completedFuture(null));
+
+        var service = new DispatchOutboxMessageService(
+                publisher, outboxRepository,
+                new SimpleRetryPolicy(1),
+                attempt -> BackoffDelay.ZERO,
+                immediateScheduler(),
+                deadMessageHandler);
+
+        var result = service.dispatch(eventMessage()).toCompletableFuture();
+
+        assertThat(result.isCompletedExceptionally()).isTrue();
+    }
+
     @Test
     void dispatcher_does_not_call_scheduler_when_policy_says_stop() {
         RetryPolicy noRetry = new SimpleRetryPolicy(1);
@@ -212,6 +320,17 @@ class DispatchOutboxMessageServiceTest {
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    private RetryScheduler immediateScheduler() {
+        return new RetryScheduler() {
+            @Override
+            public <T> java.util.concurrent.CompletionStage<T> schedule(
+                    Supplier<java.util.concurrent.CompletionStage<T>> action,
+                    BackoffDelay delay) {
+                return action.get();
+            }
+        };
+    }
 
     private OutboxEvent eventMessage() {
         return new OutboxEvent(

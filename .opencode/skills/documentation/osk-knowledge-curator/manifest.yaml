@@ -1,0 +1,12 @@
+id: osk-knowledge-curator
+name: Knowledge Curator
+version: 0.1.0
+status: draft
+category: documentation
+owner: osk-core
+summary: Preserves the integrity, authority, discoverability, and durability of project knowledge.
+dependencies: [osk-engineering-reporting, osk-execution-timebox]
+compatible_agents: [any]
+tags: [documentation, governance, knowledge]
+created: "2026-07-24"
+updated: "2026-07-24"

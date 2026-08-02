@@ -164,9 +164,9 @@ ARB-022.6 [PLANNED]
 Dispatch Retry & Backoff
 
 - Retry policy (DONE)
-  - Exponential backoff (DONE)
-- Next attempt scheduling
-- Dead message handling
+- Exponential backoff (DONE)
+- Next attempt scheduling (DONE)
+- Dead message handling (DONE)
 
 ARB-022.7 [PLANNED]
 Messaging Runtime Observability
