@@ -12,6 +12,8 @@ import com.arbitrier.platform.messaging.retry.DeadMessageHandler;
 import com.arbitrier.platform.messaging.retry.RetryPolicy;
 import com.arbitrier.platform.messaging.retry.RetryScheduler;
 import com.arbitrier.platform.messaging.retry.SimpleRetryPolicy;
+
+import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +29,8 @@ import java.util.function.Supplier;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
@@ -317,6 +321,80 @@ class DispatchOutboxMessageServiceTest {
 
         verify(retryScheduler, never()).schedule(any(), any());
         verify(outboxRepository).markFailed(any(UUID.class));
+    }
+
+    // ── metrics recorder integration ─────────────────────────────────────────
+
+    @Mock
+    DispatchMetricsRecorder metricsRecorder;
+
+    @Test
+    void recorder_started_and_succeeded_called_on_success() {
+        when(publisher.publish(any())).thenReturn(CompletableFuture.completedFuture(null));
+        var svc = new DispatchOutboxMessageService(
+                publisher, outboxRepository,
+                new SimpleRetryPolicy(1),
+                attempt -> BackoffDelay.ZERO,
+                immediateScheduler(),
+                deadMessageHandler,
+                metricsRecorder);
+        lenient().when(deadMessageHandler.handle(any()))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        svc.dispatch(eventMessage()).toCompletableFuture().join();
+
+        verify(metricsRecorder).recordStarted(any());
+        verify(metricsRecorder).recordSucceeded(any(), any(Duration.class));
+        verify(metricsRecorder, never()).recordRetry(any(), anyInt());
+        verify(metricsRecorder, never()).recordDead(any(), anyInt(), any());
+    }
+
+    @Test
+    void recorder_retry_called_on_each_retry_attempt() {
+        doAnswer(inv -> {
+            Supplier<?> action = inv.getArgument(0);
+            return action.get();
+        }).when(retryScheduler).schedule(any(), any());
+        when(publisher.publish(any()))
+                .thenReturn(CompletableFuture.failedFuture(new RuntimeException("t")))
+                .thenReturn(CompletableFuture.failedFuture(new RuntimeException("t")))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        var svc = new DispatchOutboxMessageService(
+                publisher, outboxRepository,
+                new SimpleRetryPolicy(3),
+                attempt -> BackoffDelay.ZERO,
+                retryScheduler,
+                deadMessageHandler,
+                metricsRecorder);
+        lenient().when(deadMessageHandler.handle(any()))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        svc.dispatch(eventMessage()).toCompletableFuture().join();
+
+        verify(metricsRecorder, times(2)).recordRetry(any(), anyInt());
+        verify(metricsRecorder).recordSucceeded(any(), any(Duration.class));
+        verify(metricsRecorder, never()).recordDead(any(), anyInt(), any());
+    }
+
+    @Test
+    void recorder_dead_called_on_terminal_failure() {
+        when(publisher.publish(any()))
+                .thenReturn(CompletableFuture.failedFuture(new RuntimeException("permanent")));
+        when(deadMessageHandler.handle(any())).thenReturn(CompletableFuture.completedFuture(null));
+
+        var svc = new DispatchOutboxMessageService(
+                publisher, outboxRepository,
+                new SimpleRetryPolicy(1),
+                attempt -> BackoffDelay.ZERO,
+                immediateScheduler(),
+                deadMessageHandler,
+                metricsRecorder);
+
+        svc.dispatch(eventMessage()).toCompletableFuture();
+
+        verify(metricsRecorder).recordDead(any(), eq(1), any(Duration.class));
+        verify(metricsRecorder, never()).recordSucceeded(any(), any());
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

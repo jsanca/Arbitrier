@@ -60,7 +60,7 @@ platform (library) → contracts (Avro codegen) → [order-service | inventory-s
 
 | Module | Domain | App Services | Adapters | Tests |
 |--------|--------|-------------|----------|-------|
-| order-service | Full | Full | REST + Kafka outbound + JPA | Full |
+| order-service | Full | Full | REST + gRPC client + JPA (Kafka outbound = placeholder packages only) | Full |
 | inventory-service | Full | Full | JPA persistence | Domain + app |
 | credit-service | Full | Full | JPA persistence | Domain + app |
 | orchestrator-service | Full | Full | JPA persistence | Domain + app |
@@ -122,12 +122,11 @@ Availability negotiation and the buyer’s partial-quantity decision happen befo
 
 ## Execution Policy
 
-All non-trivial implementation tasks must apply the execution-timebox skill:
-**target 20–30 min · warning at 30 min · hard stop at 45 min → recovery checkpoint.**
+All non-trivial tasks: **target 20–30 min · warning 30 min · hard stop 45 min → recovery checkpoint**. Split oversized work before starting.
 
-See [`.claude/skills/execution-timebox/SKILL.md`](.claude/skills/execution-timebox/SKILL.md) for stop conditions, checkpoint format, and task-splitting guidance.
-
-All non-trivial implementation, review, recovery, architecture, security, and documentation tasks must use the [engineering reporting protocol](.claude/skills/engineering-reporting/SKILL.md). Put durable tasks, reports, reviews, fixes, and checkpoints in its canonical locations; read any OPEN checkpoint before continuing. Shared ownership rules live in [documentation ownership](docs/engineering/documentation-ownership.md).
+- Timebox: `docs/engineering/agent-execution-timebox.md` + `.opencode/skills/process/osk-execution-timebox/SKILL.md`
+- Reporting: `.opencode/skills/process/osk-engineering-reporting/SKILL.md` — tasks `docs/agents/tasks/`, reports `docs/agents/reports/`, reviews `docs/agents/reviews/`, checkpoints `docs/agents/checkpoints/`. Read any OPEN checkpoint before continuing. Note: `docs/agents/` holds the historical/active record; the OSK model (`docs/OSK.md`) routes new engineering records to `docs/engineering/agents/` — both exist, do not merge or migrate them silently.
+- Ownership: `docs/engineering/documentation-ownership.md` (AGENTS.md = review/auxiliary; CLAUDE.md = implementation)
 
 ## Key Docs
 
@@ -137,3 +136,22 @@ All non-trivial implementation, review, recovery, architecture, security, and do
 - **`docs/test-cases/`** — UC-01 test case specs (TC-UC-01-001 through TC-UC-01-012).
 - **`docs/okf/`, `docs/rf/`** — Use-case narratives and functional requirements.
 - **`.claude/skills/`** — Java, Spring Boot, testing, and platform skill files.
+
+<!-- OSK:BEGIN -->
+
+## OSK Workspace
+
+Read:
+
+- `docs/PROJECT.md`
+- `docs/OSK.md`
+
+<!-- OSK:END -->
+
+<!-- OSK:SKILLS:BEGIN -->
+
+## OSK Installed Skills
+
+- [diagram-design](.osk/skills/diagram-design/SKILL.md)
+- [Code Documentation Publication](.osk/skills/osk-code-docs/SKILL.md)
+<!-- OSK:SKILLS:END -->

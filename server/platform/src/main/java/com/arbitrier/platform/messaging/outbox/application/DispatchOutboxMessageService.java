@@ -16,6 +16,7 @@ import com.arbitrier.platform.validation.Require;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -72,9 +73,37 @@ public class DispatchOutboxMessageService {
     private final BackoffStrategy backoffStrategy;
     private final RetryScheduler retryScheduler;
     private final DeadMessageHandler deadMessageHandler;
+    private final DispatchMetricsRecorder metricsRecorder;
 
     /**
-     * Create a fully configured dispatch service.
+     * Create a fully configured dispatch service with metrics.
+     *
+     * @param publisher          the transport adapter; must not be null
+     * @param outboxRepository   the outbox port; must not be null
+     * @param retryPolicy        decides whether to retry after a failure; must not be null
+     * @param backoffStrategy    computes the delay before the next attempt; must not be null
+     * @param retryScheduler     submits attempts after the computed delay; must not be null
+     * @param deadMessageHandler receives messages that permanently fail; must not be null
+     * @param metricsRecorder    records dispatch lifecycle metrics; must not be null
+     */
+    public DispatchOutboxMessageService(final OutboundMessagePublisher publisher,
+                                        final OutboxRepository outboxRepository,
+                                        final RetryPolicy retryPolicy,
+                                        final BackoffStrategy backoffStrategy,
+                                        final RetryScheduler retryScheduler,
+                                        final DeadMessageHandler deadMessageHandler,
+                                        final DispatchMetricsRecorder metricsRecorder) {
+        this.publisher = Require.notNull(publisher, "publisher");
+        this.outboxRepository = Require.notNull(outboxRepository, "outboxRepository");
+        this.retryPolicy = Require.notNull(retryPolicy, "retryPolicy");
+        this.backoffStrategy = Require.notNull(backoffStrategy, "backoffStrategy");
+        this.retryScheduler = Require.notNull(retryScheduler, "retryScheduler");
+        this.deadMessageHandler = Require.notNull(deadMessageHandler, "deadMessageHandler");
+        this.metricsRecorder = Require.notNull(metricsRecorder, "metricsRecorder");
+    }
+
+    /**
+     * Create a fully configured dispatch service with the no-op metrics recorder.
      *
      * @param publisher          the transport adapter; must not be null
      * @param outboxRepository   the outbox port; must not be null
@@ -89,12 +118,8 @@ public class DispatchOutboxMessageService {
                                         final BackoffStrategy backoffStrategy,
                                         final RetryScheduler retryScheduler,
                                         final DeadMessageHandler deadMessageHandler) {
-        this.publisher = Require.notNull(publisher, "publisher");
-        this.outboxRepository = Require.notNull(outboxRepository, "outboxRepository");
-        this.retryPolicy = Require.notNull(retryPolicy, "retryPolicy");
-        this.backoffStrategy = Require.notNull(backoffStrategy, "backoffStrategy");
-        this.retryScheduler = Require.notNull(retryScheduler, "retryScheduler");
-        this.deadMessageHandler = Require.notNull(deadMessageHandler, "deadMessageHandler");
+        this(publisher, outboxRepository, retryPolicy, backoffStrategy, retryScheduler,
+                deadMessageHandler, NoOpDispatchMetricsRecorder.INSTANCE);
     }
 
     /**
@@ -170,28 +195,36 @@ public class DispatchOutboxMessageService {
         log.debug("Dispatching outbox message — eventId={} aggregateType={} aggregateId={} eventType={} correlationId={}",
                 message.eventId(), message.aggregateType(), message.aggregateId(),
                 message.eventType(), corr(message));
-        return attemptDispatch(message, 1)
+        metricsRecorder.recordStarted(message);
+        final long startNanos = System.nanoTime();
+        return attemptDispatch(message, 1, startNanos)
                 .thenRun(() -> outboxRepository.markPublished(message.eventId()))
-                .thenRun(() -> log.debug(
-                        "Outbox message dispatched — eventId={} aggregateType={} aggregateId={} eventType={} correlationId={}",
-                        message.eventId(), message.aggregateType(), message.aggregateId(),
-                        message.eventType(), corr(message)));
+                .thenRun(() -> {
+                    log.debug("Outbox message dispatched — eventId={} aggregateType={} aggregateId={} eventType={} correlationId={}",
+                            message.eventId(), message.aggregateType(), message.aggregateId(),
+                            message.eventType(), corr(message));
+                    metricsRecorder.recordSucceeded(message,
+                            Duration.ofNanos(System.nanoTime() - startNanos));
+                });
     }
 
-    private CompletionStage<Void> attemptDispatch(final OutboxEvent message, final int attempt) {
+    private CompletionStage<Void> attemptDispatch(final OutboxEvent message, final int attempt,
+                                                   final long startNanos) {
         final CompletionStage<Void> published;
         try {
             published = publisher.publish(message);
         } catch (final RuntimeException immediate) {
-            return handleRetryOrStop(message, attempt, immediate);
+            return handleRetryOrStop(message, attempt, immediate, startNanos);
         }
 
-        return published.exceptionallyCompose(pubEx -> handleRetryOrStop(message, attempt, pubEx));
+        return published.exceptionallyCompose(
+                pubEx -> handleRetryOrStop(message, attempt, pubEx, startNanos));
     }
 
     private CompletionStage<Void> handleRetryOrStop(final OutboxEvent message,
                                                      final int attempt,
-                                                     final Throwable failure) {
+                                                     final Throwable failure,
+                                                     final long startNanos) {
         final RetryDecision decision = retryPolicy.evaluate(attempt, failure);
         if (decision.shouldRetry()) {
             final int next = attempt + 1;
@@ -200,7 +233,8 @@ public class DispatchOutboxMessageService {
                     attempt, next, delay.value().toMillis(),
                     message.eventId(), message.aggregateType(), message.aggregateId(),
                     message.eventType(), corr(message));
-            return retryScheduler.schedule(() -> attemptDispatch(message, next), delay);
+            metricsRecorder.recordRetry(message, attempt);
+            return retryScheduler.schedule(() -> attemptDispatch(message, next, startNanos), delay);
         }
         log.warn("Outbox message retry attempts exhausted after {} attempt(s) — eventId={} aggregateType={} aggregateId={} eventType={} correlationId={}",
                 attempt,
@@ -209,7 +243,11 @@ public class DispatchOutboxMessageService {
         callMarkFailed(message, failure);
         return deadMessageHandler.handle(deadContext(message, attempt, failure))
                 .handle((ignored, handlerEx) -> (Void) null)
-                .thenCompose(ignored -> CompletableFuture.failedFuture(failure));
+                .thenCompose(ignored -> {
+                    metricsRecorder.recordDead(message, attempt,
+                            Duration.ofNanos(System.nanoTime() - startNanos));
+                    return CompletableFuture.<Void>failedFuture(failure);
+                });
     }
 
     private static String corr(final OutboxEvent message) {

@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arbitrier Hexagonal Architecture</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root { --paper:#f5f5f5; --ink:#2d3142; --muted:#4f5d75; --soft:#7a8399; --rule:rgba(45,49,66,.12); --accent:#eb6c36; --accent-tint:rgba(235,108,54,.08); --link:#2e5aa8; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Geist,Arial,sans-serif; }
+    main { max-width:1280px; margin:0 auto; padding:48px 32px 32px; }
+    .eyebrow { margin:0 0 8px; color:var(--muted); font:500 12px/1.2 "Geist Mono",monospace; letter-spacing:.14em; }
+    h1 { margin:0; font:400 40px/1 "Instrument Serif",Georgia,serif; }
+    .subtitle { max-width:840px; margin:16px 0 32px; color:var(--muted); font-size:16px; line-height:1.5; }
+    svg { display:block; width:100%; height:auto; }
+    .footer { margin-top:24px; padding-top:16px; border-top:1px solid var(--rule); color:var(--muted); font:12px/1.5 "Geist Mono",monospace; }
+    .footer a { color:var(--link); }
+  </style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">CURRENT-STATE OVERVIEW · UC-01</p>
+  <h1>Arbitrier’s hexagonal architecture</h1>
+  <p class="subtitle">Order Service is shown in detail: inbound adapters call application ports, the pure domain and use cases drive outbound ports, and adapters reach infrastructure. The other bounded contexts follow the same arrangement.</p>
+
+  <svg viewBox="0 0 1200 728" role="img" aria-labelledby="arbitrier-hexagonal-title arbitrier-hexagonal-desc">
+    <title id="arbitrier-hexagonal-title">Arbitrier hexagonal architecture</title>
+    <desc id="arbitrier-hexagonal-desc">A current-state overview showing a UI calling Order Service through a REST adapter and inbound port, Order's domain and application core using outbound adapters for Kafka and PostgreSQL, and the Orchestrator coordinating Inventory and Credit through internal commands and events.</desc>
+    <defs>
+      <marker id="arbitrier-arrow" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4f5d75"/></marker>
+      <marker id="arbitrier-arrow-accent" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#eb6c36"/></marker>
+      <marker id="arbitrier-arrow-link" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2e5aa8"/></marker>
+    </defs>
+
+    <rect width="1200" height="728" fill="#f5f5f5"/>
+
+    <!-- zones -->
+    <rect x="16" y="248" width="184" height="192" rx="8" fill="rgba(45,49,66,.02)" stroke="rgba(45,49,66,.12)" stroke-width="1"/>
+    <rect x="32" y="256" width="64" height="16" rx="4" fill="#f5f5f5"/>
+    <text x="64" y="268" fill="#7a8399" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle" letter-spacing=".12em">CLIENT</text>
+
+    <rect x="208" y="224" width="624" height="256" rx="8" fill="rgba(45,49,66,.02)" stroke="rgba(45,49,66,.12)" stroke-width="1"/>
+    <rect x="224" y="232" width="120" height="16" rx="4" fill="#f5f5f5"/>
+    <text x="284" y="244" fill="#7a8399" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle" letter-spacing=".12em">ORDER SERVICE</text>
+
+    <rect x="840" y="80" width="344" height="440" rx="8" fill="rgba(45,49,66,.02)" stroke="rgba(45,49,66,.12)" stroke-width="1"/>
+    <rect x="856" y="88" width="136" height="16" rx="4" fill="#f5f5f5"/>
+    <text x="924" y="100" fill="#7a8399" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle" letter-spacing=".12em">WORKFLOW SERVICES</text>
+
+    <!-- connectors: painted before nodes -->
+    <line x1="184" y1="344" x2="232" y2="344" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arbitrier-arrow-link)"/>
+    <line x1="392" y1="344" x2="440" y2="344" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arbitrier-arrow-accent)"/>
+    <line x1="600" y1="344" x2="648" y2="344" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arbitrier-arrow-accent)"/>
+    <path d="M808,320 H828 Q836,320 836,312 V168 Q836,160 844,160 H864" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arbitrier-arrow)"/>
+    <line x1="936" y1="208" x2="936" y2="296" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arbitrier-arrow)"/>
+    <path d="M1008,320 H1024 Q1032,320 1032,312 V280 Q1032,272 1040,272 H1056" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arbitrier-arrow)"/>
+    <path d="M1056,304 H1024 Q1016,304 1016,312 V344 Q1016,352 1008,352" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,4" marker-end="url(#arbitrier-arrow)"/>
+    <path d="M1008,384 H1024 Q1032,384 1032,392 V440 Q1032,448 1040,448 H1056" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arbitrier-arrow)"/>
+    <path d="M1056,480 H1024 Q1016,480 1016,472 V368 Q1016,360 1008,360" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,4" marker-end="url(#arbitrier-arrow)"/>
+    <path d="M560,416 V456 Q560,464 568,464 H672 Q680,464 680,472 V536" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arbitrier-arrow)"/>
+    <path d="M624,536 V504 Q624,496 616,496 H328 Q320,496 320,488 V392" fill="none" stroke="#2e5aa8" stroke-width="1" stroke-dasharray="4,4" marker-end="url(#arbitrier-arrow-link)"/>
+
+    <!-- arrow labels -->
+    <rect x="192" y="320" width="32" height="16" rx="4" fill="#f5f5f5"/><text x="208" y="332" fill="#2e5aa8" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">REST</text>
+    <rect x="804" y="224" width="64" height="16" rx="4" fill="#f5f5f5"/><text x="836" y="236" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">EVENTS</text>
+    <rect x="996" y="292" width="32" height="16" rx="4" fill="#f5f5f5"/><text x="1012" y="304" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">CMD</text>
+    <rect x="996" y="332" width="32" height="16" rx="4" fill="#f5f5f5"/><text x="1012" y="344" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">EVENT</text>
+    <rect x="996" y="412" width="32" height="16" rx="4" fill="#f5f5f5"/><text x="1012" y="424" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">CMD</text>
+    <rect x="996" y="452" width="32" height="16" rx="4" fill="#f5f5f5"/><text x="1012" y="464" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">EVENT</text>
+    <rect x="584" y="436" width="64" height="16" rx="4" fill="#f5f5f5"/><text x="616" y="448" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">PERSIST</text>
+    <rect x="440" y="476" width="48" height="16" rx="4" fill="#f5f5f5"/><text x="464" y="488" fill="#2e5aa8" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">JWT</text>
+
+    <!-- nodes -->
+    <rect x="40" y="296" width="144" height="96" rx="6" fill="rgba(79,93,117,.10)" stroke="#7a8399" stroke-width="1"/>
+    <rect x="48" y="304" width="48" height="16" rx="4" fill="transparent" stroke="rgba(122,131,153,.50)"/><text x="72" y="316" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">INPUT</text>
+    <text x="112" y="344" fill="#2d3142" font-size="12" font-weight="600" font-family="Geist, sans-serif" text-anchor="middle">B2B portal</text>
+    <text x="112" y="364" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">UI / React client</text>
+
+    <rect x="232" y="296" width="160" height="96" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="240" y="304" width="64" height="16" rx="4" fill="transparent" stroke="rgba(45,49,66,.40)"/><text x="272" y="316" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">ADAPTER</text>
+    <text x="312" y="344" fill="#2d3142" font-size="12" font-weight="600" font-family="Geist, sans-serif" text-anchor="middle">Inbound REST</text>
+    <text x="312" y="364" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">→ inbound use case</text>
+
+    <path d="M472,272 H568 L600,344 L568,416 H472 L440,344 Z" fill="#f5f5f5" stroke="#eb6c36" stroke-width="1.2"/>
+    <rect x="488" y="304" width="64" height="16" rx="4" fill="rgba(235,108,54,.08)" stroke="rgba(235,108,54,.50)"/><text x="520" y="316" fill="#eb6c36" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">HEXAGON</text>
+    <text x="520" y="344" fill="#2d3142" font-size="12" font-weight="600" font-family="Geist, sans-serif" text-anchor="middle">Domain + application</text>
+    <text x="520" y="364" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">pure model · use cases · ports</text>
+
+    <rect x="648" y="296" width="160" height="96" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="656" y="304" width="64" height="16" rx="4" fill="transparent" stroke="rgba(45,49,66,.40)"/><text x="688" y="316" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">ADAPTER</text>
+    <text x="728" y="344" fill="#2d3142" font-size="12" font-weight="600" font-family="Geist, sans-serif" text-anchor="middle">Outbound adapters</text>
+    <text x="728" y="364" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">JPA · Kafka · gRPC</text>
+
+    <rect x="864" y="112" width="144" height="96" rx="6" fill="rgba(45,49,66,.03)" stroke="rgba(45,49,66,.40)" stroke-width="1"/>
+    <rect x="872" y="120" width="64" height="16" rx="4" fill="transparent" stroke="rgba(45,49,66,.30)"/><text x="904" y="132" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">EXTERNAL</text>
+    <text x="936" y="160" fill="#2d3142" font-size="12" font-weight="600" font-family="Geist, sans-serif" text-anchor="middle">Kafka</text>
+    <text x="936" y="180" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">events · commands</text>
+
+    <rect x="864" y="296" width="144" height="96" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="872" y="304" width="64" height="16" rx="4" fill="transparent" stroke="rgba(45,49,66,.40)"/><text x="904" y="316" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">SERVICE</text>
+    <text x="936" y="344" fill="#2d3142" font-size="12" font-weight="600" font-family="Geist, sans-serif" text-anchor="middle">Orchestrator</text>
+    <text x="936" y="364" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">saga domain + ports</text>
+
+    <rect x="1056" y="224" width="144" height="96" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="1064" y="232" width="64" height="16" rx="4" fill="transparent" stroke="rgba(45,49,66,.40)"/><text x="1096" y="244" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">SERVICE</text>
+    <text x="1128" y="272" fill="#2d3142" font-size="12" font-weight="600" font-family="Geist, sans-serif" text-anchor="middle">Inventory</text>
+    <text x="1128" y="292" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">stock domain + ports</text>
+
+    <rect x="1056" y="400" width="144" height="96" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="1064" y="408" width="64" height="16" rx="4" fill="transparent" stroke="rgba(45,49,66,.40)"/><text x="1096" y="420" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">SERVICE</text>
+    <text x="1128" y="448" fill="#2d3142" font-size="12" font-weight="600" font-family="Geist, sans-serif" text-anchor="middle">Credit</text>
+    <text x="1128" y="468" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">credit domain + ports</text>
+
+    <rect x="600" y="536" width="240" height="112" rx="6" fill="rgba(45,49,66,.03)" stroke="rgba(45,49,66,.40)" stroke-width="1"/>
+    <rect x="608" y="544" width="64" height="16" rx="4" fill="transparent" stroke="rgba(45,49,66,.30)"/><text x="640" y="556" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">EXTERNAL</text>
+    <text x="720" y="588" fill="#2d3142" font-size="12" font-weight="600" font-family="Geist, sans-serif" text-anchor="middle">PostgreSQL + Keycloak</text>
+    <text x="720" y="608" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" text-anchor="middle">service schemas · JWT issuer</text>
+
+    <!-- legend -->
+    <line x1="32" y1="680" x2="1168" y2="680" stroke="rgba(45,49,66,.12)" stroke-width="1"/>
+    <text x="32" y="708" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace" letter-spacing=".12em">LEGEND</text>
+    <rect x="136" y="696" width="16" height="16" rx="4" fill="rgba(235,108,54,.08)" stroke="#eb6c36"/><text x="164" y="708" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace">HEXAGONAL CORE</text>
+    <rect x="336" y="696" width="16" height="16" rx="4" fill="#ffffff" stroke="#2d3142"/><text x="364" y="708" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace">ADAPTER / SERVICE</text>
+    <rect x="568" y="696" width="16" height="16" rx="4" fill="rgba(45,49,66,.03)" stroke="rgba(45,49,66,.40)"/><text x="596" y="708" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace">EXTERNAL SYSTEM</text>
+    <line x1="824" y1="704" x2="856" y2="704" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,4"/><text x="872" y="708" fill="#4f5d75" font-size="8" font-family="Geist Mono, monospace">ASYNC OUTCOME</text>
+  </svg>
+
+  <p class="footer">Evidence: <a href="../../server/README.md">server architecture</a> · <a href="../adr/ADR-0002-orchestrated-saga-with-kafka.md">ADR-0002</a> · <a href="../adr/ADR-0003-schema-per-service-postgres.md">ADR-0003</a> · <a href="../../server/order-service/README.md">Order Service</a>.</p>
+</main>
+</body>
+</html>

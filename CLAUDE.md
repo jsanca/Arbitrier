@@ -363,8 +363,43 @@ The `platform` module provides cross-cutting utilities that all services must us
 | `OutboundPayloadSerializer` | `platform.messaging.outbox` | Port interface — serializes `OutboxEvent` → transport payload string. Transport-neutral; default impl is `JsonOutboundPayloadSerializer` (passthrough). Override with a custom bean to swap formats (e.g. Avro) |
 | `JsonOutboundPayloadSerializer` | `platform.messaging.serialization` | Default `OutboundPayloadSerializer` — returns `OutboxEvent.payload()` unchanged. Auto-configured; Avro impl is a future task |
 | `CorrelationId`, `CausationId`, `MessageId`, `RequestId` | `platform.correlation` | Distinct value objects for message tracing — do not conflate with `traceparent` |
+| `CorrelationContext` / `DefaultCorrelationContext` | `platform.correlation` | Interface + immutable record carrying `correlationId()` and nullable `requestId()` — established at every entry point (HTTP, Kafka, scheduler) |
+| `CorrelationContextHolder` | `platform.correlation` | Static `ThreadLocal` carrier — `set()` at entry, `clear()` in `finally`. Plain `ThreadLocal` (not `Inheritable`); cross-thread propagation is explicit and deferred |
+| `MdcCorrelationContextBridge` | `platform.correlation` | Binds/unbinds `CorrelationContext` to SLF4J MDC as an isolated, testable step — call `bind()` after `set()`, `unbind()` before `clear()`. `requestId` MDC key is omitted when null |
+| `DispatchMetricsRecorder` | `platform.messaging.outbox.application` | Port for outbox dispatch lifecycle metrics — `recordStarted()`, `recordSucceeded()`, `recordRetry()`, `recordDead()`. Default: `NoOpDispatchMetricsRecorder.INSTANCE` |
+| `MicrometerDispatchMetricsRecorder` | `platform.messaging.outbox.application` | Production implementation — emits five counters (`messaging.dispatch.*`) and one timer (`messaging.dispatch.duration`) tagged `aggregateType`/`eventType`. Requires `micrometer-core` (optional in platform pom; services with actuator get it transitively) |
 | `DomainEvent` | `platform.messaging.event` | Marker interface — domain events implement this to declare a stable `EventDescriptor`; `DomainEventToOutboxMapper` reads the descriptor instead of the Java class name |
 | `EventDescriptor` | `platform.messaging.event` | Immutable record `(String type, int version)` — `type` is dot-separated (`"order.created"`), `version` is integer ≥ 1. Transport adapters convert to their own encoding (e.g. `"v1"`) |
+
+### Correlation context at non-HTTP entry points
+
+`CorrelationFilter` installs context for HTTP requests. Scheduled tasks and Kafka consumers must install it themselves:
+
+```java
+CorrelationContextHolder.set(new DefaultCorrelationContext(CorrelationId.generate(), null));
+MdcCorrelationContextBridge.bind(CorrelationContextHolder.get());
+try {
+    // ... do work ...
+} finally {
+    MdcCorrelationContextBridge.unbind();
+    CorrelationContextHolder.clear();
+}
+```
+
+`requestId` is null for non-HTTP execution — `MdcCorrelationContextBridge` omits the MDC key rather than writing `"null"`.
+
+### Async dispatch instrumentation pattern
+
+`DispatchOutboxMessageService` threads a `startNanos` timestamp through async stages to measure end-to-end duration including retry delays:
+
+```java
+final long startNanos = System.nanoTime();
+return attemptDispatch(message, 1, startNanos)
+    .thenRun(() -> metricsRecorder.recordSucceeded(message,
+        Duration.ofNanos(System.nanoTime() - startNanos)));
+```
+
+Use `System.nanoTime()` (elapsed) not `Instant.now()` (absolute) for duration measurement.
 
 ---
 
@@ -484,3 +519,14 @@ Each step should be delegated to a well-named private method so the main use-cas
 - Mixing persistence decisions with domain decisions
 
 **Transactionality:** Application services are `@Transactional`. DB + Kafka consistency uses the Outbox pattern (ADR-0005): within the same transaction, persist the aggregate and then call `OutboxRepository.save(DomainEventToOutboxMapper.map(event, aggregateId, aggregateType))`. Never publish directly to Kafka from a service method.
+
+<!-- OSK:BEGIN -->
+
+## OSK Workspace
+
+Read:
+
+- `docs/PROJECT.md`
+- `docs/OSK.md`
+
+<!-- OSK:END -->
