@@ -154,4 +154,5 @@ Read:
 
 - [diagram-design](.osk/skills/diagram-design/SKILL.md)
 - [Code Documentation Publication](.osk/skills/osk-code-docs/SKILL.md)
+- [Knowledge Curator](.osk/skills/osk-knowledge-curator/SKILL.md)
 <!-- OSK:SKILLS:END -->

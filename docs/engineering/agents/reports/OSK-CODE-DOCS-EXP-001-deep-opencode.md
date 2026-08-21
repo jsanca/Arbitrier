@@ -260,6 +260,75 @@ mvn site -o -B --no-transfer-progress > /tmp/site-offline2.log 2>&1; echo "EXIT:
 
 ---
 
+## Third Execution (build mode, 2026-08-19, kimi-k3)
+
+The same experiment was issued a third time under a different model — Deep running through OpenCode, model `opencode-go/kimi-k3` (prior executions: `muse-spark-1.2-contributor`) — to support the experiment's cross-agent/cross-harness comparison goal. Approach: independent verification of the previously recorded evidence before relying on it (per `osk-engineering-reporting` evidence rules), then annotation rather than rewrite of the committed prior record. No new publication attempt was made, because readiness state was re-confirmed as absent.
+
+### Commands executed (third execution)
+
+```bash
+# Provenance of prior artifacts
+git status --porcelain
+# → only untracked: .osk/, .opencode/skills/{diagram-design,osk-code-docs}/, .claude/skills/{diagram-design,osk-code-docs}/, .github/, .env.example
+git ls-files docs/engineering/agents/reports/OSK-CODE-DOCS-EXP-001-deep-opencode.md docs/engineering/agents/tasks/OSK-CODE-DOCS-INT-001-maven-site-integration.md
+# → both tracked
+git log -1 --format="%H %ad %s" -- docs/engineering/agents/reports/OSK-CODE-DOCS-EXP-001-deep-opencode.md
+# → ee0270df3bbb5ffca18536669d72467fba837c1f Wed Aug 19 16:10:31 2026 -0600 (HEAD) — prior report + handoff committed by maintainer after the agent runs (agents themselves did not commit, per constraint)
+
+# Readiness re-verification
+grep -R "maven-site-plugin\|maven-javadoc-plugin\|maven-project-info-reports-plugin" pom.xml server/pom.xml server/*/pom.xml
+# → 0 hits (grep EXIT 1) — still no project-owned site/javadoc/reporting configuration
+ls src/site site docs/site
+# → all "No such file or directory"
+ls docs/knowledge/ ; head -30 docs/PROJECT.md
+# → README.md + hexagonal-architecture.html only; PROJECT.md still all-placeholder
+mvn -v ; java -version
+# → Apache Maven 3.9.15, Temurin 25.0.2 — unchanged from prior record
+ls mvnw
+# → absent; system mvn remains the project command convention
+grep -iE "typedoc|vitepress|docusaurus|mkdocs" client/package.json
+# → 0 hits; client scripts remain dev/build/lint/test/preview only
+
+# Checkpoint gate (osk-engineering-reporting: read OPEN checkpoints before reporting)
+grep -l "OSK-CODE-DOCS" docs/agents/checkpoints/*.md
+# → no match — no checkpoint exists for this task; ARB-022.x/ARB-OBS-001 checkpoints are unrelated (spot-checked one: RESOLVED)
+
+# Persistence of prior derived outputs
+ls -d server/*/target/reports/apidocs
+# → 6 dirs persist from prior probes
+ls server/order-service/target/reports/apidocs/index.html server/platform/target/reports/apidocs/index.html server/contracts/target/reports/apidocs/index.html
+# → order-service index.html ABSENT (partial dir), platform + contracts PRESENT — matches recorded stale-SNAPSHOT failure
+ls target/site/index.html server/target/site/index.html server/platform/target/site/index.html
+# → all present — prior offline default-site probe output persists (root + server aggregator + 6 modules = 8 entry pages)
+unzip -l ~/.m2/repository/com/arbitrier/arbitrier-platform/0.0.1-SNAPSHOT/arbitrier-platform-0.0.1-SNAPSHOT.jar | grep -c "messaging/event"
+# → 0 — jar dated Jul 18 11:58, still stale; order-service apidocs root cause unremediated
+
+# Independent reproduction of the platform Javadoc probe (log redirect, not pipe, to avoid the first execution's exit-code artifact)
+mvn javadoc:javadoc -pl server/platform -am -B --no-transfer-progress > /tmp/osk-exp001-r3-javadoc-platform.log 2>&1; echo "EXIT:$?"
+# → EXIT:1 — BUILD FAILURE
+grep -E "error:" /tmp/osk-exp001-r3-javadoc-platform.log
+# → OutboxPollingProperties.java:18 "error: no caption for table"; SafeLoggable.java:7 "error: reference not found"
+grep -cE "warning:" /tmp/osk-exp001-r3-javadoc-platform.log ; grep -E "[0-9]+ error|[0-9]+ warning" /tmp/osk-exp001-r3-javadoc-platform.log | tail -2
+# → 100 warnings; "2 errors" / "100 warnings" — identical to the recorded second-execution result; plugin default-resolved maven-javadoc-plugin:3.12.0
+```
+
+### Findings (third execution)
+
+1. **All key structural claims reproduce exactly under a different model.** The platform Javadoc probe returned EXIT 1 with the identical 2 doclint errors and 100 warnings; the stale `~/.m2` platform SNAPSHOT (0 `messaging/event` entries, Jul 18 jar) still explains the missing order-service `apidocs/index.html`; prior offline-site and apidocs probe outputs persist on disk and match the recorded claims.
+2. **Readiness state is unchanged.** No site/javadoc/reporting plugin in any `pom.xml`, no `src/site/`, `docs/knowledge/` still without curated Markdown, `docs/PROJECT.md` still placeholder, handoff INT-001 still "Proposed — awaiting authorization".
+3. **Prior experiment artifacts are now committed history** (HEAD `ee0270d`, 2026-08-19 16:10 -0600). This execution therefore annotates rather than rewrites: this section was appended, and INT-001's stale "exited 0" bullet received a correction annotation with original text preserved.
+4. **INT-001 internal inconsistency confirmed and annotated:** its evidence bullet 2 carries the first-run "exited 0" claim while a later bullet carries the corrected EXIT 1. Annotated in place; no historical text removed.
+5. **Harness observation (OpenCode + kimi-k3):** the file-search tools do not match inside dot-directories (`.osk/`, `.opencode/`); skill/reference discovery fell back to shell `ls`. No semantic impact — recorded as an OpenCode/harness workaround observation per experiment integrity, mirroring the first execution's pipe-capture artifact observation.
+6. **First execution's exit-code trap avoided by construction:** all exit codes captured via log redirect (`> log 2>&1; echo "EXIT:$?"`), never through a pipe.
+
+### Outcome re-affirmed (third execution)
+
+**`INSTALLED_PENDING_INTEGRATION`** — unchanged across three executions and two models. No approved native workflow exists (skill Required Inputs unmet: no project-owned configuration, no output-location/retention policy), no curated knowledge narrative exists, and no authorization exists to mutate project-owned build configuration (experiment constraints + skill Boundaries). No new handoff was required; `OSK-CODE-DOCS-INT-001` remains the open, auditable integration task and gap routing (`osk-knowledge-curator` for knowledge/Mermaid canon, maintainer for ADR-008/ADR-011 reference resolution) is unchanged.
+
+Cross-agent comparison note: the second and third executions converge on the same classification, the same blocking inputs, and the same handoff, with independent reproduction of the decisive probe evidence — the outcome is a property of repository state, not of the executing model.
+
+---
+
 ## References
 
 - `.osk/skills/osk-code-docs/SKILL.md:1` — operating contract
